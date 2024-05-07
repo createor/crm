@@ -1,0 +1,25 @@
+version: "3"
+services:
+  frontend:
+    image: openresty/openresty:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - $(pwd):/usr/local/openrestry/nginx/ssl/
+
+  backend:
+    image: xxx
+    depends_on:
+      - redis
+      - mysql
+  
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+
+  mysql:
+    image: mysql:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: ""

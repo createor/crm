@@ -1,0 +1,9 @@
+{
+    "code": 0,
+    "message": {
+        "enable_white": true,
+        "enable_failed": true,
+        "failed_count": 3,
+        "enable_signle": false
+    }
+}

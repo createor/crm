@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='layui/css/layui.css') }}">
+    <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
+</head>
+<style>
+    .layui-inline .layui-choice {
+        display: none;
+    }
+</style>
+
+<body>
+    <div>
+        <form action="" class="layui-form" lay-filter="system">
+            <fieldset class="layui-elem-field">
+                <legend>安全设置</legend>
+                <div class="layui-field-box">
+                    <!-- 白名单 -->
+                    <div class="layui-form-item">
+                        <div class="layui-inline">
+                            <label class="layui-form-label" style="width: 120px;text-align: left;">是否开启IP白名单</label>
+                            <div class="layui-input-inline" style="width: 65px;">
+                                <input type="checkbox" name="white_list_enable" lay-filter="white_list_enable"
+                                    title="开启|关闭" lay-skin="switch">
+                            </div>
+                            <div class="layui-inline layui-choice" style="margin-top: 7px;">
+                                <button type="button" class="layui-btn layui-btn-xs layui-btn-normal"
+                                    id="white_ip">填写白名单IP</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 开启密码错误锁定功能 -->
+                    <div class="layui-form-item">
+                        <div class="layui-inline">
+                            <label class="layui-form-label" style="width: 180px;text-align: left;">是否开启登录失败锁定功能</label>
+                            <div class="layui-input-inline" style="width: 65px;">
+                                <input type="checkbox" name="failed_list_enable" lay-filter="failed_list_enable"
+                                    title="开启|关闭" lay-skin="switch">
+                            </div>
+                            <div class="layui-inline layui-choice" style="width: 220px;">
+                                <label class="layui-form-label" style="width: 100px;">设置失败次数</label>
+                                <div class="layui-input-inline" style="width: 80px;">
+                                    <input type="number" name="failed_number" placeholder="" autocomplete="off"
+                                        class="layui-input" min="1" max="10" step="1" lay-affix="number">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 开启单点登录功能 -->
+                    <div class="layui-form-item">
+                        <label class="layui-form-label" style="width: 160px;text-align: left;">是否开启单点登录功能</label>
+                        <div class="layui-input-block">
+                            <input type="checkbox" name="single_enable" lay-filter="single_enable" title="开启|关闭"
+                                lay-skin="switch">
+                        </div>
+                    </div>
+                </div>
+            </fieldset>
+            <div class="layui-form-item" style="position: absolute;bottom: 50px;left: calc(50% - 100px)">
+                <button class="layui-btn" lay-submit lay-filter="update_config" style="width: 200px;">更新配置</button>
+            </div>
+        </form>
+    </div>
+</body>
+<script type="text/javascript">
+    layui.use(["form", "jquery", "layer"], function () {
+        const form = layui.form;
+        const layer = layui.layer;
+        const $ = layui.jquery;
+        var loadIndex;
+
+        // 获取配置
+        function getConfig () {
+            $.ajax({
+                url: "/crm/api/v1/system/config",
+                type: "get",
+                success: function (data) {
+                    if (data.code === 0) {
+                        $("input[name=white_list_enable]").prop("checked", data.message.enable_white);
+                        if (data.message.enable_white) {
+                            $(".layui-choice").eq(0).css('display', 'inline-block');
+                        }
+                        $("input[name=failed_list_enable]").prop("checked", data.message.enable_failed);
+                        if (data.message.enable_failed) {
+                            $(".layui-choice").eq(1).css('display', 'inline-block');
+                        }
+                        $("input[name=single_enable]").prop("checked", data.message.enable_single);
+                        $("input[name=failed_number]").val(data.message.failed_count);
+                        form.render("checkbox", "system");
+                        return false;
+                    }
+                },
+                error: function (data) { }
+            });
+        }
+
+        getConfig();
+
+        // 查看、添加白名单IP
+        $("#white_ip").on("click", function () {
+            window.parent.showWhiteIp();
+        });
+
+        // 白名单开关
+        form.on('switch(white_list_enable)', function (data) {
+            let elem = data.elem;
+            if (elem.checked) {
+                $(".layui-choice").eq(0).css('display', 'inline-block');
+                return false;
+            }
+            if (!elem.checked) {
+                $(".layui-choice").eq(0).hide();
+                return false;
+            }
+            return false;
+        });
+
+        // 登录失败开关
+        form.on('switch(failed_list_enable)', function (data) {
+            let elem = data.elem;
+            if (elem.checked) {
+                $(".layui-choice").eq(1).css('display', 'inline-block');
+                return false;
+            }
+            if (!elem.checked) {
+                $(".layui-choice").eq(1).hide();
+                return false;
+            }
+            return false;
+        });
+
+        // 更新配置
+        form.on('submit(update_config)', function () {
+            $.ajax({
+                url: "/crm/api/v1/system/update",
+                type: "post",
+                contentType: "application/json;charset=UTF-8",
+                data: JSON.stringify({
+                    "enable_white": $("input[name=white_list_enable]").prop('checked'),
+                    "enable_failed": $("input[name=failed_list_enable]").prop('checked'),
+                    "enable_single": $("input[name=single_enable]").prop('checked'),
+                    "failed_count": $("input[name=failed_number]").val()
+                }),
+                beforeSend: function () {
+                    loadIndex = layer.msg('更新中', {
+                        icon: 16,
+                        shade: 0.01
+                    });
+                },
+                success: function (data) {
+                    layer.close(loadIndex);
+                    if (data.code === 0) {
+                        layer.msg("更新配置成功", { icon: 1 });
+                        getConfig();
+                        return false;
+                    }
+                }
+            });
+            return false;
+        });
+    });
+</script>
+
+</html>

@@ -1,0 +1,36 @@
+{
+    "code": 0,
+    "message": {
+        "total": 4,
+        "data": [
+            {
+                "id": 1,
+                "operate_user": "admin",
+                "operate_time": "2024-01-01 12:00:00",
+                "type": "登录",
+                "content": "用户登录系统"
+            },
+            {
+                "id": 2,
+                "operate_user": "admin",
+                "operate_time": "2024-01-01 12:00:00",
+                "type": "登录",
+                "content": "用户登录系统"
+            },
+            {
+                "id": 3,
+                "operate_user": "test",
+                "operate_time": "2024-01-01 12:00:00",
+                "type": "用户管理",
+                "content": "创建了用户admin1"
+            },
+            {
+                "id": 4,
+                "operate_user": "admin",
+                "operate_time": "2024-01-01 12:00:00",
+                "type": "登录",
+                "content": "用户登录系统"
+            }
+        ]
+    }
+}

@@ -1,0 +1,9 @@
+{
+    "code": 0,
+    "message": {
+        "name": "管理员",
+        "avator": "/app/static/icon/crm.png",
+        "is_first": false,
+        "expire": 12
+    }
+}

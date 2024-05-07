@@ -1,0 +1,26 @@
+1、定时任务每天备份数据库数据
+docker exec -it mysql mysqldump -uroot -pxxxx crm > crm_xx年_xx月_xx日.sql
+
+2、sql的定时任务删除半年前的日志数据
+mysql的定时任务
+create event if not exists delete_old_data
+on schedule every 1 day -- 每天执行一次
+starts timestamp(current_date() + interval 1 day) -- 从明天开始执行
+do
+begin
+    declare cutoff_date date;
+    set cutoff_date = date_sub(current_date(), interval 6 month);  -- 获取半年前日期
+
+    delete from log
+    where operate_time > cutoff_date;  -- 删除数据
+end;
+
+
+需要mysql修改配置文件
+[mysqld]
+event_scheduler=ON
+
+SHOW VARIABLES LIKE 'event_scheduler';
+SET GLOBAL event_scheduler = ON;
+
+或者docker的env  MYSQLD_EVENT_SCHEDULER=ON

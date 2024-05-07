@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>资产管理</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='layui/css/layui.css') }}">
+    <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='js/lodash.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='js/echarts.min.js') }}"></script>
+</head>
+<style>
+    .cloud-card-component .layui-row .ew-datagrid-item {
+        width: 25%;
+        float: left;
+    }
+
+    .cloud-card-component::after {
+        clear: both;
+    }
+
+    #showManage {
+        display: none;
+    }
+</style>
+
+<body>
+    <div>
+        <div>
+            <form action="" class="layui-form layui-form-pane">
+                <div class="layui-form-item">
+                    <div class="layui-inline">
+                        <div class="layui-input-group">
+                            <div class="layui-input-split layui-input-prefix"> 标 题 </div>
+                            <input type="text" name="tableName" id="tableName" placeholder="" class="layui-input"
+                                autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="layui-inline">
+                        <button type="button" class="layui-btn layui-btn-primary" lay-submit lay-filter="search">
+                            <i class="layui-icon">&#xe615;</i> 搜 索
+                        </button>
+                        <button type="button" class="layui-btn" lay-submit lay-filter="addTable"
+                            style="margin-left: 250px;">
+                            <i class="layui-icon"></i>新建资产表
+                        </button>
+                    </div>
+                </div>
+            </form>
+            <!-- 面板展示所有资产表 -->
+            <div id="manageTable" lay-filter="manageTable"></div>
+        </div>
+        <div id="showManage">
+            <div>
+                <!-- 图表展示设置,自定义图表展示规则,三个 -->
+            </div>
+            <table class="layui-hide" id="manage" lay-filter="manage"></table>
+        </div>
+    </div>
+</body>
+<script type="text/javascript">
+    layui.config({
+        base: "{{ url_for('static', filename='layui/ext/') }}"
+    }).extend({
+        cardTable: 'cardTable/cardTable'
+    }).use(["layer", "cardTable", "jquery", "table", "form"], function () {
+        const form = layui.form;
+        const layer = layui.layer;
+        const table = layui.table;
+        const $ = layui.jquery;
+        const cardTable = layui.cardTable;
+
+        var currentTable = cardTable.render({
+            elem: "#manageTable",
+            url: "/crm/api/v1/manage/query",
+            height: "full-35",
+            loading: true,
+            limit: 3,
+            linenum: 4,
+            currentPage: 1,
+            page: true,
+            image: false,
+            layout: ["count", "prev", "page", "next", "limit", "skip"],
+            response: {
+                msgName: "message",
+                countName: "message.total",
+                dataName: "message.data"
+            },
+            done: function () {
+
+            }
+        });
+
+        currentTable.on('row(manageTable)', function (obj) {
+            let tableUid = obj.value.id;  // 表格的id
+            $("#manageTable").hide()
+            $("#showManage").show();
+            table.render({
+                elem: "#manage",
+                url: "/crm/api/v1/manage/" + tableUid,
+                height: "full-35",
+                page: {
+                    layout: ["limit", "count", "prev", "page", "next", "skip"],
+                    curr: 1,
+                    groups: 1
+                },
+                limit: 10,
+                limits: [10],
+                parseData: function (result) {
+                    return {
+                        "code": result.code,
+                        "msg": result.code === 0 ? "" : result.message,
+                        "count": result.message.total,
+                        "data": result.message.data
+                    }
+                },
+                cols: [[
+                    { field: "id", title: "ID" }
+                ]]
+            });
+            return false;
+        });
+
+        // 搜索标题
+        form.on("submit(search)", function (data) {
+            let field = data.field;
+            if (field.tableName) {
+                // 重载cardTable
+                // cardTable.reload("manageTable", {
+                //     where: queryJson,
+                // });
+            }
+            return false;
+        });
+
+        form.on("submit(addTable)", function () {
+            window.parent.addNewTable();
+        });
+
+        // 只有在新建用户、新建资产中点击创建时开始bind
+        // window.addEventListener("beforeunload", () => {
+        //     if (isEdit) {
+        //         layer.msg("检测到你有未保存的信息,是否保存")
+        //     }
+        // });
+        // 其他时候取消事件绑定unbind
+
+    });
+</script>
+
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='layui/css/layui.css') }}">
+    <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
+</head>
+
+<body>
+    <div>
+        <div class="layui-form" style="padding-bottom: 10px;">
+            <button type="button" class="layui-btn" lay-submit lay-filter="newUser">新建用户</button>
+        </div>
+        <div>
+            <table class="layui-hide" id="user" lay-filter="user"></table>
+        </div>
+    </div>
+</body>
+<script type="text/javascript">
+    layui.use(["table", "layer", "jquery", "form"], function () {
+        const table = layui.table;
+        const layer = layui.layer;
+        const $ = layui.jquery;
+        const form = layui.form;
+
+        form.on("submit(newUser)", function () {
+            window.parent.addNewUser();
+            return false;
+        });
+
+        table.render({
+            elem: "#user",
+            url: "/crm/api/v1/user/query",
+            height: "full-75",
+            page: {
+                layout: ["limit", "count", "prev", "page", "next", "skip"],
+                curr: 1,
+                groups: 1
+            },
+            limit: 10,
+            limits: [10],
+            parseData: function (result) {
+                return {
+                    "code": result.code,
+                    "msg": result.code === 0 ? "" : result.message,
+                    "count": result.message.total,
+                    "data": result.message.data
+                }
+            },
+            cols: [[
+                { field: 'id', title: 'ID', hide: true },
+                { field: 'username', title: '用户名', width: 150 },
+                { field: 'name', title: '昵称', width: 150 },
+                {
+                    fidld: 'type', title: '类型', width: 200, templet: function (d) {
+                        return d.type === 1 ? "永久用户" : "临时用户(" + d.expire + ")"
+                    }
+                },
+                { field: 'company', title: '所属组织', width: 220 },
+                {
+                    field: 'status', title: '状态', width: 80, templet: function (d) {
+                        if (d.status === 0) return "<span class='layui-badge'>过期</span>";
+                        if (d.status === 1) return "<span class='layui-badge layui-bg-green'>正常</span>";
+                        if (d.status === 2) return "<span class='layui-badge layui-bg-orange'>锁定</span>";
+                    }
+                },
+                {
+                    field: 'operate', title: '操作', width: 260, templet: function (d) {
+                        let defaultDiv = "<div><a class='layui-btn layui-btn-xs' lay-event='edit'>编辑</a><a class='layui-btn layui-btn-xs' lay-event='del'>删除</a><a class='layui-btn layui-btn-xs' lay-event='reset'>重置密码</a>"
+                        return d.status === 2 ? defaultDiv + "<a class='layui-btn layui-btn-xs' lay-event='unlock'>解锁</a></div>" : defaultDiv + "<a class='layui-btn layui-btn-xs' lay-event='lock'>锁定</a></div>";
+                    }
+                }
+            ]]
+        });
+
+        table.on("tool(user)", function (obj) {
+            let event = obj.event;
+            let data = obj.data;
+            if (event === "edit") {
+                window.parent.showUserEdit(data);
+                return false;
+            }
+            if (event === "del") {
+                window.parent.showUserDel(data.id);
+                return false;
+            }
+            if (event === "lock") {
+                window.parent.showUserLock(data.id);
+                return false;
+            }
+            if (event === "unlock") {
+                window.parent.showUserUnlock(data.id);
+                return false;
+            }
+            if (event === "reset") {
+                window.parent.showUserReset(data.id);
+                return false;
+            }
+        });
+    });
+</script>
+
+</html>

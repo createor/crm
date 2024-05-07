@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>首页</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='icon/favicon.ico') }}" type="image/x-icon">
+    <link rel="stylesheet" href="{{ url_for('static', filename='layui/css/layui.css') }}">
+    <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='driver/driver-min.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='js/js-cookie.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='driver/driver.css') }}">
+</head>
+<style>
+    *,
+    html,
+    body {
+        padding: 0;
+        margin: 0;
+    }
+
+    html,
+    body,
+    .container {
+        width: 100%;
+        height: 100%;
+    }
+
+    /* 新手引导样式 */
+    .guide {
+        position: absolute;
+        top: calc(50% - 10px);
+        left: calc(50% - 60px);
+        font-size: 18px;
+        line-height: 20px;
+        display: none;
+    }
+
+    /* logo图标样式 */
+    .layui-icon-logo {
+        background-image: url("../static/icon/crm.png");
+        background-repeat: no-repeat;
+        background-size: 30px;
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        vertical-align: -webkit-baseline-middle;
+        margin-top: -10px;
+    }
+
+    /* 帮助手册样式 */
+    .manual {
+        position: relative;
+        display: inline-block;
+        margin-top: 0;
+        list-style: none;
+        vertical-align: middle;
+        line-height: 60px;
+    }
+
+    /* 用户名样式 */
+    #name {
+        margin-right: 10px;
+    }
+
+    /* 左侧菜单栏图标样式 */
+    .layui-nav-tree .layui-nav-item .layui-icon {
+        padding-right: 10px;
+        font-size: 18px;
+    }
+
+    /* 左侧菜单的滚动栏样式 */
+    .layui-side {
+        overflow: hidden !important;
+    }
+
+    .layui-side .layui-nav-tree {
+        height: auto !important;
+    }
+
+    /* 内容样式 */
+    .layui-body-item {
+        position: absolute;
+        width: calc(100% - 15px);
+        height: calc(100% - 15px);
+        top: 15px;
+        left: 10px;
+        overflow: hidden;
+        overflow-y: auto;
+    }
+
+    /* iframe样式 */
+    .layui-iframe {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        left: 0;
+        top: 0;
+        right: 0;
+        bottom: 0;
+    }
+
+    .stepContent {
+        display: none;
+        height: 130px;
+        text-align: center;
+    }
+</style>
+
+<body>
+    <div class="container">
+        <div class="wrapper">
+            <div class="layui-layout layui-layout-admin">
+                <!-- 头部 -->
+                <div class="layui-header">
+                    <!-- logo -->
+                    <div class="layui-logo layui-bg-black">
+                        <div>
+                            <i class="layui-icon-logo"></i>
+                            <span style="font-size: 18px;">资产管理系统</span>
+                        </div>
+                    </div>
+                    <!-- 用户信息区域 -->
+                    <div>
+                        <ul class="layui-nav layui-layout-right">
+                            <li class="manual">
+                                <!-- 管理员下载管理员手册,用户下载用户手册 -->
+                                <a href="help" id="help" style="color: #fff;padding: 0 40px;">
+                                    <i class="layui-icon layui-icon-read"
+                                        style="font-size: 18px; padding-right: 5px;"></i>
+                                    <span>使用手册</span>
+                                </a>
+                            </li>
+                            <li class="layui-nav-item" lay-unselect>
+                                <a href="javascript:;">
+                                    <!-- 用户昵称 -->
+                                    <span id="name"></span>
+                                    <!-- 头像 -->
+                                    <img id="avator" src="" class="layui-nav-img"
+                                        style="border: 2px solid wheat;border-radius: 50%;">
+                                </a>
+                                <!-- 右上角用户选项 -->
+                                <dl class="layui-nav-child">
+                                    <dd style="text-align: center;">
+                                        <a href="javascript:;" id="information">用户资料</a>
+                                    </dd>
+                                    <dd style="text-align: center;">
+                                        <a href="javascript:;" id="setPassword">修改密码</a>
+                                    </dd>
+                                    <dd style="text-align: center;">
+                                        <a href="javascript:;" id="quit">退出登录</a>
+                                    </dd>
+                                </dl>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <!-- 左侧菜单区域 -->
+                <div class="layui-side layui-bg-black">
+                    <ul class="layui-nav layui-nav-tree" lay-filter="menu">
+                        <li class="layui-nav-item layui-this">
+                            <a href="javascript:;" data-url="crm_manage">
+                                <i class="layui-icon layui-icon-form"></i>资产管理
+                            </a>
+                        </li>
+                        {% if is_admin %}
+                        <li class="layui-nav-item">
+                            <a href="javascript:;" data-url="crm_user">
+                                <i class="layui-icon layui-icon-user"></i>用户管理
+                            </a>
+                        </li>
+                        <li class="layui-nav-item">
+                            <a href="javascript:;" data-url="crm_log">
+                                <i class="layui-icon layui-icon-list"></i>操作日志
+                            </a>
+                        </li>
+                        <li class="layui-nav-item">
+                            <a href="javascript:;" data-url="crm_system">
+                                <i class="layui-icon layui-icon-set"></i>系统设置
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+                <!-- 内容区域 -->
+                <div class="layui-body" style="padding-bottom: 15px;">
+                    <div class="layui-body-item" style="min-width: 900px;">
+                        <iframe src="crm_manage" frameborder="0" border="0" class="layui-iframe"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="guide">
+            <div>欢迎使用资产管理系统</div>
+        </div>
+    </div>
+    </div>
+
+</body>
+<!-- 根据不同角色加载不同引导脚本 -->
+{% if is_admin %}
+<script type="text/javascript" src="{{ url_for('static', filename='js/admin_driver.js') }}"></script>
+{% else %}
+<script type="text/javascript" src="{{ url_for('static', filename='js/user_driver.js') }}"></script>
+{% endif %}
+<script type="text/javascript">
+    layui.config({
+        base: "{{ url_for('static', filename='layui/ext/') }}"
+    }).extend({
+        stepprogress: 'stepprogress/stepprogress'
+    }).use(["jquery", "element", "dropdown", "form", "layer", "table", "upload", "stepprogress"], function () {
+        const element = layui.element;
+        const form = layui.form;
+        const layer = layui.layer;
+        const $ = layui.jquery;
+        const table = layui.tables;
+        const upload = layui.upload;
+        window.upload = upload;
+        window.form = form;
+        window.$ = $;
+        window.layer = layer;
+        window.stepprogress = layui.stepprogress;
+
+        var isEdit = false;  // 是否在编辑状态,如果是当用户尝试关闭或刷新页面时,提示他们有可能未保存的更改
+
+        // 左侧菜单点击事件
+        element.on("nav(menu)", function (elem) {
+            let url = elem.find("a").context.dataset.url;
+            // 使用iframe插入页面
+            $(".layui-body-item").html("<iframe src='" + url + "' frameborder='0' border='0' class='layui-iframe'></iframe>");
+        });
+
+        // 表单规则
+        form.verify({
+            isComplex: function (value, elem) {
+                if (value.length < 8) {
+                    return "新密码长度不能小于8位"
+                }
+                // 验证密码是否复杂
+                let passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,16}$/;
+                if (!passwordRegex.test(value)) {
+                    return "新密码必须包含大小写字母、数字、特殊符号"
+                }
+            }
+        });
+
+        // 修改密码
+        function setPassword () {
+            layer.open({
+                type: 1,
+                area: ['420px', '270px'],
+                title: "修改密码",
+                shade: 0.6,
+                shadeClose: false,
+                maxmin: false,
+                anim: 0,
+                content: "<div style='width: 320px;padding: 15px 0px 0px 50px;'> \
+                    <form action='' class='layui-form'> \
+                        <div class='layui-form-item'> \
+                            <label class='layui-form-label' style='text-align: left;'>旧密码</label> \
+                            <div class='layui-input-block'> \
+                                <input type='password' name='source_password' value='' placeholder='旧密码' lay-verify='required' lay-reqtext='请填写旧密码' autocomplete='off' class='layui-input' lay-affix='eye'> \
+                            </div> \
+                        </div> \
+                        <div class='layui-form-item'> \
+                            <label class='layui-form-label' style='text-align: left;'>新密码</label> \
+                            <div class='layui-input-block'> \
+                                <input type='password' name='dist_password' value='' placeholder='新密码' lay-verify='required|isComplex' lay-reqtext='请填写新密码' autocomplete='off' class='layui-input' lay-affix='eye'> \
+                            </div> \
+                        </div> \
+                        <div class='layui-form-item'> \
+                            <button style='margin-top:15px;' class='layui-btn layui-btn-fluid' lay-submit lay-filter='changePwd'>提交</button> \
+                        </div> \
+                    </form> \
+                </div>",
+                success: function (layero, index) {
+                    form.render("input");
+                }
+            });
+        }
+
+        form.on('submit(changePwd)', function (data) {
+            let field = data.field;
+            if (field.source_password === field.dist_password) {
+                layer.msg("新旧密码不能设置一样", { icon: 5 });
+                return false;
+            }
+            // 展示load
+            $.ajax({
+                url: "",
+                type: "post",
+                async: false,
+                data: JSON.stringify(field),
+                success: function (data) {
+                    if (data.code === 0) {
+                        layer.msg("修改密码成功", { icon: 1 });
+                        layer.closeAll();
+                    } else {
+                        layer.msg(data.message, { icon: 2 });
+                    }
+                },
+                error: function () {
+                    layer.msg("修改密码失败,请联系管理员", { icon: 2 });
+                }
+            });
+            return false;
+        });
+
+        // 判断密码有效期
+        function getPwdState (data) {
+            // 判断密码有效期是否少于10天,少于则弹窗提示
+            return function () {
+                if (data.message.expire <= 10) {
+                    layer.confirm("你的密码还有" + data.message.expire + "天过期", {
+                        title: "密码过期提醒",
+                        btn: ["去修改", "知道啦"]
+                    }, function () {
+                        layer.closeAll();
+                        // 修改密码
+                        setPassword();
+                    }, function () {
+                        layer.closeAll(); // 关闭页面
+                    });
+                }
+            }
+        }
+
+        // 加载用户状态信息
+        $.ajax({
+            url: "/crm/api/v1/user/state",
+            type: "get",
+            success: function (data) {
+                // 填充用户名和头像
+                $("#name").text(data.message.name);
+                $("#avator").attr("src", data.message.avator)
+                // 判断是否第一次登录,第一次登录显示新手引导
+                if (data.message.is_first) {
+                    user_driver($, getPwdState(data));
+                } else {
+                    getPwdState(data)();
+                }
+                return false;
+            },
+            error: function (data) {
+                return false;
+            }
+        });
+
+        // 修改用户资料
+        $("#information").on("click", function () {
+            layer.open({
+                type: 1,
+                title: "修改用户信息",
+                area: ['440px', '380px'],
+                shade: 0.6,
+                shadeClose: false,
+                maxmin: false,
+                anim: 0,
+                content: "<div style='width: 320px;padding: 15px 0px 0px 60px'> \
+                    <form action='' class='layui-form' lay-filter='user_info'> \
+                        <div class='layui-form-item'> \
+                            <label class='layui-form-label' style='text-align: left;line-height: 50px;'>头像</label> \
+                            <div class='layui-input-block'> \
+                                <button type='button' id='avator_img' style='width: 50px;height: 50px;border: 1px black dotted;border-radius: 25px;background-color: white;'> \
+                                    <img id='avator_view' style='width: 100%;height: 100%;border: 0;border-radius: 25px;'></img> \
+                                </button> \
+                            </div> \
+                        </div> \
+                        <div class='layui-form-item'> \
+                            <label class='layui-form-label' style='text-align: left;'>昵称</label> \
+                            <div class='layui-input-block'> \
+                                <input type='text' name='nickname' value='' class='layui-input' lay-affix='clear' autocomple='off'> \
+                            </div> \
+                        </div> \
+                        <div class='layui-form-item'> \
+                            <label class='layui-form-label' style='text-align: left;'>用户类型</label> \
+                            <div class='layui-input-block'> \
+                                <input type='text' name='type' value='' class='layui-input' readonly style='border: 0;'> \
+                            </div> \
+                        </div> \
+                        <div class='layui-form-item'> \
+                            <label class='layui-form-label' style='text-align: left;'>所属组织</label> \
+                            <div class='layui-input-block'> \
+                                <input type='text' name='company' value='' class='layui-input' lay-affix='clear' autocomple='off'> \
+                            </div> \
+                        </div> \
+                        <div class='layui-form-item'> \
+                            <button style='margin-top:15px;' class='layui-btn layui-btn-fluid' lay-submit lay-filter='modify_info'>修改</button> \
+                        </div> \
+                    </form> \
+                </div>",
+                success: function () {
+                    form.render("input");
+                    $.ajax({
+                        url: "../test/json/info.json",
+                        type: "get",
+                        success: function (data) {
+                            $("#avator_view").attr("src", data.message.avator);
+                            form.val('user_info', {
+                                "type": data.message.type === 1 ? "永久用户" : "临时用户(有效期至" + data.message.expire_time + ")",
+                                "nickname": data.message.name,
+                                "company": data.message.company
+                            });
+                        },
+                        complete: function () {
+                            // 上传头像
+                            upload.render({
+                                elem: "#avator_img",
+                                url: "",
+                                acceptMime: "image/jpeg, image/png",
+                                before: function (obj) {
+                                    // 图片预览
+                                    obj.preview(function (index, file, result) {
+                                        $('#avator_view').attr('src', result);  // 图片链接（base64）
+                                    });
+                                },
+                                done: function (data) {
+                                    if (data.code === 0) {
+                                        layer.closeAll();
+                                    } else {
+                                        layer.msg(data.message, { icon: 2 });
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        });
+
+        form.on('submit(modify_info)', function (data) {
+            let field = data.field;
+            return false;
+        });
+
+        // 修改密码
+        $("#setPassword").on("click", setPassword);
+
+        // 退出登录
+        $("#quit").on("click", function () {
+            // 发送请求以便后台日志记录和服务器端清除session
+            $.ajax({
+                url: "/crm/api/v1/user/logout",
+                type: "get",
+                complete: function () {
+                    // 清除session
+                    sessionStorage.clear();
+                    localStorage.clear();
+                    // 清除cookies
+                    Cookies.remove();
+                    // 重定向到登录页
+                    window.location.href = "/login";
+                }
+            });
+            return false;
+        });
+    });
+
+</script>
+<script type="text/javascript" src="{{ url_for('static', filename='js/user_iframe.js') }}"></script>
+{% if is_admin %}
+<script type="text/javascript" src="{{ url_for('static', filename='js/admin_iframe.js') }}"></script>
+{% endif %}
+
+</html>

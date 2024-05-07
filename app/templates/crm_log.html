@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作日志</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='layui/css/layui.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='icon/filter/iconfont.css') }}">
+    <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
+</head>
+<style>
+    #show_user_checkbox {
+        position: absolute;
+        z-index: 9999;
+        padding: 5px 10px 5px 5px;
+        border: 1px solid #c4c4c4;
+        background-color: white;
+        display: none;
+    }
+</style>
+
+<body>
+    <div>
+        <div class="layui-form">
+            <div class="layui-form-item">
+                <div class="layui-inline">
+                    <div class="layui-form-label">操作时间</div>
+                    <div class="layui-inline" id="time-range">
+                        <div class="layui-input-inline">
+                            <input type="text" name="start_time" class="layui-input" autocomplete="off" id="start-time"
+                                placeholder="开始时间">
+                        </div>
+                        <div class="layui-form-mid">-</div>
+                        <div class="layui-input-inline">
+                            <input type="text" name="end_time" class="layui-input" autocomplete="off" id="end-time"
+                                placeholder="结束时间">
+                        </div>
+                    </div>
+                </div>
+                <div class="layui-inline" style="margin-top: -10px;">
+                    <button type="button" class="layui-btn" lay-submit lay-filter="query">查询</button>
+                </div>
+            </div>
+        </div>
+        <div>
+            <!-- 操作日志,保留半年 -->
+            <table class="layui-hide" id="log" lay-filter="log"></table>
+        </div>
+        <div id="show_user_checkbox"></div>
+    </div>
+</body>
+<script type="text/javascript">
+    layui.use(["table", "form", "laydate", "layer", "jquery"], function () {
+        const table = layui.table;
+        const form = layui.form;
+        const laydate = layui.laydate;
+        const layer = layui.layer;
+        const $ = layui.jquery;
+
+        table.render({
+            elem: "#log",
+            id: "mylog",
+            url: "/crm/api/v1/log/query",
+            height: "full-95",
+            page: {
+                layout: ["limit", "count", "prev", "page", "next", "skip"],
+                curr: 1,
+                groups: 1
+            },
+            limit: 10,
+            limits: [10],
+            parseData: function (result) {
+                return {
+                    "code": result.code,
+                    "msg": result.code === 0 ? "" : result.message,
+                    "count": result.message.total,
+                    "data": result.message.data
+                }
+            },
+            cols: [[
+                { field: "id", title: "ID", hide: true },
+                { field: "operate_user", title: "操作用户<i class='iconfont icon-shaixuan' lay-event='filter' title='筛选用户'></i>", width: 120 },
+                { field: "operate_time", title: "操作时间", width: 240 },
+                { field: "ip", title: "IP", width: 180 },
+                { field: "type", title: "操作类型", width: 180 },
+                { field: "content", title: "操作内容", style: "width: calc(100% - 480px)" }
+            ]]
+        });
+
+        table.on("colTool(log)", function (obj) {
+            let event = obj.event;
+            if (event === "filter") {
+                // 获取用户列表
+                $.ajax({
+                    url: "/crm/api/v1/user/list",
+                    type: "get",
+                    success: function (data) {
+                        // 使用localstorage存储选择信息
+                        var hasChecked = JSON.parse(localStorage.getItem("filter")) || [];
+                        var tempDiv = "";
+                        data.message.forEach(item => {
+                            if (hasChecked.indexOf(item) !== -1) {
+                                tempDiv += "<input type='checkbox' name='" + item + "' value='" + item + "' title='" + item + "' checked><br/>"
+                            } else {
+                                tempDiv += "<input type='checkbox' name='" + item + "' value='" + item + "' title='" + item + "'><br/>"
+                            }
+                        });
+                        let pos = $(".icon-shaixuan").eq(0).offset();
+                        $("#show_user_checkbox").css("top", pos.top + 15 + "px");
+                        $("#show_user_checkbox").css("left", pos.left + 15 + "px");
+                        $("#show_user_checkbox").html("<div class='layui-form'>" + tempDiv + "</div>");
+                        form.render('checkbox');
+                        $("#show_user_checkbox").show();
+                    }
+                });
+            }
+        });
+
+        laydate.render({
+            elem: "#time-range",
+            range: ["#start-time", "#end-time"],
+            type: "datetime",
+            format: "yyyy-MM-ddTHH:mm:ss",
+            min: -60,
+            disabledDate: function (date, type) {
+                return date.getTime() > Date.now();
+            }
+        });
+
+        form.on("submit(query)", function (data) {
+            let field = data.field;
+            if (!field.start_time && !field.end_time) {
+                layer.msg("时间不能为空", { icon: 2 });
+                return false;
+            }
+            table.reloadData("mylog", {
+                where: {
+                    start: field.start_time,
+                    end: field.end_time
+                }
+            });
+            return false;
+        });
+    });
+</script>
+
+</html>
