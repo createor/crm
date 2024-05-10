@@ -11,7 +11,7 @@ from app.config import app
 from app.src import user, system, syslog, manage
 from app.src.models import db_session, File
 from flask import request, session, render_template, redirect, url_for, jsonify, send_from_directory, send_file, g
-from app.utils import methods, getUuid, getCaptcha, verify, redisClient, UPLOAD_IMAGE_DIR, UPLOAD_EXCEL_DIR, TEMP_DIR, ALLOWED_EXTENSIONS
+from app.utils import methods, getUuid, getCaptcha, verify, redisClient, UPLOAD_IMAGE_DIR, UPLOAD_EXCEL_DIR, TEMP_DIR, ALLOWED_EXTENSIONS, scan_file
 from werkzeug.utils import secure_filename
 
 @app.route("/index", methods=methods.ALL)
@@ -112,15 +112,25 @@ def upload():
             "message": "错误的请求"
         }), 400
     file = request.files["file"]  # 获取文件
-    if "." in file.filename and file.filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS:
+    if "." in file.filename and file.filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS:  # 判断文件格式
         filename = secure_filename(file.filename)  # 文件名
+        affix = filename.rsplit(".", 1)[1].lower()  # 文件后缀
+        file_uuid = getUuid()  # 文件uuid
         path_type = 1
-        if filename.rsplit(".", 1)[1].lower() in ["xlsx", "xls"]:
-            file.save(os.path.join(UPLOAD_EXCEL_DIR, filename))  # 表格保存
+        if affix in ["xlsx", "xls"]:
+            file.save(os.path.join(UPLOAD_EXCEL_DIR, file_uuid + "." + affix))  # 表格保存
         else:
             path_type = 2
-            file.save(os.path.join(UPLOAD_IMAGE_DIR, filename))  # 图片保存
-        file_uuid = getUuid()
+            file.save(os.path.join(UPLOAD_IMAGE_DIR, file_uuid + "." + affix))  # 图片保存
+        # 扫描文件
+        # filepath = os.path.join(UPLOAD_EXCEL_DIR, file_uuid + "." + affix) if path_type == 1 else os.path.join(UPLOAD_IMAGE_DIR, file_uuid + "." + affix)
+        # if not scan_file(filepath):
+        #     os.remove(filepath)  # 移除文件
+        #     return jsonify({
+        #         "code": -1,
+        #         "message": "文件含有不安全的内容"
+        #     }), 200
+        # 写入数据库
         upload_file = File(uuid=file_uuid, filename=filename, filepath=path_type, upload_user=g.username)
         db_session.add(upload_file)
         db_session.commit()

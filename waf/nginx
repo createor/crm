@@ -1,0 +1,15 @@
+# 日志轮转
+# 路径/etc/logrotate.d/nginx
+/path/to/nginx/logs/*.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 0640 root root
+    sharedscripts
+    postrotate
+        /bin/kill -USR1 `cat /path/to/nginx/logs/nginx.pid 2>/dev/null` 2>/dev/null || true
+    endscript
+}

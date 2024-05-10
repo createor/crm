@@ -29,20 +29,16 @@ def queryLog():
     operate_start = args.get("start")  # 开始时间
     operate_end = args.get("end")  # 结束时间
     if operate_user is not None:
-        crmLogger.debug(f"query Log params(user={operate_user})")
         query_condition.append(Log.operate_user == operate_user)
         query_string.append(f"user={operate_user}")
     if operate_start is not None:
-        crmLogger.debug(f"query Log params(start>={operate_start})")
         query_condition.append(Log.operate_time >= datetime.strptime(operate_start, "%Y-%m-%dT%H:%M:%S"))
         query_string.append(f"start={operate_start}")
         if operate_end is not None:
-            crmLogger.debug(f"query Log params(end<={operate_end})")
             query_condition.append(Log.operate_time <= datetime.strptime(operate_end, "%Y-%m-%dT%H:%M:%S"))
             query_string.append(f"end={operate_end}")
         else:
             # 如果结束时间为空,默认为今天23:59:59
-            crmLogger.debug("query Log params(end<=today)")
             query_condition.append(Log.operate_time <= datetime.now().replace(hour=23, minute=59, second=59, microsecond=0))
             query_string.append("end=today")
     if len(query_condition) > 0:
@@ -51,11 +47,10 @@ def queryLog():
     else:
         count = db_session.query(Log).count()
         result = db_session.query(Log).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
-    crmLogger.info(f"query Log success(total={count})")
     condition_str = ",".join(query_string) if query_string else "无"
-    query_log = Log(ip=g.ip_addr, operate_type="日志查询",operate_content=f"用户{g.username},条件({condition_str})查询日志",operate_user=g.username)
-    db_session.add(query_log)
-    db_session.commit()
+    crmLogger.info(f"用户{g.username}查询日志:")
+    crmLogger.debug(f"过滤条件{condition_str}")
+    crmLogger.info(f"结果total={count}")
     return jsonify({
         "code": 0,
         "message": {

@@ -46,7 +46,6 @@ class Methods:
 
 methods = Methods()
 
-
 def getUuid() -> str:
     '''
     获取36位uuid

@@ -1,25 +1,78 @@
 version: "3"
+networks:
+  default:
 services:
   frontend:
     image: openresty/openresty:latest
+    container_name: frontend
+    # bugfix
+    command: "ln -s /usr/local/openresty/lualib/resty /usr/local/openresty/nginx/conf/waf/resty && /usr/bin/openresty -g daemon off;"
+    networks:
+      - default
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - $(pwd):/usr/local/openrestry/nginx/ssl/
-
+      - /etc/localtime:/etc/localtime
+      - /nginx/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf
+      - /nginx/ssl:/usr/local/openresty/nginx/ssl
+      - /nginx/waf:/usr/local/openresty/nginx/conf/waf
+    restart: always
   backend:
-    image: xxx
+    image: app:latest
+    container_name: backend
+    networks:
+      - default
     depends_on:
       - redis
       - mysql
-  
+    expose:
+      - "8080"
+    volumes:
+      - /etc/localtime:/etc/localtime
+      - /app/logs:/app/app/logs
+      - /app/file:/app/app/files
+      - /app/socket:/app/app/socket
+    restart: always
   redis:
     image: redis:latest
-    ports:
-      - "6379:6379"
-
+    container_name: redis
+    command: "redis-server /etc/redis/redis.conf"
+    networks:
+      - default
+    expose:
+      - "6379"
+    volumes:
+      - /etc/localtime:/etc/localtime
+      - /redis/redis.conf:/etc/redis/redis.conf
+      - /redis/data:/data
+    restart: always
   mysql:
     image: mysql:latest
+    container_name: mysql
     environment:
-      MYSQL_ROOT_PASSWORD: ""
+      - MYSQL_ROOT_PASSWORD: ""  # mysql的密码
+    networks:
+      - default
+    expose:
+      - "3306"
+    volumes:
+      - /etc/localtime:/etc/localtime
+      - /mysql/init.sql:/docker-entrypoint-initdb.d/init.sql  # 将初始化sql挂载在此目录
+      - /mysql/data:/var/lib/mysql
+    restart: always     
+  clamav:
+    image: clamav:clamav:1.2_base
+    container_name: clamav
+    networks:
+      - default
+    volumes:
+      - /etc/localtime:/etc/localtime
+      - /app/socket:/var/run/clamav  # 挂载clamav的socket路径
+      - /clamav/data:/var/lib/clamav  # 病毒库挂载
+      - /app/files:/data # 挂载backend的上传文件路径
+    deploy:
+      resources:
+        limits:
+          memory: 1000M
+    restart: always      

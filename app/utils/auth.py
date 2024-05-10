@@ -26,12 +26,15 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
     def wrapper(func):
         @wraps(func)
         def inner_wrapper(*args, **kwargs):
+            # 通过nginx转换则获取header的"X-Forwarded-For"字段
+            # ip_addr = request.headers.get("X-Forwarded-For") or "127.0.0.1"
+            # 直接访问
             ip_addr = request.remote_addr or "127.0.0.1" # 用户IP地址
             g.ip_addr = ip_addr
             # 判断是否开启IP白名单以及用户是否在白名单中
             enable_white = redisClient.getData("enable_white")
             if enable_white is not None and bool(int(enable_white)):
-                if not redisClient.getSet(ip_addr):  # 如果不在白名单中无需响应
+                if not redisClient.getSet("white_list_ip",ip_addr):  # 如果不在白名单中无需响应
                     return
             if request.method in allow_methods:
                 try:
