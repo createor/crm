@@ -3,10 +3,15 @@
 ## 技术选型
 
 代理服务器： openresty
+
 前端：layui框架
+
 后端：Flask
+
 缓存：redis
+
 数据库：mysql
+
 其他组件：clamav(安全扫描)
 
 ## 架构说明
