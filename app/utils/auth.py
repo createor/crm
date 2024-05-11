@@ -32,9 +32,8 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
             ip_addr = request.remote_addr or "127.0.0.1" # 用户IP地址
             g.ip_addr = ip_addr
             # 判断是否开启IP白名单以及用户是否在白名单中
-            enable_white = redisClient.getData("enable_white")
-            if enable_white is not None and bool(int(enable_white)):
-                if not redisClient.getSet("white_list_ip",ip_addr):  # 如果不在白名单中无需响应
+            if bool(int(redisClient.getData("enable_white"))):
+                if not redisClient.getSet("white_list_ip", ip_addr):  # 如果不在白名单中无需响应
                     return
             if request.method in allow_methods:
                 try:
@@ -51,6 +50,7 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
                                 }), 403
                     return func(*args, **kwargs)
                 except (KeyError, TypeError):
+                    crmLogger.error(f"错误的请求: {traceback.format_exc()}")
                     return jsonify({
                         "code": -1,
                         "message": "错误的请求"

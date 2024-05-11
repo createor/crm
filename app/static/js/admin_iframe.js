@@ -122,7 +122,7 @@ var showUserEdit = function (userData) {
 }
 
 // 删除用户
-var showUserDel = function (userId) {
+var showUserDel = function (userId, username) {
     layer.confirm("是否删除用户?", {
         title: "删除",
         btn: ["确定", "取消"],
@@ -131,6 +131,10 @@ var showUserDel = function (userId) {
             $.ajax({
                 url: "",
                 type: "post",
+                data: JSON.stringify({
+                    "uid": userId,
+                    "username": username
+                }),
                 success: function (data) { }
             });
         },
@@ -142,15 +146,30 @@ var showUserDel = function (userId) {
 }
 
 // 锁定用户
-var showUserLock = function (userId) {
+var showUserLock = function (userId, username) {
     layer.confirm("是否锁定用户?", {
         title: "锁定",
         btn: ["确定", "取消"],
         function () {
             // 解锁用户
             $.ajax({
-                url: "",
-                type: "post"
+                url: "/crm/api/v1/user/lock",
+                type: "post",
+                data: JSON.stringify({
+                    "uid": userId,
+                    "username": username
+                }),
+                success: function (data) {
+                    if (data.code === 0) {
+                        layer.msg("已锁定", {icon: 1});
+                    } else {
+                        layer.msg("锁定失败:" + data.message, {icon: 2});
+                    }
+                    return false;
+                },
+                error: function () {
+                    return false;
+                }
             });
         },
         function () {
@@ -160,15 +179,23 @@ var showUserLock = function (userId) {
 }
 
 // 解锁用户
-var showUserUnlock = function (userId) {
+var showUserUnlock = function (userId, username) {
     layer.confirm("是否解锁用户?", {
         title: "解锁",
         btn: ["确定", "取消"],
         function () {
             // 解锁用户
             $.ajax({
-                url: "",
-                type: "post"
+                url: "/crm/api/user/unlock",
+                type: "post",
+                data: JSON.stringify({
+                    "uid": userId,
+                    "username": username
+                }),
+                success: function (data) {
+
+                },
+                error: function () {}
             });
         },
         function () {
@@ -185,8 +212,14 @@ var showUserReset = function (userId) {
         function () {
             // 解锁用户
             $.ajax({
-                url: "",
-                type: "post"
+                url: "/crm/api/v1/user/reset",
+                type: "post",
+                data: JSON.stringify({
+                    "uid": userId,
+                    "username": username
+                }),
+                success: function (data) {},
+                error: function () {}
             });
         },
         function () {

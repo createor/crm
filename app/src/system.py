@@ -60,10 +60,10 @@ def getConfig():
     return jsonify({
         "code": 0,
         "message": {
-            "enable_failed": bool(int(enable_failed)),
-            "enable_white": bool(int(enable_white)),
-            "enable_single": bool(int(enable_single)),
-            "failed_count": int(failed_count)
+            "enable_failed": bool(enable_failed),
+            "enable_white": bool(enable_white),
+            "enable_single": bool(enable_single),
+            "failed_count": failed_count
         }
     }), 200
 

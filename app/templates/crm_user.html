@@ -84,19 +84,19 @@
                 return false;
             }
             if (event === "del") {
-                window.parent.showUserDel(data.id);
+                window.parent.showUserDel(data.id, data.username);
                 return false;
             }
             if (event === "lock") {
-                window.parent.showUserLock(data.id);
+                window.parent.showUserLock(data.id, data.username);
                 return false;
             }
             if (event === "unlock") {
-                window.parent.showUserUnlock(data.id);
+                window.parent.showUserUnlock(data.id, data.username);
                 return false;
             }
             if (event === "reset") {
-                window.parent.showUserReset(data.id);
+                window.parent.showUserReset(data.id, data.username);
                 return false;
             }
         });

@@ -1,5 +1,5 @@
 #!/bin/bash
-# @Desc: 测试脚本
+# @Desc: waf功能测试脚本
 # @Time: 2024/05/09
 
 TestUrl="https://172.17.0.3"

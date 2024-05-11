@@ -14,9 +14,9 @@ services:
       - "443:443"
     volumes:
       - /etc/localtime:/etc/localtime
-      - /nginx/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf
-      - /nginx/ssl:/usr/local/openresty/nginx/ssl
-      - /nginx/waf:/usr/local/openresty/nginx/conf/waf
+      - /nginx/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf  # nginx配置文件
+      - /nginx/ssl:/usr/local/openresty/nginx/ssl  # nginx证书
+      - /nginx/waf:/usr/local/openresty/nginx/conf/waf  # waf的lua脚本
     restart: always
   backend:
     image: app:latest
@@ -30,9 +30,9 @@ services:
       - "8080"
     volumes:
       - /etc/localtime:/etc/localtime
-      - /app/logs:/app/app/logs
-      - /app/file:/app/app/files
-      - /app/socket:/app/app/socket
+      - /app/logs:/app/app/logs  # 后端服务的日志
+      - /app/file:/app/app/files  # 后端服务的上传文件路径
+      - /app/socket:/app/app/socket  # 使用到的clamav的socket文件
     restart: always
   redis:
     image: redis:latest
@@ -44,14 +44,15 @@ services:
       - "6379"
     volumes:
       - /etc/localtime:/etc/localtime
-      - /redis/redis.conf:/etc/redis/redis.conf
-      - /redis/data:/data
+      - /redis/redis.conf:/etc/redis/redis.conf  # redis配置文件
+      - /redis/data:/data  # redis的快照、数据备份目录
     restart: always
   mysql:
     image: mysql:latest
     container_name: mysql
     environment:
       - MYSQL_ROOT_PASSWORD: ""  # mysql的密码
+      - MYSQLD_EVENT_SCHEDULER: "ON"  # 是否开启计划任务
     networks:
       - default
     expose:
@@ -59,7 +60,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime
       - /mysql/init.sql:/docker-entrypoint-initdb.d/init.sql  # 将初始化sql挂载在此目录
-      - /mysql/data:/var/lib/mysql
+      - /mysql/data:/var/lib/mysql  # mysql的数据目录
     restart: always     
   clamav:
     image: clamav:clamav:1.2_base
@@ -70,7 +71,7 @@ services:
       - /etc/localtime:/etc/localtime
       - /app/socket:/var/run/clamav  # 挂载clamav的socket路径
       - /clamav/data:/var/lib/clamav  # 病毒库挂载
-      - /app/files:/data # 挂载backend的上传文件路径
+      - /app/files:/data # 挂载backend服务的上传文件路径
     deploy:
       resources:
         limits:

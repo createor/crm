@@ -23,11 +23,40 @@
     #showManage {
         display: none;
     }
+
+    .showEchart {
+        height: 180px;
+        width: 100%;
+    }
+
+    .showEchart::after {
+        clear: both;
+    }
+
+    .echart {
+        float: left;
+        width: 33%;
+        height: 100%;
+    }
+
+    #prefix .layui-unselect {
+        height: 30px;
+        margin-top: -11px;
+    }
+
+    #prefix .layui-select-title {
+        height: 20px;
+    }
+
+    #prefix .layui-select-title input {
+        margin-top: 9px;
+        height: 32px;
+    }
 </style>
 
 <body>
     <div>
-        <div>
+        <div id="showAllManage">
             <form action="" class="layui-form layui-form-pane">
                 <div class="layui-form-item">
                     <div class="layui-inline">
@@ -52,13 +81,47 @@
             <div id="manageTable" lay-filter="manageTable"></div>
         </div>
         <div id="showManage">
+            <!-- 新建图表规则 -->
             <div>
+                <a href="javascript:;" class="layui-icon layui-icon-addition"
+                    style="border: 1px solid black;padding: 2px;border-radius: 50%;margin-top: 5px;position: absolute;right: 20px;z-index: 9999;"
+                    id="newRule"></a>
+            </div>
+            <div class="showEchart">
+                <div class="echart"></div>
+                <div class="echart"></div>
+                <div class="echart"></div>
                 <!-- 图表展示设置,自定义图表展示规则,三个 -->
             </div>
-            <table class="layui-hide" id="manage" lay-filter="manage"></table>
+            <div>
+                <table class="layui-hide" id="manage" lay-filter="manage"></table>
+            </div>
         </div>
     </div>
 </body>
+<!-- 表格头部工具栏 -->
+<script type="text/html" id="toolBar">
+  <div class="layui-clear-space">
+    <a class="layui-btn layui-btn-sm" lay-event="add">录入数据</a>
+    <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="edit" id="edit">编辑选中的数据</a>
+    <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="del" id="del">删除选中的数据</a>
+    <!-- 搜索 -->
+    <div style="width: 400px;display: inline-block; height: 20px;margin-left: 15px;">
+        <div class="layui-input-group">
+            <div class="layui-input-split layui-input-prefix" style="width: 120px;padding: 0;height: 30px;" id="prefix">
+                <select name="utype">
+                    <option value="id">ID</option>
+                    <option value="name">主机名称</option>
+                </select>
+            </div>
+            <input type="text" placeholder="搜索相关内容" name="keywords" class="layui-input" style="height: 32px;">
+            <div class="layui-input-split layui-input-suffix" style="cursor: pointer;width: 30px;height: 30px;">
+                <i class="layui-icon layui-icon-search"></i>
+            </div>
+        </div>
+    </div>
+  </div>
+</script>
 <script type="text/javascript">
     layui.config({
         base: "{{ url_for('static', filename='layui/ext/') }}"
@@ -70,6 +133,7 @@
         const table = layui.table;
         const $ = layui.jquery;
         const cardTable = layui.cardTable;
+        var tableUid = "";
 
         var currentTable = cardTable.render({
             elem: "#manageTable",
@@ -93,13 +157,16 @@
         });
 
         currentTable.on('row(manageTable)', function (obj) {
-            let tableUid = obj.value.id;  // 表格的id
-            $("#manageTable").hide()
+            tableUid = obj.value.id;  // 表格的id
+            $("#showAllManage").hide()
             $("#showManage").show();
+            showCharts();
             table.render({
                 elem: "#manage",
                 url: "/crm/api/v1/manage/" + tableUid,
-                height: "full-35",
+                toolbar: '#toolBar',
+                defaultToolbar: [{ title: "新增字段", layEvent: "LAYTABLE_TIPS", icon: "layui-icon-edit" }, "filter", "exports"],
+                height: "full-185",
                 page: {
                     layout: ["limit", "count", "prev", "page", "next", "skip"],
                     curr: 1,
@@ -107,6 +174,7 @@
                 },
                 limit: 10,
                 limits: [10],
+                // totalRow: true,
                 parseData: function (result) {
                     return {
                         "code": result.code,
@@ -116,10 +184,46 @@
                     }
                 },
                 cols: [[
-                    { field: "id", title: "ID" }
+                    { checkbox: true, fixed: true },
+                    { field: "id", title: "ID" },
+                    { field: "ip", title: "IP" },
+                    { field: "name", title: "主机名称" }
                 ]]
             });
             return false;
+        });
+
+        // 表格复选框触发事件
+        table.on('checkbox(manage)', function (obj) {
+            let id = obj.config.id;
+            let checkStatus = table.checkStatus(id);
+            if (checkStatus.data.length > 0) {
+                $("#del").removeClass("layui-btn-disabled");
+                $("#edit").removeClass("layui-btn-disabled");
+            } else {
+                $("#del").addClass("layui-btn-disabled");
+                $("#edit").addClass("layui-btn-disabled");
+            }
+        });
+
+        // 工具栏事件
+        table.on('toolbar(manage)', function (obj) {
+            let id = obj.config.id;
+            let checkStatus = table.checkStatus(id);
+            switch (obj.event) {
+                case "edit":
+                    if (checkStatus.data.length > 1) {
+                        layer.msg("不支持批量编辑", { icon: 2 });
+                        return
+                    }
+                    layer.open({
+                        type: 1,
+                        title: "编辑",
+                        area: ["500px", "300px"]
+                    });
+                    break;
+                case "LAYTABLE_TIPS":
+            }
         });
 
         // 搜索标题
@@ -135,7 +239,58 @@
         });
 
         form.on("submit(addTable)", function () {
-            window.parent.addNewTable();
+            window.parent.addNewTable(tableUid);
+        });
+
+        function showCharts () {
+            // 请求图表配置
+            // $.ajax()
+            document.querySelectorAll(".echart").forEach((item) => {
+                // let config = JSON.parse();  // 解析配置
+                // confg.series[0].data = "" // 填充数据
+                let myChart = echarts.init(item);
+                let option = {
+                    title: {
+                        text: "1",
+                        subtext: "2",
+                        left: "center"
+                    },
+                    tooltip: {
+                        trigger: "item"
+                    },
+                    legend: {
+                        orient: "vertical",
+                        left: "left"
+                    },
+                    series: [
+                        {
+                            name: "4",
+                            type: "pie",
+                            radius: "50%",
+                            data: [
+                                { value: 1048, name: 'Search Engine' },
+                                { value: 735, name: 'Direct' },
+                                { value: 580, name: 'Email' },
+                                { value: 484, name: 'Union Ads' },
+                                { value: 300, name: 'Video Ads' }
+                            ],
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }
+                    ]
+                }
+                option && myChart.setOption(option);
+            });
+        }
+
+        $("#newRule").on("click", function () {
+            // 新建或者编辑规则
+            window.parent.addNewRule();
         });
 
         // 只有在新建用户、新建资产中点击创建时开始bind

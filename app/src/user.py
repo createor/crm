@@ -8,6 +8,7 @@
 '''
 import hashlib
 from flask import Blueprint, request, jsonify, session, redirect, g
+from app.src.system import readConfig
 from app.src.models import db_session, User, Log
 from app.utils import crmLogger, redisClient, methods, verify, DEFAULT_PASSWORD
 from datetime import date, timedelta
@@ -43,15 +44,17 @@ def login():
     # 用户名密码验证
     result = db_session.query(User).filter(User.username == userData["username"], User.password == hashlib.md5((userData["password"].upper() + SALE).encode()).hexdigest().lower()).first()
     # 判断是否开启锁定功能
-    enable_failed = redisClient.getData("")
+    enable_failed = readConfig(all=False, filter="enable_failed")
     if result is None:
-        if enable_failed is not None:
-            if redisClient.get() > 3:  # 判断是否大于设置
+        if bool(enable_failed):
+            if int(redisClient.getData(userData["username"])) > int(readConfig(all=False, filter="failed_count")):  # 判断是否大于设置
                 return jsonify({
                     "code": -1,
                     "message": "用户已被锁定"
                 }), 200
-            # 更新redis中记录加1
+            else:
+                # 更新redis中记录加1
+                redisClient.setIncr(userData["username"])
         return jsonify({
             "code": -1,
             "message": "用户名密码错误"
@@ -68,8 +71,9 @@ def login():
         }), 200
     # 登录成功
     # 判断是否开启锁定功能
-    # 清除用户的错误次数记录
-    redisClient.setData(0)
+    if bool(enable_failed):
+        # 清除用户的错误次数记录
+        redisClient.setData(userData["username"], 0)
     # 数据库日志记录登录成功
     login_log = Log(ip=g.ip_addr, operate_type="登录", operate_content="登录成功", operate_user=userData["username"])
     db_session.add(login_log)
@@ -169,7 +173,7 @@ def unlockUser():
     '''
     userData = request.get_json()
     db_session.query(User).filter(User.uid == userData["uid"]).update({"status": 1})
-    unlock_log = Log(ip=g.ip_addr, operate_type="解锁用户", operate_content=f"解锁用户{userData["username"]}", operate_user=g.username)
+    unlock_log = Log(ip=g.ip_addr, operate_type="解锁用户", operate_content=f"解锁用户{userData['username']}", operate_user=g.username)
     db_session.add(unlock_log)
     db_session.commit()
     return jsonify({
@@ -209,7 +213,7 @@ def resetPwd():
     '''
     userData = request.get_json()
     db_session.query(User).filter(User.uid == userData["uid"]).update({"password": hashlib.md5((DEFAULT_PASSWORD.upper()+SALE).encode()).hexdigest().lower()})
-    reset_log = Log(ip=g.ip_addr, operate_type="密码重置", operate_content=f"重置用户{userData["username"]}的密码", operate_user=g.username)
+    reset_log = Log(ip=g.ip_addr, operate_type="密码重置", operate_content=f"重置用户{userData['username']}的密码", operate_user=g.username)
     db_session.add(reset_log)
     db_session.commit()
     return jsonify({
@@ -231,7 +235,7 @@ def state():
         "message": {
             "name": result.name,
             "username": result.username,
-            "avator": result.avator,
+            "avator": "/crm/api/v1/images/" + result.avator,
             "is_first": bool(result.is_first),
             "expire": td.days,
             "company": result.company

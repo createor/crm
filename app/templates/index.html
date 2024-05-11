@@ -126,7 +126,7 @@
                         <ul class="layui-nav layui-layout-right">
                             <li class="manual">
                                 <!-- 管理员下载管理员手册,用户下载用户手册 -->
-                                <a href="help" id="help" style="color: #fff;padding: 0 40px;">
+                                <a href="/crm/api/v1/help" id="help" style="color: #fff;padding: 0 40px;">
                                     <i class="layui-icon layui-icon-read"
                                         style="font-size: 18px; padding-right: 5px;"></i>
                                     <span>使用手册</span>
@@ -186,7 +186,7 @@
                 <!-- 内容区域 -->
                 <div class="layui-body" style="padding-bottom: 15px;">
                     <div class="layui-body-item" style="min-width: 900px;">
-                        <iframe src="crm_manage" frameborder="0" border="0" class="layui-iframe"></iframe>
+                        <iframe src="/crm/api/v1/crm_manage" frameborder="0" border="0" class="layui-iframe"></iframe>
                     </div>
                 </div>
             </div>
@@ -216,6 +216,7 @@
         const $ = layui.jquery;
         const table = layui.tables;
         const upload = layui.upload;
+        window.element = element;
         window.upload = upload;
         window.form = form;
         window.$ = $;
@@ -228,11 +229,12 @@
         element.on("nav(menu)", function (elem) {
             let url = elem.find("a").context.dataset.url;
             // 使用iframe插入页面
-            $(".layui-body-item").html("<iframe src='" + url + "' frameborder='0' border='0' class='layui-iframe'></iframe>");
+            $(".layui-body-item").html("<iframe src='/crm/api/v1/" + url + "' frameborder='0' border='0' class='layui-iframe'></iframe>");
         });
 
         // 表单规则
         form.verify({
+            // 校验密码复杂度
             isComplex: function (value, elem) {
                 if (value.length < 8) {
                     return "新密码长度不能小于8位"
@@ -260,13 +262,13 @@
                         <div class='layui-form-item'> \
                             <label class='layui-form-label' style='text-align: left;'>旧密码</label> \
                             <div class='layui-input-block'> \
-                                <input type='password' name='source_password' value='' placeholder='旧密码' lay-verify='required' lay-reqtext='请填写旧密码' autocomplete='off' class='layui-input' lay-affix='eye'> \
+                                <input type='password' name='old_password' value='' placeholder='旧密码' lay-verify='required' lay-reqtext='请填写旧密码' autocomplete='off' class='layui-input' lay-affix='eye'> \
                             </div> \
                         </div> \
                         <div class='layui-form-item'> \
                             <label class='layui-form-label' style='text-align: left;'>新密码</label> \
                             <div class='layui-input-block'> \
-                                <input type='password' name='dist_password' value='' placeholder='新密码' lay-verify='required|isComplex' lay-reqtext='请填写新密码' autocomplete='off' class='layui-input' lay-affix='eye'> \
+                                <input type='password' name='new_password' value='' placeholder='新密码' lay-verify='required|isComplex' lay-reqtext='请填写新密码' autocomplete='off' class='layui-input' lay-affix='eye'> \
                             </div> \
                         </div> \
                         <div class='layui-form-item'> \
@@ -281,16 +283,15 @@
         }
 
         form.on('submit(changePwd)', function (data) {
-            let field = data.field;
-            if (field.source_password === field.dist_password) {
+            let field = data.field;  // 获取表单字段
+            if (field.new_password === field.old_password) {
                 layer.msg("新旧密码不能设置一样", { icon: 5 });
                 return false;
             }
             // 展示load
             $.ajax({
-                url: "",
+                url: "/crm/api/v1/user/setpwd",
                 type: "post",
-                async: false,
                 data: JSON.stringify(field),
                 success: function (data) {
                     if (data.code === 0) {
@@ -342,7 +343,7 @@
                 }
                 return false;
             },
-            error: function (data) {
+            error: function () {
                 return false;
             }
         });
@@ -393,7 +394,7 @@
                 success: function () {
                     form.render("input");
                     $.ajax({
-                        url: "../test/json/info.json",
+                        url: "/crm/api/v1/user/state",
                         type: "get",
                         success: function (data) {
                             $("#avator_view").attr("src", data.message.avator);
@@ -412,7 +413,7 @@
                                 before: function (obj) {
                                     // 图片预览
                                     obj.preview(function (index, file, result) {
-                                        $('#avator_view').attr('src', result);  // 图片链接（base64）
+                                        $('#avator_view').attr('src', "/crm/api/v1/images/" + result);  // 图片链接（base64）
                                     });
                                 },
                                 done: function (data) {
@@ -429,8 +430,14 @@
             });
         });
 
+        // 修改用户资料
         form.on('submit(modify_info)', function (data) {
             let field = data.field;
+            $.ajax({
+                url: "",
+                type: "post",
+                success: function (data) { }
+            })
             return false;
         });
 

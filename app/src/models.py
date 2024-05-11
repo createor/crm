@@ -46,8 +46,8 @@ def init_cache():
     redisClient.setData("failed_count", failed_count)
     # 初始化白名单ip
     white_ip = db_session.query(WhiteList.ip).all()
-    if white_ip is not None:
-        redisClient.setData()
+    if len(white_ip) > 0:
+        redisClient.setSet("white_ip_list", [v.ip for v in white_ip])
 
 def init_db():
     '''
@@ -57,7 +57,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)  # 创建所有表
     # 初始化数据
     # 初始化用户
-    init_user = db_session.query(User).filter(User.name == "admin").first()
+    init_user = db_session.query(User).filter(User.username == "admin").first()
     if init_user is None:
         db_session.add(User(
             name="系统管理员",
@@ -71,7 +71,7 @@ def init_db():
         ))
     # 初始化配置
     init_config = db_session.query(Setting).all()
-    if init_config is None:
+    if len(init_config) == 0:
         db_session.add(Setting(type="enable_failed", value=0, desc="是否开启失败锁定,1-开启,0-关闭"))
         db_session.add(Setting(type="enable_white", value=0, desc="是否开启白名单模式,1-开启,0-关闭"))
         db_session.add(Setting(type="enable_single", value=0, desc="是否开启单点登录功能,1-开启,0-关闭"))
@@ -140,9 +140,10 @@ class Manage(Base):
     uuid = Column(String(40), primary_key=True, unique=True, nullable=False)  # 表id
     name = Column(String(255), unique=True, nullable=False)  # 自定义资产表名称
     table_name = Column(String(20), unique=True, nullable=False)  # 对应的数据库表名
+    table_image = Column()  # 背景图片
     description = Column(Text)  # 描述信息
     create_user = Column(String(100))  # 创建者
-    create_time = Column(datetime, default=datetime.now)  # 创建时间
+    create_time = Column(DateTime, default=datetime.now)  # 创建时间
 
 class Echart(Base):
     '''图表配置表'''
@@ -161,12 +162,12 @@ class File(Base):
     filename = Column(Text, nullable=False)  # 文件名
     filepath = Column(Integer, default=1)  # 文件路径: 1-excel_path,2-image_path,0-temp_path
     upload_user = Column(String(100))  # 上传者
-    upload_time = Column(datetime, default=datetime.now)  # 上传时间
+    upload_time = Column(DateTime, default=datetime.now)  # 上传时间
 
 
-# class Header(Base):
-#     '''资产表表头表'''
-#     __tablename__ = "header"
-#     id = Column(Integer, primary_key=True, unique=True, nullable=False)
+class Header(Base):
+    '''资产表表头表'''
+    __tablename__ = "header"
+    id = Column(Integer, primary_key=True, unique=True, nullable=False)
 
 init_db()

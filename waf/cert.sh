@@ -1,6 +1,7 @@
 #!/bin/bash
-# @Desc: 生成自制ssl证书
+# @Desc: 服务器生成自制ssl证书
 # @Time: 2024/05/09
+# @Usage: 过程中提示输入密码请一直输入123456即可
 
 read -p "输入服务器IP: " DOMAIN
 

@@ -42,7 +42,7 @@ def login():
             "message": "不支持的请求方法"
         }), 405
 
-@app.route("/crm_manage", methods=methods.ALL)
+@app.route("/crm/api/v1/crm_manage", methods=methods.ALL)
 @verify(allow_methods=["GET"])
 def crm_manage():
     '''
@@ -50,7 +50,7 @@ def crm_manage():
     '''
     return render_template("crm_manage.html")
 
-@app.route("/crm_user", methods=methods.ALL)
+@app.route("/crm/api/v1/crm_user", methods=methods.ALL)
 @verify(allow_methods=["GET"], is_admin=True)
 def crm_user():
     '''
@@ -58,7 +58,7 @@ def crm_user():
     '''
     return render_template("crm_user.html")
 
-@app.route("/crm_system", methods=methods.ALL)
+@app.route("/crm/api/v1/crm_system", methods=methods.ALL)
 @verify(allow_methods=["GET"], is_admin=True)
 def crm_system():
     '''
@@ -66,7 +66,7 @@ def crm_system():
     '''
     return render_template("crm_system.html")
 
-@app.route("/crm_log", methods=methods.ALL)
+@app.route("/crm/api/v1/crm_log", methods=methods.ALL)
 @verify(allow_methods=["GET"], is_admin=True)
 def crm_log():
     '''

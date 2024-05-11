@@ -30,7 +30,7 @@ class redisConnPool:
         except Exception as e:
             crmLogger.error(f"redis连接错误: {e}")
     
-    def setData(self, key:str, value:str, expire: int=0) -> None:
+    def setData(self, key:str, value:Union[int, str], expire: int=0) -> None:
         '''
         写入数据
         :param key: 键
@@ -38,10 +38,10 @@ class redisConnPool:
         :param expire: 过期时间,单位:秒
         '''
         if expire == 0:
-            self.conn.set(key, str(value))
+            self.conn.set(key, value)
         else:
             # 设置过期时间
-            self.conn.set(key, str(value), ex=expire)
+            self.conn.set(key, value, ex=expire)
 
     def getData(self, key: str) -> Union[bytes, None]:
         '''
@@ -61,11 +61,19 @@ class redisConnPool:
         '''
         self.conn.delete(key)
 
-    def setIncr(self, key: str, startPos: int=0) -> None:
+    def setIncr(self, key: str, amount: int=1) -> None:
         '''
         设置自增
+        :param amount: 自增数
         '''
-        self.conn.incr(key, startPos)
+        self.conn.incr(key, amount)
+
+    def setDecr(self, key: str, amount: int=1) -> None:
+        '''
+        设置自减
+        :param amount: 自减数
+        '''
+        self.conn.decr(key, amount)
 
     def setHash(self, hashName: str, key: str, value: str) -> None:
         '''
@@ -91,13 +99,13 @@ class redisConnPool:
         '''
         self.conn.hdel(hashName, key)
 
-    def setSet(self, setName: str, value: str) -> None:
+    def setSet(self, setName: str, *value: str) -> None:
         '''
         写入set
         :param setName: set名称
-        :param value: 值
+        :param *value: 值
         '''
-        self.conn.sadd(setName, value)
+        self.conn.sadd(setName, *value)
 
     def getSet(self, setName: str, value: str) -> bool:
         '''
@@ -115,5 +123,29 @@ class redisConnPool:
         :param value: 值
         '''
         self.conn.srem(setName, value)
+
+    def lpush(self, listName: str, value: str) -> None:
+        '''
+        从左往右增加列表数据
+        :param listName: 列表名称
+        :param value: 值
+        '''
+        self.conn.lpush(listName, value)
+
+    def llen(self, listName: str) -> int:
+        '''
+        获取指定列表的长度
+        :param listName: 列表名称
+        :return:
+        '''
+        return self.conn.llen(listName)
+    
+    def rpop(self, listName: str) -> str:
+        '''
+        取列表中最右边的值
+        :param listName: 列表名称
+        :return:
+        '''
+        return self.conn.rpop(listName)
 
 redisClient = redisConnPool(passwd="123456")

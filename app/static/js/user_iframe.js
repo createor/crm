@@ -158,3 +158,138 @@ var addNewTable = function () {
     });
     return false;
 }
+
+
+var addNewRule = function (tableId) {
+    layer.open({
+        type: 1,
+        title: "自定义规则",
+        area: ["500px", "400px"],
+        content: `<div class="layui-tab" layui-tab-card lay-filter="ruleTab">
+                    <ul class="layui-tab-title">
+                        <li class="layui-this">规则1</li>
+                        <li>规则2</li>
+                        <li>规则3</li>
+                    </ul>
+                    <div class="layui-form">
+                        <div class="layui-tab-content">
+                            <div class="layui-tab-item layui-show">
+                                <div class="layui-form-item">
+                                    <div class="layui-input-inline" style="width:100%;">
+                                        <fieldset class="layui-elem-field" style="width:180px;float:left;margin: 0 10px 0 10px;">
+                                            <legend>选择图表类型</legend>
+                                            <div class="layui-field-box">
+                                                <select name=""rule_1_type>
+                                                    <option value="">请选择</option>
+                                                    <option value="1">柱形图</option>
+                                                    <option value="2">折线图</option>
+                                                    <option value="3">饼图</option>
+                                                </select>
+                                            </div>
+                                        </fieldset>
+                                        <fieldset class="layui-elem-field" style="width:180px;">
+                                            <legend>选择数据来源</legend>
+                                            <div class="layui-field-box">
+                                                <select name="rule_1_value">
+                                                    <option value="">请选择</option>
+                                                    <option value="1">k1</option>
+                                                    <option value="2">k2</option>
+                                                    <option value="3">k3</option>
+                                                </select>
+                                            </div>
+                                        </fieldset>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="layui-tab-item">
+                                <div class="layui-form-item">
+                                    <div class="layui-input-inline" style="width:100%;">
+                                        <fieldset class="layui-elem-field" style="width:180px;float:left;margin: 0 10px 0 10px;">
+                                            <legend>选择图表类型</legend>
+                                            <div class="layui-field-box">
+                                                <select name=""rule_2_type>
+                                                    <option value="">请选择</option>
+                                                    <option value="1">柱形图</option>
+                                                    <option value="2">折线图</option>
+                                                    <option value="3">饼图</option>
+                                                </select>
+                                            </div>
+                                        </fieldset>
+                                        <fieldset class="layui-elem-field" style="width:180px;">
+                                            <legend>选择数据来源</legend>
+                                            <div class="layui-field-box">
+                                                <select name="rule_2_value">
+                                                    <option value="">请选择</option>
+                                                    <option value="1">k1</option>
+                                                    <option value="2">k2</option>
+                                                    <option value="3">k3</option>
+                                                </select>
+                                            </div>
+                                        </fieldset>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="layui-tab-item">
+                                <div class="layui-form-item">
+                                    <div class="layui-input-inline" style="width:100%;">
+                                        <fieldset class="layui-elem-field" style="width:180px;float:left;margin: 0 10px 0 10px;">
+                                            <legend>选择图表类型</legend>
+                                            <div class="layui-field-box">
+                                                <select name=""rule_3_type>
+                                                    <option value="">请选择</option>
+                                                    <option value="1">柱形图</option>
+                                                    <option value="2">折线图</option>
+                                                    <option value="3">饼图</option>
+                                                </select>
+                                            </div>
+                                        </fieldset>
+                                        <fieldset class="layui-elem-field" style="width:180px;">
+                                            <legend>选择数据来源</legend>
+                                            <div class="layui-field-box">
+                                                <select name="rule_3_value">
+                                                    <option value="">请选择</option>
+                                                    <option value="1">k1</option>
+                                                    <option value="2">k2</option>
+                                                    <option value="3">k3</option>
+                                                </select>
+                                            </div>
+                                        </fieldset>
+                                    </div>
+                                </div>
+                            </div>  
+                        </div>
+                        <div style="position: absolute;left: 200px;bottom: 40px;">
+                            <button type="button" class="layui-btn" lay-submit lay-filter="updateChart">更新</button>
+                        </div>
+                    </div>
+                </div>`,
+        success: function () {
+            form.render();
+            element.on("tab(ruleTab)", function(data) {
+                $(".layui-tab-content .layui-tab-item").each(function(){
+                    $(this).removeClass("layui-show");
+                });
+                $(".layui-tab-content .layui-tab-item").eq(data.index).addClass("layui-show");
+            });
+            form.on('submit(updateChart)', function(data) {
+                // 获取表格id
+                let field = data.field;
+                $.ajax({
+                    url: "/crm/api/v1/manage/",
+                    type: "post",
+                    data: JSON.stringify({
+                        "id": tableId
+                    }),
+                    success: function (data) {
+                        if (data.code === 0) {
+                            layer.msg("更新成功", {icon: 1});
+                            layer.closeAll();
+                        }
+                    },
+                    error: function () {}
+                })
+                return false;
+            });
+        }
+    });
+}
