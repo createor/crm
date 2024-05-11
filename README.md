@@ -1,5 +1,7 @@
 # CRM 资产管理系统
+
 ## 技术选型
+
 代理服务器： openresty
 前端：layui框架
 后端：Flask
