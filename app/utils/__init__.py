@@ -13,4 +13,6 @@ from app.utils.auth import verify
 from app.utils.scan import scan_file, scan_ip
 from app.utils.excel import readExcel, createExcel
 from app.utils.desense import undesense
+from app.utils.pinyin import converWords
+from app.utils.cronJob import job
 from app.utils.config import *

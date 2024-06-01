@@ -12,3 +12,4 @@ curl -v -k -L ${TestUrl}/crm/api/v1/user
 curl -v -k -L ${TestUrl}/test.php?id=../etc/passwd
 # 测试上传文件,拦截
 curl -v -k -X POST -L ${TestUrl}/crm/api/v1/user -F "file=@/root/crm/nginx/test/test.php" -H "Content-Disposition: form-data; filename=test.php"
+# 测试clamav

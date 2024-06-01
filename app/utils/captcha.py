@@ -17,7 +17,7 @@ def getCaptcha(length: int = 4) -> Tuple[str, str]:
     '''
     获取验证码和验证码图片
     :param length: 验证码长度
-    :return:
+    :return: 验证码,验证码图片base64编码
     '''
     # 验证码
     captcha_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k = length))

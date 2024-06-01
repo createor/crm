@@ -172,9 +172,9 @@
                     curr: 1,
                     groups: 1
                 },
-                limit: 10,
-                limits: [10],
-                // totalRow: true,
+                limit: 6,
+                limits: [6],
+                totalRow: true,
                 parseData: function (result) {
                     return {
                         "code": result.code,
@@ -211,6 +211,9 @@
             let id = obj.config.id;
             let checkStatus = table.checkStatus(id);
             switch (obj.event) {
+                case "add":  // 录入数据
+                    window.parent.addNewData(tableUid);
+                    break;
                 case "edit":
                     if (checkStatus.data.length > 1) {
                         layer.msg("不支持批量编辑", { icon: 2 });

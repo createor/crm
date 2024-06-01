@@ -11,7 +11,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, DateTime, Text, Date
 from datetime import datetime
-from app.utils import redisClient, crmLogger
+from app.utils import redisClient, crmLogger, getUuid
 
 # 数据库引擎
 engine = create_engine(
@@ -32,7 +32,7 @@ Base.query = db_session.query_property()
 
 def init_cache():
     '''
-    初始化缓存
+    初始化redis缓存
     '''
     crmLogger.info("正在初始化缓存")
     # 初始化配置
@@ -48,6 +48,7 @@ def init_cache():
     white_ip = db_session.query(WhiteList.ip).all()
     if len(white_ip) > 0:
         redisClient.setSet("white_ip_list", [v.ip for v in white_ip])
+    crmLogger.info("缓存初始化完成")
 
 def init_db():
     '''
@@ -69,6 +70,21 @@ def init_db():
             avator="",
             status=1
         ))
+    # 初始化图片文件
+    init_bg_img = db_session.query(File).filter().first()  # 背景图片
+    if init_bg_img is None:
+        db_session.add(File(
+            uuid=getUuid(),
+            filename="crm.png",
+            filepath=2
+        ))
+    init_avator_img = db_session.query(File).filter().first()  # 头像图片
+    if init_avator_img is None:
+        db_session.add(File(
+            uuid=getUuid(),
+            filename="default.png",
+            filepath=2
+        ))
     # 初始化配置
     init_config = db_session.query(Setting).all()
     if len(init_config) == 0:
@@ -88,6 +104,7 @@ def init_db():
             if v == "failed_count":
                 db_session.add(Setting(type="failed_count", value=3, desc="失败次数"))         
     db_session.commit()
+    crmLogger.info("数据库初始化完成")
     init_cache()
 
 class User(Base):
@@ -164,10 +181,40 @@ class File(Base):
     upload_user = Column(String(100))  # 上传者
     upload_time = Column(DateTime, default=datetime.now)  # 上传时间
 
-
 class Header(Base):
     '''资产表表头表'''
     __tablename__ = "header"
     id = Column(Integer, primary_key=True, unique=True, nullable=False)
+
+class Task(Base):
+    '''批量探测任务表'''
+    __tablename__ = "task"
+    id = Column(String(40), primary_key=True, unique=True, nullable=False)  # 任务id
+    status = Column(Integer, nullable=False)  # 任务状态: 0-未开始,1-进行中,2-已完成,3-失败
+    create_user = Column(String(100))  # 任务创建者
+    create_time = Column(DateTime, default=datetime.now)
+
+class DetectResult(Base):
+    '''批量探测任务结果表'''
+    __tablename__ = "detect_result"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(40), nullable=False)  # 任务id
+    ip = Column(String(20), nullable=False)  # ip
+    status = Column(Integer, nullable=False) # 状态: 0-不在线,1-在线,2-未探测
+    create_time = Column(DateTime, default=datetime.now)
+    reason = Column(String(255))  # 未探测原因
+
+class Notify(Base):
+    '''到期提醒表'''
+    __tablename__ = "notify"
+    id = Column(String(40), primary_key=True, unique=True, nullable=False)  # 任务id
+    status = Column()
+    create_user = Column(String(100))  # 任务创建者
+    create_time = Column(DateTime, default=datetime.now)
+
+def getManageTable():
+    '''
+    '''
+    return 
 
 init_db()

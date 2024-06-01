@@ -293,3 +293,21 @@ var addNewRule = function (tableId) {
         }
     });
 }
+
+
+var addNewData = function (tableId, header) {
+    layer.open({
+        type: 1,
+        title: "新增数据",
+        area: ["500px", "300px"],
+        content: `<div>
+                    <form class="layui-form">
+                        <div class="layui-form-item"></div>
+                        <div class="layui-form-item"></div>
+                    </form>
+                  </div>`,
+        success: function () {
+            form.render();
+        }
+    });
+}
