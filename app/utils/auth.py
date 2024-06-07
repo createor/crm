@@ -12,15 +12,14 @@ import traceback
 from flask import jsonify, redirect, request, url_for, session, g
 from app.utils import crmLogger, redisClient
 
-
 def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: bool = True, is_admin: bool = False, allow_admin: list = ["admin"]):
     '''
     装饰函数,用于识别用户是否登录以及是否是admin用户
-    :param allow_methods: 允许的方法
+    :param allow_methods: 允许的方法,默认GET方法
     :param module_name: 模块名称
-    :param auth_login: 是否校验用户登录情况
-    :param is_admin: 是否只允许管理员访问
-    :param allow_admin: 管理员列表
+    :param auth_login: 是否校验用户登录情况,默认true
+    :param is_admin: 是否只允许管理员访问,默认false
+    :param allow_admin: 管理员列表,默认admin
     :return:
     '''
     def wrapper(func):

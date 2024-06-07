@@ -9,10 +9,11 @@
 from typing import Union
 import redis
 from app.utils import crmLogger
+from app.utils.config import cfg
 
 class redisConnPool:
     '''redis连接池'''
-    def __init__(self, passwd: str, host: str="117.72.32.46", port: int=6379, db: int=0) -> None:
+    def __init__(self, passwd: str, host: str="127.0.0.1", port: int=6379, db: int=0) -> None:
         '''
         :param passwd: redis密码
         :param host: redis地址
@@ -148,4 +149,4 @@ class redisConnPool:
         '''
         return self.conn.rpop(listName)
 
-redisClient = redisConnPool(passwd="123456")
+redisClient = redisConnPool(passwd=cfg.get("database", "redis_pwd"), host=cfg.get("database", "redis_host"), port=int(cfg.get("database", "redis_port")), db=int(cfg.get("database", "redis_db")))

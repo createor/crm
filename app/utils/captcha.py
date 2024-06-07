@@ -12,6 +12,8 @@ import random
 import string
 import base64
 import io
+import traceback
+from app.utils import crmLogger
 
 def getCaptcha(length: int = 4) -> Tuple[str, str]:
     '''
@@ -21,7 +23,11 @@ def getCaptcha(length: int = 4) -> Tuple[str, str]:
     '''
     # 验证码
     captcha_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k = length))
-    image = ImageCaptcha().generate_image(captcha_code)
+    try:
+        image = ImageCaptcha().generate_image(captcha_code)
+    except Exception:
+        crmLogger.error(f"生成验证码失败: {traceback.format_exc()}")
+        return "", ""
     buffer = io.BytesIO()
     image.save(buffer, format="JPEG")
     img_str = base64.b64encode(buffer.getvalue()).decode()

@@ -9,8 +9,9 @@
 import os
 import pandas as pd
 from app.utils.logger import crmLogger
+from typing import Union
 
-def readExcel(filePath: str) -> pd.DataFrame:
+def readExcel(filePath: str) -> Union[pd.DataFrame, None]:
     '''
     读取表格
     :param filepath: 文件路径
@@ -20,6 +21,7 @@ def readExcel(filePath: str) -> pd.DataFrame:
         return pd.read_excel(filePath)
     except Exception as e:
         crmLogger.error(f"读取表格时发生错误: {e}")
+        return None
 
 
 def createExcel(filepath: str, filename: str, sheet_name: str, data: dict, passwd: str="") -> bool:

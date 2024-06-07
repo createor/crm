@@ -9,7 +9,7 @@
 import os
 import logging
 from logging.handlers import TimedRotatingFileHandler
-from app.utils.config import LOG_PATH
+from app.utils.config import LOG_PATH, LOG_LEVEL
 
 class logger:
     '''系统日志文件'''
@@ -73,4 +73,4 @@ class logger:
         '''
         self.logger.critical(msg)
 
-crmLogger = logger()
+crmLogger = logger(LOG_LEVEL)

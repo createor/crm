@@ -106,7 +106,7 @@ def upload():
     '''
     上传文件
     '''
-    if "file" not in request.files:
+    if "file" not in request.files:  # 判断请求中是否携带文件
         return jsonify({
             "code": -1,
             "message": "错误的请求"
@@ -116,13 +116,13 @@ def upload():
         filename = secure_filename(file.filename)  # 文件名
         affix = filename.rsplit(".", 1)[1].lower()  # 文件后缀
         file_uuid = getUuid()  # 文件uuid
-        path_type = 1
+        path_type = 1  # 默认文件上传路径
         if affix in ["xlsx", "xls"]:
             file.save(os.path.join(UPLOAD_EXCEL_DIR, file_uuid + "." + affix))  # 表格保存
         else:
             path_type = 2
             file.save(os.path.join(UPLOAD_IMAGE_DIR, file_uuid + "." + affix))  # 图片保存
-        # 扫描文件
+        # 使用clamav扫描文件
         # filepath = os.path.join(UPLOAD_EXCEL_DIR, file_uuid + "." + affix) if path_type == 1 else os.path.join(UPLOAD_IMAGE_DIR, file_uuid + "." + affix)
         # if not scan_file(filepath):
         #     os.remove(filepath)  # 移除文件
@@ -144,29 +144,35 @@ def upload():
     }), 200
 
 @app.route("/crm/api/v1/images/<string:filename>", methods=methods.ALL)
-@verify(allow_methods=["GET"])
+@verify(allow_methods=["GET"], module_name="图片访问")
 def download_image(filename):
     '''
-    头像图片访问地址
+    图片访问地址
     '''
-    return send_from_directory(UPLOAD_IMAGE_DIR, filename)
-
-@app.route("/crm/api/v1/file/<string:filename>", methods=methods.ALL)
-@verify(allow_methods=["GET"])
-def download_file(filename):
-    '''
-    下载表格导出文件
-    '''
-    file_name = db_session.query(File.filename).filter(File.uuid==filename).first()
-    if file_name is None:
+    file = db_session.query(File.filename).filter(File.uuid == filename).first()
+    if file is None:
         return jsonify({
             "code": -1,
             "message": "文件不存在"
         }), 400
-    return send_file(os.path.join(TEMP_DIR, file_name), as_attachment=True, download_name=file_name)
+    return send_from_directory(UPLOAD_IMAGE_DIR, file.filename)
+
+@app.route("/crm/api/v1/file/<string:filename>", methods=methods.ALL)
+@verify(allow_methods=["GET"], module_name="表格下载")
+def download_file(filename):
+    '''
+    下载资产表导出的表格文件
+    '''
+    file = db_session.query(File.filename).filter(File.uuid == filename).first()
+    if file is None:
+        return jsonify({
+            "code": -1,
+            "message": "文件不存在"
+        }), 400
+    return send_file(os.path.join(TEMP_DIR, file.filename), as_attachment=True, download_name=file.filename)
 
 @app.route("/crm/api/v1/help", methods=methods.ALL)
-@verify(allow_methods=["GET"])
+@verify(allow_methods=["GET"], module_name="帮助手册")
 def download_help():
     '''
     下载帮助手册

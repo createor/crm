@@ -6,9 +6,9 @@
 @Version :  1.0
 @Desc    :  入口函数
 '''
-from app import app
+from app import app, SERVER_HOST, SERVER_PORT
 
 
 if __name__ == '__main__':
     # 运行项目
-    app.run(port=8080, host="127.0.0.1", debug=True)
+    app.run(port=int(SERVER_PORT), host=SERVER_HOST, debug=True)

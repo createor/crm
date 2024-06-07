@@ -1,0 +1,351 @@
+2024-06-02 00:18:49,221 - INFO - 正在初始化数据库
+2024-06-02 00:19:25,446 - INFO - 正在初始化数据库
+2024-06-02 00:20:35,164 - INFO - 正在初始化数据库
+2024-06-02 00:20:37,529 - INFO - 已初始化资产表默认背景图片
+2024-06-02 00:20:37,578 - INFO - 已初始化用户默认头像图片
+2024-06-02 00:20:37,627 - INFO - 已初始化默认系统配置
+2024-06-02 00:20:37,773 - INFO - 数据库初始化完成
+2024-06-02 00:20:37,773 - INFO - 正在初始化缓存
+2024-06-02 00:20:50,745 - INFO - 正在初始化数据库
+2024-06-02 00:20:52,262 - INFO - 已初始化默认系统配置
+2024-06-02 00:20:52,347 - INFO - 数据库初始化完成
+2024-06-02 00:20:52,347 - INFO - 正在初始化缓存
+2024-06-02 00:21:30,584 - INFO - 正在初始化数据库
+2024-06-02 00:21:32,061 - INFO - 已初始化默认系统配置
+2024-06-02 00:21:32,143 - INFO - 数据库初始化完成
+2024-06-02 00:21:32,143 - INFO - 正在初始化缓存
+2024-06-02 00:21:32,719 - INFO - 缓存初始化完成
+2024-06-02 00:21:34,443 - INFO - 正在初始化数据库
+2024-06-02 00:21:36,062 - INFO - 已初始化默认系统配置
+2024-06-02 00:21:36,158 - INFO - 数据库初始化完成
+2024-06-02 00:21:36,158 - INFO - 正在初始化缓存
+2024-06-02 00:21:36,747 - INFO - 缓存初始化完成
+2024-06-02 00:23:41,976 - INFO - 正在初始化数据库
+2024-06-02 00:23:43,581 - INFO - 已初始化默认系统配置
+2024-06-02 00:23:43,670 - INFO - 数据库初始化完成
+2024-06-02 00:23:43,670 - INFO - 正在初始化缓存
+2024-06-02 00:23:44,299 - INFO - 缓存初始化完成
+2024-06-02 00:24:59,101 - INFO - 正在初始化数据库
+2024-06-02 00:25:00,759 - INFO - 已初始化默认系统配置
+2024-06-02 00:25:00,860 - INFO - 数据库初始化完成
+2024-06-02 00:25:00,860 - INFO - 正在初始化缓存
+2024-06-02 00:25:01,475 - INFO - 缓存初始化完成
+2024-06-02 00:25:26,957 - INFO - 正在初始化数据库
+2024-06-02 00:25:28,593 - INFO - 已初始化默认系统配置
+2024-06-02 00:25:28,689 - INFO - 数据库初始化完成
+2024-06-02 00:25:28,689 - INFO - 正在初始化缓存
+2024-06-02 00:25:29,322 - INFO - 缓存初始化完成
+2024-06-02 00:25:59,449 - INFO - 用户admin登录成功
+2024-06-02 00:26:00,266 - ERROR - 查询资产表模块功能异常: Traceback (most recent call last):
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1244, in _execute_context
+    cursor, statement, parameters, context
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\default.py", line 552, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 170, in execute
+    result = self._query(query)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 328, in _query
+    conn.query(q)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 517, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 732, in _read_query_result
+    result.read()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 1075, in read
+    first_packet = self.connection._read_packet()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 684, in _read_packet
+    packet.check_error()
+  File "D:\Python\Python36\lib\site-packages\pymysql\protocol.py", line 220, in check_error
+    err.raise_mysql_exception(self._data)
+  File "D:\Python\Python36\lib\site-packages\pymysql\err.py", line 109, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.InternalError: (1054, "Unknown column 'manage.table_image' in 'field list'")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Administrator\Desktop\crm\app\utils\auth.py", line 50, in inner_wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\Administrator\Desktop\crm\app\src\manage.py", line 33, in query
+    count = db_session.query(Manage).count()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3561, in count
+    return self.from_self(col).scalar()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3305, in scalar
+    ret = self.one()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3275, in one
+    ret = self.one_or_none()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3244, in one_or_none
+    ret = list(self)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3317, in __iter__
+    return self._execute_and_instances(context)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3342, in _execute_and_instances
+    result = conn.execute(querycontext.statement, self._params)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 988, in execute
+    return meth(self, multiparams, params)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\sql\elements.py", line 287, in _execute_on_connection
+    return connection._execute_clauseelement(self, multiparams, params)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1107, in _execute_clauseelement
+    distilled_params,
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1248, in _execute_context
+    e, statement, parameters, cursor, context
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1466, in _handle_dbapi_exception
+    util.raise_from_cause(sqlalchemy_exception, exc_info)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\util\compat.py", line 383, in raise_from_cause
+    reraise(type(exception), exception, tb=exc_tb, cause=cause)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\util\compat.py", line 128, in reraise
+    raise value.with_traceback(tb)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1244, in _execute_context
+    cursor, statement, parameters, context
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\default.py", line 552, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 170, in execute
+    result = self._query(query)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 328, in _query
+    conn.query(q)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 517, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 732, in _read_query_result
+    result.read()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 1075, in read
+    first_packet = self.connection._read_packet()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 684, in _read_packet
+    packet.check_error()
+  File "D:\Python\Python36\lib\site-packages\pymysql\protocol.py", line 220, in check_error
+    err.raise_mysql_exception(self._data)
+  File "D:\Python\Python36\lib\site-packages\pymysql\err.py", line 109, in raise_mysql_exception
+    raise errorclass(errno, errval)
+sqlalchemy.exc.InternalError: (pymysql.err.InternalError) (1054, "Unknown column 'manage.table_image' in 'field list'")
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT manage.uuid AS manage_uuid, manage.name AS manage_name, manage.table_name AS manage_table_name, manage.table_image AS manage_table_image, manage.description AS manage_description, manage.create_user AS manage_create_user, manage.create_time AS manage_create_time 
+FROM manage) AS anon_1]
+(Background on this error at: http://sqlalche.me/e/2j85)
+
+2024-06-02 00:26:11,331 - INFO - 用户admin查询日志:
+2024-06-02 00:26:11,331 - DEBUG - 过滤条件无
+2024-06-02 00:26:11,331 - INFO - 结果total=118
+2024-06-02 00:26:14,709 - INFO - 用户admin查询系统配置
+2024-06-02 00:26:18,357 - INFO - 用户admin更新配置
+2024-06-02 00:26:18,786 - INFO - 用户admin查询系统配置
+2024-06-02 00:28:28,739 - INFO - 用户admin查询日志:
+2024-06-02 00:28:28,740 - DEBUG - 过滤条件无
+2024-06-02 00:28:28,740 - INFO - 结果total=121
+2024-06-02 00:28:30,790 - INFO - 用户admin查询日志:
+2024-06-02 00:28:30,790 - DEBUG - 过滤条件无
+2024-06-02 00:28:30,790 - INFO - 结果total=121
+2024-06-02 00:28:44,356 - ERROR - 查询资产表模块功能异常: Traceback (most recent call last):
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1244, in _execute_context
+    cursor, statement, parameters, context
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\default.py", line 552, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 170, in execute
+    result = self._query(query)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 328, in _query
+    conn.query(q)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 517, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 732, in _read_query_result
+    result.read()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 1075, in read
+    first_packet = self.connection._read_packet()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 684, in _read_packet
+    packet.check_error()
+  File "D:\Python\Python36\lib\site-packages\pymysql\protocol.py", line 220, in check_error
+    err.raise_mysql_exception(self._data)
+  File "D:\Python\Python36\lib\site-packages\pymysql\err.py", line 109, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.InternalError: (1054, "Unknown column 'manage.table_image' in 'field list'")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Administrator\Desktop\crm\app\utils\auth.py", line 50, in inner_wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\Administrator\Desktop\crm\app\src\manage.py", line 33, in query
+    count = db_session.query(Manage).count()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3561, in count
+    return self.from_self(col).scalar()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3305, in scalar
+    ret = self.one()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3275, in one
+    ret = self.one_or_none()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3244, in one_or_none
+    ret = list(self)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3317, in __iter__
+    return self._execute_and_instances(context)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3342, in _execute_and_instances
+    result = conn.execute(querycontext.statement, self._params)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 988, in execute
+    return meth(self, multiparams, params)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\sql\elements.py", line 287, in _execute_on_connection
+    return connection._execute_clauseelement(self, multiparams, params)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1107, in _execute_clauseelement
+    distilled_params,
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1248, in _execute_context
+    e, statement, parameters, cursor, context
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1466, in _handle_dbapi_exception
+    util.raise_from_cause(sqlalchemy_exception, exc_info)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\util\compat.py", line 383, in raise_from_cause
+    reraise(type(exception), exception, tb=exc_tb, cause=cause)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\util\compat.py", line 128, in reraise
+    raise value.with_traceback(tb)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1244, in _execute_context
+    cursor, statement, parameters, context
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\default.py", line 552, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 170, in execute
+    result = self._query(query)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 328, in _query
+    conn.query(q)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 517, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 732, in _read_query_result
+    result.read()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 1075, in read
+    first_packet = self.connection._read_packet()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 684, in _read_packet
+    packet.check_error()
+  File "D:\Python\Python36\lib\site-packages\pymysql\protocol.py", line 220, in check_error
+    err.raise_mysql_exception(self._data)
+  File "D:\Python\Python36\lib\site-packages\pymysql\err.py", line 109, in raise_mysql_exception
+    raise errorclass(errno, errval)
+sqlalchemy.exc.InternalError: (pymysql.err.InternalError) (1054, "Unknown column 'manage.table_image' in 'field list'")
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT manage.uuid AS manage_uuid, manage.name AS manage_name, manage.table_name AS manage_table_name, manage.table_image AS manage_table_image, manage.description AS manage_description, manage.create_user AS manage_create_user, manage.create_time AS manage_create_time 
+FROM manage) AS anon_1]
+(Background on this error at: http://sqlalche.me/e/2j85)
+
+2024-06-02 00:28:53,583 - INFO - 用户admin登出系统
+2024-06-02 00:35:51,319 - INFO - 正在初始化数据库
+2024-06-02 00:35:52,832 - INFO - 已初始化默认系统配置
+2024-06-02 00:35:52,924 - INFO - 数据库初始化完成
+2024-06-02 00:35:52,924 - INFO - 正在初始化缓存
+2024-06-02 00:35:53,532 - INFO - 缓存初始化完成
+2024-06-02 00:35:55,121 - INFO - 正在初始化数据库
+2024-06-02 00:35:56,633 - INFO - 已初始化默认系统配置
+2024-06-02 00:35:56,726 - INFO - 数据库初始化完成
+2024-06-02 00:35:56,726 - INFO - 正在初始化缓存
+2024-06-02 00:35:57,292 - INFO - 缓存初始化完成
+2024-06-02 00:36:33,431 - INFO - 用户admin登录成功
+2024-06-02 00:36:34,212 - ERROR - 查询资产表模块功能异常: Traceback (most recent call last):
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1244, in _execute_context
+    cursor, statement, parameters, context
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\default.py", line 552, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 170, in execute
+    result = self._query(query)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 328, in _query
+    conn.query(q)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 517, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 732, in _read_query_result
+    result.read()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 1075, in read
+    first_packet = self.connection._read_packet()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 684, in _read_packet
+    packet.check_error()
+  File "D:\Python\Python36\lib\site-packages\pymysql\protocol.py", line 220, in check_error
+    err.raise_mysql_exception(self._data)
+  File "D:\Python\Python36\lib\site-packages\pymysql\err.py", line 109, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.InternalError: (1054, "Unknown column 'manage.table_image' in 'field list'")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Administrator\Desktop\crm\app\utils\auth.py", line 50, in inner_wrapper
+    return func(*args, **kwargs)
+  File "C:\Users\Administrator\Desktop\crm\app\src\manage.py", line 33, in query
+    count = db_session.query(Manage).count()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3561, in count
+    return self.from_self(col).scalar()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3305, in scalar
+    ret = self.one()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3275, in one
+    ret = self.one_or_none()
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3244, in one_or_none
+    ret = list(self)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3317, in __iter__
+    return self._execute_and_instances(context)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\orm\query.py", line 3342, in _execute_and_instances
+    result = conn.execute(querycontext.statement, self._params)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 988, in execute
+    return meth(self, multiparams, params)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\sql\elements.py", line 287, in _execute_on_connection
+    return connection._execute_clauseelement(self, multiparams, params)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1107, in _execute_clauseelement
+    distilled_params,
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1248, in _execute_context
+    e, statement, parameters, cursor, context
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1466, in _handle_dbapi_exception
+    util.raise_from_cause(sqlalchemy_exception, exc_info)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\util\compat.py", line 383, in raise_from_cause
+    reraise(type(exception), exception, tb=exc_tb, cause=cause)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\util\compat.py", line 128, in reraise
+    raise value.with_traceback(tb)
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\base.py", line 1244, in _execute_context
+    cursor, statement, parameters, context
+  File "D:\Python\Python36\lib\site-packages\sqlalchemy\engine\default.py", line 552, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 170, in execute
+    result = self._query(query)
+  File "D:\Python\Python36\lib\site-packages\pymysql\cursors.py", line 328, in _query
+    conn.query(q)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 517, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 732, in _read_query_result
+    result.read()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 1075, in read
+    first_packet = self.connection._read_packet()
+  File "D:\Python\Python36\lib\site-packages\pymysql\connections.py", line 684, in _read_packet
+    packet.check_error()
+  File "D:\Python\Python36\lib\site-packages\pymysql\protocol.py", line 220, in check_error
+    err.raise_mysql_exception(self._data)
+  File "D:\Python\Python36\lib\site-packages\pymysql\err.py", line 109, in raise_mysql_exception
+    raise errorclass(errno, errval)
+sqlalchemy.exc.InternalError: (pymysql.err.InternalError) (1054, "Unknown column 'manage.table_image' in 'field list'")
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT manage.uuid AS manage_uuid, manage.name AS manage_name, manage.table_name AS manage_table_name, manage.table_image AS manage_table_image, manage.description AS manage_description, manage.create_user AS manage_create_user, manage.create_time AS manage_create_time 
+FROM manage) AS anon_1]
+(Background on this error at: http://sqlalche.me/e/2j85)
+
+2024-06-02 00:37:00,648 - INFO - 用户admin查询日志:
+2024-06-02 00:37:00,649 - DEBUG - 过滤条件无
+2024-06-02 00:37:00,649 - INFO - 结果total=123
+2024-06-02 00:37:32,315 - INFO - 正在初始化数据库
+2024-06-02 00:37:33,816 - INFO - 已初始化默认系统配置
+2024-06-02 00:37:33,903 - INFO - 数据库初始化完成
+2024-06-02 00:37:33,903 - INFO - 正在初始化缓存
+2024-06-02 00:37:34,506 - INFO - 缓存初始化完成
+2024-06-02 00:38:38,070 - INFO - 正在初始化数据库
+2024-06-02 00:38:39,592 - INFO - 已初始化默认系统配置
+2024-06-02 00:38:39,680 - INFO - 数据库初始化完成
+2024-06-02 00:38:39,680 - INFO - 正在初始化缓存
+2024-06-02 00:38:40,260 - INFO - 缓存初始化完成
+2024-06-02 00:39:09,185 - INFO - 正在初始化数据库
+2024-06-02 00:39:10,796 - INFO - 已初始化默认系统配置
+2024-06-02 00:39:10,911 - INFO - 数据库初始化完成
+2024-06-02 00:39:10,911 - INFO - 正在初始化缓存
+2024-06-02 00:39:11,553 - INFO - 缓存初始化完成
+2024-06-02 00:40:09,399 - INFO - 正在初始化数据库
+2024-06-02 00:40:10,971 - INFO - 已初始化默认系统配置
+2024-06-02 00:40:11,063 - INFO - 数据库初始化完成
+2024-06-02 00:40:11,063 - INFO - 正在初始化缓存
+2024-06-02 00:40:11,669 - INFO - 缓存初始化完成
+2024-06-02 00:40:40,610 - INFO - 正在初始化数据库
+2024-06-02 00:40:42,155 - INFO - 已初始化默认系统配置
+2024-06-02 00:40:42,248 - INFO - 数据库初始化完成
+2024-06-02 00:40:42,248 - INFO - 正在初始化缓存
+2024-06-02 00:40:42,831 - INFO - 缓存初始化完成
+2024-06-02 00:40:52,807 - INFO - 正在初始化数据库
+2024-06-02 00:40:54,380 - INFO - 已初始化默认系统配置
+2024-06-02 00:40:54,481 - INFO - 数据库初始化完成
+2024-06-02 00:40:54,481 - INFO - 正在初始化缓存
+2024-06-02 00:40:55,064 - INFO - 缓存初始化完成
+2024-06-02 00:41:08,340 - INFO - 正在初始化数据库
+2024-06-02 00:41:09,857 - INFO - 已初始化默认系统配置
+2024-06-02 00:41:09,945 - INFO - 数据库初始化完成
+2024-06-02 00:41:09,945 - INFO - 正在初始化缓存
+2024-06-02 00:41:10,532 - INFO - 缓存初始化完成
+2024-06-02 00:42:33,808 - INFO - 正在初始化数据库
+2024-06-02 00:42:35,254 - INFO - 已初始化默认系统配置
+2024-06-02 00:42:35,333 - INFO - 数据库初始化完成
+2024-06-02 00:42:35,333 - INFO - 正在初始化缓存
+2024-06-02 00:42:35,919 - INFO - 缓存初始化完成

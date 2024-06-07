@@ -19,7 +19,7 @@ def scan_file(filename: str) -> bool:
     try:
         conn = pyclamd.ClamdUnixSocket()
         if not conn.ping():  # clamav服务不可用
-            return
+            return True
         result = conn.scan_file(filename)
         if result[filename] == "OK":
             return True

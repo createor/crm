@@ -9,9 +9,9 @@
 import os
 from flask import Flask
 from datetime import timedelta
-from app.utils import BASE_DIR
+from app.utils import BASE_DIR, cfg
 
-app = Flask(__name__, static_folder=os.path.join(BASE_DIR, "static"), template_folder=os.path.join(BASE_DIR, "templates"))
+app = Flask(__name__, static_folder=os.path.join(BASE_DIR, cfg.get("server", "static")), template_folder=os.path.join(BASE_DIR, cfg.get("server", "template")))
 
 # 设置json响应显示中文
 app.config["JSON_AS_ASCII"] = False
