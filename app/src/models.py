@@ -6,10 +6,9 @@
 @Version :  1.0
 @Desc    :  数据库模型模块
 '''
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Table, Column, Integer, String, DateTime, Text, Date
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, DateTime, Text, Date
 from datetime import datetime, timedelta
 from app.utils import redisClient, crmLogger, getUuid
 from app.utils.config import cfg
@@ -194,15 +193,25 @@ class Header(Base):
     '''资产表表头表'''
     __tablename__ = "header"
     id = Column(Integer, primary_key=True, unique=True, nullable=False)
-    type = Column(Integer, nullable=False)                # 表头类型: 1-普通字符串,2-下拉列表,3-日期
+    type = Column(Integer, default=1)                     # 表头类型: 1-普通字符串,2-下拉列表,3-日期
     name = Column(String(255), nullable=False)            # 中文名称
     value = Column(String(255), nullable=False)           # 英文字段
+    value_type = Column(Integer, default=1)               # 值类型: 1-字符串,2-数字,3-日期,4-大文本
     table_name = Column(String(20), nullable=False)       # 归属哪个资产表
     is_desence = Column(Integer, default=0)               # 是否脱敏: 1-是,0-否
     must_input = Column(Integer, default=0)               # 是否必填: 1-是,0-否
     order = Column(Integer, default=0)                    # 排序
     create_user = Column(String(100))                     # 创建者
     create_time = Column(DateTime, default=datetime.now)  # 创建时间
+
+class Options(Base):
+    '''下拉选项表'''
+    __tablename__ = "options"
+    id = Column(Integer, primary_key=True, unique=True, nullable=False)
+    option_name = Column(String(255), nullable=False)  # 选项名称
+    option_value = Column(String(255), nullable=False) # 选项值
+    header_value = Column(String(255), nullable=False) # 归属字段
+    table_name =Column(String(20), nullable=False)     # 归属资产表
 
 class Task(Base):
     '''批量探测任务表'''
@@ -238,12 +247,53 @@ class NotifyMessage(Base):
     receiver = Column(String(100))                                          # 过期提示消息接收者
     create_time = Column(DateTime, default=datetime.now)
 
-def getManageTable(table_name: str="", **cols):
+def generateManageTable(table_name: str="", *cols):
     '''
-    生成资产表
+    生成新资产表
     :param table_name: 资产表名称
-    :param cols: 表字段
+    :param cols: 表字段列表
+    :return:
     '''
-    return
+    cols.append(Column('_id', Integer, primary_key=True, autoincrement=True))
+    cols.append(Column('_create_user', String(100)))
+    cols.append(Column('_create_time', DateTime, default=datetime.now))
+    cols.append(Column('_update_user', String(100)))
+    cols.append(Column('_update_time', DateTime, default=datetime.now, onupdate=datetime.now))
+    dynamic_table = Table(table_name, Base.metadata, *cols)
+    Base.metadata.create(engine, [dynamic_table])  # 创建动态表格
+    return dynamic_table
+
+def initManageTable(table_name: str=""):
+    '''
+    实例化已有的资产表
+    :pararm table_name: 资产表名称
+    :return:
+    '''
+    return Table(table_name, Base.metadata, autoload_with=engine)
+
+def addColumn(table_name: Table, col: Column) -> bool:
+    '''
+    资产表添加新字段
+    :param table_name: 资产表名称
+    :param col: 新数据列
+    :return:
+    '''
+    try:
+        db_session.execute(table_name.append_column(col).alter())
+        db_session.commit()
+        return True
+    except:
+        crmLogger.error(f"添加字段失败")
+        return False
+    
+def alterColumn(table_name: str, col_name: str, source_type: str, dist_type: str) -> bool:
+    '''
+    资产表修改字段属性
+    :param table_name: 资产表名称
+    :param col: 新数据列
+    :return:
+    '''
+    # try:
+    #     db_session.execute(
 
 init_db()

@@ -16,6 +16,13 @@ def converWords(words: list = []) -> dict:
     :return:
     '''
     result = {}
-    for word in words:
-        result[word] = ''.join([j for i in pypinyin.lazy_pinyin(word) for j in i])
+    hasConver = []
+    for index, word in enumerate(words):
+        py = ''.join([j for i in pypinyin.lazy_pinyin(word) for j in i])
+        while py in hasConver:
+            py = py + '1'
+        result[word] = {
+            'pinyin': py,
+            'index': index
+        }
     return result

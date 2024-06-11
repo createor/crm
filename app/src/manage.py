@@ -8,8 +8,8 @@
 '''
 import os
 from flask import Blueprint, request, jsonify, g, Response
-from app.utils import methods, crmLogger, readExcel, UPLOAD_EXCEL_DIR, getUuid, verify, redisClient
-from app.src.models import db_session, Manage, Header, Log, Task, DetectResult
+from app.utils import methods, crmLogger, readExcel, UPLOAD_EXCEL_DIR, getUuid, verify, redisClient, converWords
+from app.src.models import db_session, Manage, Header, Log, Task, DetectResult, generateManageTable
 from sqlalchemy import or_
 import threading
 
@@ -150,12 +150,16 @@ def addTable():
                 "code": -1,
                 "message": "读取表格失败"
             }), 200
-        header_data = [Header() for v in table_headers]
+        header_data = [Header(name=k, value=v["pinyin"], table_name=table_name, order=v["index"], create_user=g.username) for k, v in converWords(table_headers).items()]
         db_session.add_all(header_data)
         db_session.add(Manage(uuid=getUuid(), name=table_name, description=table_desc, create_user=g.username))
         db_session.add(Log(ip=g.ip_addr, operate_type="创建资产表", operate_content=f"创建资产表{table_name}", operate_user=g.username))
         db_session.commit()
-        crmLogger.info()
+        manageTable = generateManageTable(table_name)  # 创建表
+        # 批量插入数据
+        db_session.add_all([manageTable(**v) for v in temp_table.to_dict(orient="records")])
+        db_session.commit()
+        crmLogger.info(f"创建资产表{table_name}成功")
         return jsonify({
             "code": 0,
             "message": "success"

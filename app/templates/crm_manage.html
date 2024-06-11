@@ -102,7 +102,10 @@
 <!-- 表格头部工具栏 -->
 <script type="text/html" id="toolBar">
   <div class="layui-clear-space">
-    <a class="layui-btn layui-btn-sm" lay-event="add">录入数据</a>
+    <div style="display: inline-block; margin-right: 10px;">
+        <a class="layui-btn layui-btn-sm" lay-event="add">录入数据</a>
+        <a class="layui-btn layui-btn-sm" style="margin-left: -3px;" id="dropdownBtn"><i class="layui-icon layui-icon-down layui-font-12"></i></a>
+    </div>
     <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="edit" id="edit">编辑选中的数据</a>
     <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="del" id="del">删除选中的数据</a>
     <!-- 搜索 -->
@@ -127,11 +130,12 @@
         base: "{{ url_for('static', filename='layui/ext/') }}"
     }).extend({
         cardTable: 'cardTable/cardTable'
-    }).use(["layer", "cardTable", "jquery", "table", "form"], function () {
+    }).use(["layer", "cardTable", "jquery", "table", "form", "dropdown"], function () {
         const form = layui.form;
         const layer = layui.layer;
         const table = layui.table;
         const $ = layui.jquery;
+        const dropdown = layui.dropdown;
         const cardTable = layui.cardTable;
         var tableUid = "";
 
@@ -188,7 +192,37 @@
                     { field: "id", title: "ID" },
                     { field: "ip", title: "IP" },
                     { field: "name", title: "主机名称" }
-                ]]
+                ]],
+                done: function () {
+                    // 下拉按钮选项
+                    dropdown.render({
+                        elem: "#dropdownBtn",
+                        show: true,
+                        data: [
+                            {
+                                id: "downTempl",  // 下载资产表录入模板表格
+                                title: "下载资产录入模板"
+                            }, {
+                                id: "importDataByExcel",  // 导入资产表录入模板表格
+                                title: "导入资产录入模板"
+                            }
+                        ],
+                        click: function (obj) {
+                            switch (obj.id) {
+                                case "downTempl":
+                                    $.ajax({
+                                        url: "" + tableUid,
+                                        type: "get",
+                                        success: function (data) { }
+                                    });
+                                    break;
+                                case "importDataByExcel":
+                                    // layer.open();  // 显示导入进度
+                                    break;
+                            }
+                        }
+                    });
+                }
             });
             return false;
         });
