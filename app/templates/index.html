@@ -56,7 +56,7 @@
         margin-top: 0;
         list-style: none;
         vertical-align: middle;
-        line-height: 60px;
+        line-height: 58px;
     }
 
     /* 用户名样式 */
@@ -131,6 +131,11 @@
                                         style="font-size: 18px; padding-right: 5px;"></i>
                                     <span>使用手册</span>
                                 </a>
+                            </li>
+                            <li class="manual" style="margin-right: 25px;">
+                                <a href="javascript:;" class="layui-icon layui-icon-email"
+                                    style="font-size: 26px;color: #fbfbfb;" lay-header-event="notify"><span
+                                        class="layui-badge-dot"></span></a>
                             </li>
                             <li class="layui-nav-item" lay-unselect>
                                 <a href="javascript:;">
@@ -209,13 +214,15 @@
         base: "{{ url_for('static', filename='layui/ext/') }}"
     }).extend({
         stepprogress: 'stepprogress/stepprogress'
-    }).use(["jquery", "element", "dropdown", "form", "layer", "table", "upload", "stepprogress"], function () {
+    }).use(["jquery", "element", "dropdown", "form", "layer", "table", "upload", "stepprogress", "util"], function () {
         const element = layui.element;
         const form = layui.form;
         const layer = layui.layer;
         const $ = layui.jquery;
-        const table = layui.tables;
+        const table = layui.table;
         const upload = layui.upload;
+        const util = layui.util;
+        window.table = table;
         window.element = element;
         window.upload = upload;
         window.form = form;
@@ -231,6 +238,29 @@
             // 使用iframe插入页面
             $(".layui-body-item").html("<iframe src='/crm/api/v1/" + url + "' frameborder='0' border='0' class='layui-iframe'></iframe>");
         });
+
+        // 点击右侧面板显示通知信息
+        util.event("lay-header-event", {
+            notify: function () {
+                $.ajax({
+                    url: "",
+                    type: "get",
+                    success: function (data) {
+                        let notify_templ = "xx";
+                        layer.open({
+                            type: 1,
+                            title: "通知",
+                            area: ["360px", "100%"],
+                            offset: "rt",
+                            anim: "slideLeft",
+                            shadeClose: true,
+                            scorllbar: false,
+                            content: `${notify_templ}`
+                        });
+                    }
+                });
+            }
+        })
 
         // 表单规则
         form.verify({

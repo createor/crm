@@ -48,7 +48,8 @@ def init_cache():
     # 初始化白名单ip
     white_ip = db_session.query(WhiteList.ip).all()
     if len(white_ip) > 0:
-        redisClient.setSet("white_ip_list", [v.ip for v in white_ip])
+        for item in white_ip:
+            redisClient.setSet("white_ip_list", item.ip)
     crmLogger.info("缓存初始化完成")
 
 def init_db():

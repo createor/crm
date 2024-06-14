@@ -93,16 +93,17 @@ def queryTable(id):
                     "data": []
                 }
             }), 200
-        result = db_session.query(table.table_name).filter(or_(getattr(table.table_name, key).like("%{}%".format(value)), getattr(table.table_name, "ip").like("%{}%".format(value)))).order_by(table.table_name._id.desc()).offset((page - 1) * limit).limit(limit).all()
-    count = db_session.query(table.table_name).count()
-    if count == 0:
-        return jsonify({
-                "code": 0,
-                "message": {
-                    "total": 0,
-                    "data": []
-                }
-            }), 200
+        result = db_session.query(table.table_name).filter((getattr(table.table_name, key).like(f"%{value}%"))).order_by(table.table_name._id.desc()).offset((page - 1) * limit).limit(limit).all()
+    else:
+        count = db_session.query(table.table_name).count()
+        if count == 0:
+            return jsonify({
+                    "code": 0,
+                    "message": {
+                        "total": 0,
+                        "data": []
+                    }
+                }), 200
     result = db_session.query(table.table_name).order_by(table.table_name._id.desc()).offset((page - 1) * limit).limit(limit).all()
     for item in result:
         for col in columns:

@@ -13,71 +13,126 @@ var renderStepProgress = function () {
             code: "02"
         },
         {
-            title: "完成",
+            title: "创建中",
             code: "03"
+        },
+        {
+            title: "完成",
+            code: "04"
         }
     ];
     stepprogress.render({
-        elem: "#stepProgressBar",
+        elem: "#stepProgressBar",  // 绑定元素
         stepItems: stepItems,
         position: 0  // 起始位置0
     });
 }
 
+// 文本输入长度
+var checkLength = function (that) {
+    $("#char-count").text(that.value.length);
+}
+
+// 新建资产表
 var addNewTable = function () {
     // 新建资产表 
     layer.open({
         type: 1,
-        area: ["500px", "300px"],
+        area: ["500px", "400px"],
         title: "新建资产表",
         shade: 0.6,
-        shadeClose: true,
+        shadeClose: false,
         content: `<div class="layui-container" style="width: 100%;height: 100%;padding-top: 10px;">
                     <div id="stepProgressBar"></div>
                     <div class="stepContent layui-form" style="padding-top: 10px;text-align: left;">
                         <div class="layui-form-item">
                             <div class="layui-inline">
-                                <label class="layui-form-label">表名(必填)</label>
-                                <div class="layui-input-inline">
-                                    <input type="text" name="mangeName" id="manageName" autocomplete="off" lay-verify="required" placeholder="" class="layui-input">
+                                <label class="layui-form-label" style="width: 100px;">表名(必填)</label>
+                                <div class="layui-input-inline" style="width: 250px;">
+                                    <input type="text" name="mangeName" id="manageName" autocomplete="off" lay-verify="required" placeholder="请输入中文名称" class="layui-input">
                                 </div>
                             </div>
                         </div>
                         <div class="layui-form-item">
                             <div class="layui-inline">
-                                <label class="layui-form-label">表别名(必填)</label>
-                                <div class="layui-input-inline">
+                                <label class="layui-form-label" style="width: 100px;">表别名(必填)</label>
+                                <div class="layui-input-inline" style="width: 250px;">
                                     <input type="text" name="emanegName" id="emanegName" autocomplete="off" lay-verify="required|isEnglish" placeholder="仅支持英文组成" class="layui-input">  
                                 </div>
                             </div>
                         </div>
+                        <div class="layui-form-item">
+                            <label class="layui-form-label" style="width: 100px;">备注信息(选填)</label>
+                            <div class="layui-input-inline" style="width: 250px;">
+                                <textarea name="remark" id="remark" placeholder="请输入备注信息" maxlength="50" rows="3" class="layui-textarea" style="resize: none;min-height: 80px;" oninput="checkLength(this)"></textarea>
+                                <div><span id="char-count">0</span>/50</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="stepContent layui-form">
-                        <div style="padding: 10px 0;">
-                            <span>表格导入数据(可选)</span>
+                        <div style="text-align: left; margin: 5px 45px;">
+                            <input type="radio" name="mode" value="1" title="表格导入数据" checked>
                         </div>
-                        <div class="layui-upload-drag" style="display: block;width: 50%;height: 30%;margin-left: 19%;padding-top: 15px;" id="uploadExcel">
+                        <input type="hidden" name="filename" id="filename" value="">
+                        <div class="layui-upload-drag" style="display: block;width: 50%;margin-left: 19%;padding-top: 15px;" id="uploadExcel">
                             <i class="layui-icon layui-icon-upload"></i> 
                             <div>点击上传，或将文件拖拽到此处</div>
+                            <div class="layui-hide" id="upload-preview" style="padding: 15px 0 0 0;">
+                                <span></span><i class="layui-icon layui-icon-success" style="color: #16baaa;font-size: 18px;margin-left: 5px;"></i>
+                            </div>
+                        </div>
+                        <div style="text-align: left; margin: 5px 45px;">
+                            <input type="radio" name="mode" value="2" title="立即创建">
                         </div>
                     </div>
+                    <!-- 显示进度 -->
                     <div class="stepContent layui-form">
-                       <div style="padding: 15px 0;margin-left: -10px;">
-                            <i class="layui-icon layui-icon-loading layui-anim layui-anim-rotate layui-anim-loop" style="font-size: 60px;"></i>
+                       <div style="padding: 35px 0;margin-left: -10px;">
+                            <i class="layui-icon layui-icon-loading layui-anim layui-anim-rotate layui-anim-loop" style="font-size: 100px;"></i>
                        </div>
-                       <span style='margin-left: -10px;'>创建中</span>
+                       <span style='margin-left: -10px;font-size: 18px;'>创建中</span>
                     </div>
-                    <div class="layui-btn-container">
+                    <!-- 显示结果 -->
+                    <div class="stepContent layui-form">
+                    </div>
+                    <div class="layui-btn-container" style="position: absolute;bottom: 15px;left:200px;">
                         <div style="text-align: center;margin-top: 10px;">
-	                        <button type="button" id="pre" class="layui-btn layui-btn-sm" style="margin: 0 20px;">上一步</button>
+	                        <button type="button" id="pre" class="layui-btn layui-btn-sm" style="margin-top: 10px;margin-left: -20px;">上一步</button>
 	                        <button type="button" id="next" class="layui-btn layui-btn-sm" style="margin: 0 20px;">下一步</button>
                             <button type="button" id="rightUse" class="layui-btn layui-btn-sm" style="display: none;">立即使用</button>
                         </div>
                     </div> 
                   </div>`,
         success: function () {
-            form.render();
+            let uploadFilename = "";  // 文件名
+            let layerIndex = "";  // load的index
+            // 文件上传
+            upload.render({
+                elem: "#uploadExcel",
+                url: "/crm/api/v1/upload",
+                acceptMime: "application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                exts: "xlsx|xls",
+                choose: function (obj) {
+                    obj.preview(function(_,file) {
+                        uploadFilename = file.name;
+                    });
+                },
+                before: function () {
+                    layerIndex = layer.load();
+                },
+                done: function (data) {
+                    layer.close(layerIndex);
+                    if (data.code === 0) {
+                        // 写入filename
+                        $("input[name='filename']").val(data.message);
+                        $("#upload-preview span").text(uploadFilename);
+                        $("#upload-preview").removeClass("layui-hide");
+                        layer.msg("上传成功", {icon: 1});
+                    }
+                }
+            });
             form.verify({
+                // 校验输入是否是英文
                 isEnglish: function(value) {
                     if (!value) return;
                     if (!(/^[A-Za-z]+$/.test(value))) {
@@ -85,14 +140,16 @@ var addNewTable = function () {
                     }
                 }
             });
-            let currIndex = 0;
-            $("#pre").hide();
-            $(".stepContent").eq(0).show();
-            renderStepProgress();
+            form.render();      // 渲染表格
+            let currIndex = 0;  // 定义当前步骤
+            $("#pre").hide();   // 隐藏上一步
+            $(".stepContent").eq(0).show();  // 显示第一步
+            renderStepProgress();  // 渲染步骤进度
+            // 点击下一步触发函数
             $("#next").click(function(){
                 if (currIndex === 0) {
-                    let isEmpty = form.validate("#manageName");
-                    let isValid = form.validate("#emanegName");
+                    let isEmpty = form.validate("#manageName");  // 验证是否为空
+                    let isValid = form.validate("#emanegName");  // 验证是否是英文
                     if (!isEmpty) {
                         return false;
                     }
@@ -100,9 +157,19 @@ var addNewTable = function () {
                         return false;
                     }
                 }
+                if (currIndex === 1) {
+                    let checkStatus = $("input[name='mode']:checked").val();
+                    if (checkStatus === "1") {
+                        if (!$("input[name='filename']").val()) {
+                            layer.msg("请上传表格文件", {icon: 2});
+                            return false;
+                        }
+                    }
+                }
                 currIndex += 1;
 		        stepprogress.next('stepProgressBar');
 	        });
+            // 点击上一步触发函数
 	        $("#pre").click(function(){
                 currIndex -= 1;
 		        stepprogress.pre('stepProgressBar');
@@ -113,6 +180,7 @@ var addNewTable = function () {
                     $(".stepContent").eq(0).show();
                     $(".stepContent").eq(1).hide();
                     $(".stepContent").eq(2).hide();
+                    $(".stepContent").eq(3).hide();
                     $("#pre").hide();
                     $("#next").show();
                     return false;
@@ -121,6 +189,7 @@ var addNewTable = function () {
                     $(".stepContent").eq(0).hide();
                     $(".stepContent").eq(1).show();
                     $(".stepContent").eq(2).hide();
+                    $(".stepContent").eq(3).hide();
                     $("#pre").show();
                     $("#next").show();
                     return false;
@@ -129,26 +198,39 @@ var addNewTable = function () {
                     $(".stepContent").eq(0).hide();
                     $(".stepContent").eq(1).hide();
                     $(".stepContent").eq(2).show();
+                    $(".stepContent").eq(3).hide();
                     $("#pre").hide();
                     $("#next").hide();
                     $.ajax({
                         url: "/crm/api/v1/manage/add",
                         type: "post",
+                        contentType: "application/json;charset=utf-8",
+                        data: JSON.stringify({
+                            "name": $("input[name='manageName']").val(),
+                            "table_name": $("input[name='emanegName']").val(),
+                            "mode": $("input[name='mode']:checked").val(),
+                            "filename": $("input[name='filename']").val() ? $("input[name='filename']").val() : "",
+                            "desc": $("#remark").val(),
+                        }),
                         success: function (data) {
                             if (data.code === 0) {
-                                // 将load换成打勾表示完成
-                                $(".stepContent").eq(2).html("<div style='padding: 15px 0;margin-left: -10px;'> \
-                                    <i class='layui-icon layui-icon-success' style='font-size: 60px;color: green;'></i> \
+                                // 成功提示
+                                $(".stepContent").eq(3).html("<div style='padding: 35px 0;margin-left: -10px;'> \
+                                    <i class='layui-icon layui-icon-success' style='font-size: 100px;color: green;'></i> \
                                     </div> \
-                                    <span style='margin-left: -10px;'>完 成</span>");
-                                stepprogress.next('stepProgressBar');
-                                $("#rightUse").show();
+                                    <span style='margin-left: -10px;font-size: 20px;'>创建成功</span>");
+                                $("#rightUse").show();  // 显示立即使用按钮
                             } else {
-                                $(".stepContent").eq(2).html("<div style='padding: 15px 0;margin-left: -10px;'> \
-                                    <i class='layui-icon layui-icon-error' style='font-size: 60px;color: red;'></i> \
+                                // 失败提示
+                                $(".stepContent").eq(3).html("<div style='padding: 35px 0;margin-left: -10px;'> \
+                                    <i class='layui-icon layui-icon-error' style='font-size: 100px;color: red;'></i> \
                                     </div> \
-                                    <span style='margin-left: -10px;'>失 败</span>");
+                                    <span style='margin-left: -10px;font-size: 20px;'>创建失败</span>");
                             }
+                            stepprogress.next('stepProgressBar');
+                            $(".stepContent").eq(2).hide();
+                            $(".stepContent").eq(3).show();
+                            return false;
                         }
                     });
                     return false;
@@ -159,7 +241,7 @@ var addNewTable = function () {
     return false;
 }
 
-
+// 新增图表规则
 var addNewRule = function (tableId) {
     $.ajax({
         url: "/crm/api/v1/manage/header",   // 获取资产表字段
@@ -298,7 +380,7 @@ var addNewRule = function (tableId) {
     })
 }
 
-
+// 手动录入数据
 var addNewData = function (tableId, header) {
     layer.open({
         type: 1,
@@ -312,6 +394,136 @@ var addNewData = function (tableId, header) {
                   </div>`,
         success: function () {
             form.render();
+        }
+    });
+}
+
+// 修改列
+var alterCol = function (tableId) {
+}
+// 新增列
+var addNewCol = function (tableId) {
+    layer.open({
+        type: 1,
+        title: "新增列",
+        area: ["500px", "400px"],
+        content: `<div>
+                    <form class="layui-form" style="margin-top: 10px;">
+                        <div class="layui-form-item">
+                            <label class="layui-form-label" style="width: 85px;">列名</label>
+                            <div class="layui-input-block">
+                                <input type="text" name="col_name" lay-verify="required" autocomplete="off" class="layui-input" style="width: 200px;">
+                            </div>
+                        </div>
+                        <div class="layui-form-item">
+                            <label class="layui-form-label" style="width: 85px;">列名</label>
+                            <div class="layui-input-block">
+                                <input type="text" name="col_name_en" lay-verify="required" autocomplete="off" class="layui-input" style="width: 200px;">
+                            </div>
+                        </div>
+                        <div class="layui-form-item">
+                            <label class="layui-form-label" style="width: 85px;">数据类型</label>
+                            <div class="layui-input-block">
+                                <input type="radio" name="data_type" value="1" title="文本" checked>
+                                <input type="radio" name="data_type" value="2" title="日期">
+                                <input type="radio" name="data_type" value="3" title="下拉列表">
+                            </div>
+                        </div>
+                        <div class="layui-form-item">
+                            <label class="layui-form-label" style="width: 85px;">是否必填</label>
+                            <div class="layui-input-block">
+                                <input type="radio" name="is_required" value="1" title="是">
+                                <input type="radio" name="is_required" value="0" title="否" checked>
+                            </div>
+                        </div>
+                        <div class="layui-form-item">
+                            <label class="layui-form-label" style="width: 85px;">是否脱敏展示</label>
+                            <div class="layui-input-block">
+                                <input type="radio" name="is_mask" value="1" title="是">
+                                <input type="radio" name="is_mask" value="0" title="否" checked>
+                            </div>
+                        </div>
+                        <div class="layui-form-item">
+                            <button type="button" class="layui-btn" lay-submit lay-filter="addNewCol" style="margin: 0 210px;">新增</button>
+                        </div>
+                    </form>
+                  </div>`,
+        success: function () {
+            form.render();
+            form.on("submit(addNewCol)", function (){
+                let field = data.field;
+                $.ajax({
+                    url: "",
+                    type: "post",
+                    data: field,
+                    success: function (res) {
+                        if (res.code === 200) {
+                            layer.msg(res.msg, {icon: 1, time: 1000}, function () {
+                                layer.closeAll();
+                                window.location.reload();
+                            });
+                        } else {
+                            layer.msg(res.msg, {icon: 2, time: 1000});
+                        }
+                    }
+                });
+            })
+        }
+    })
+}
+
+// 
+var mulitDetect = function (tableId) {
+    $.ajax({
+        url: "/crm/api/v1/manage/",
+        type: "get",
+        success: function (data) {
+            layer.open({
+                type: 1,
+                title: "Ping探测任务",
+                area: ["500px", "300px"],
+                content: `<div>
+                            <form class="layui-form">
+                                <div class="layui-form-item">
+                                    <label class="layui-form-label">IP列</label>
+                                    <div class="layui-input-inline">
+                                        <select name="ip_col" lay-verify="required">
+                                            <option value="">请选择IP列</option>
+                                            ${option}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="layui-form-item">
+                                    <button class="layui-btn" lay-submit lay-filter="createTask">创建任务</button>
+                                </div>
+                            </form>
+                          </div>`,
+                success: function () {}
+            });
+        }
+    });
+}
+
+//
+var createNotify = function (tableId) {
+    $.ajax({
+        url: "",
+        type: "get",
+        success: function (data) {
+            layer.open({
+                type: 1,
+                title: "到期提醒任务",
+                area: ["500px", "300px"],
+                content: `<div>
+                            <form class="layui-form">
+                                <div class="layui-form-item"></div>
+                                <div class="layui-form-item">
+                                    <button class="layui-btn">创建任务</button>
+                                </div>
+                            </form>
+                          </div>`,
+                success: function () {}
+            });
         }
     });
 }

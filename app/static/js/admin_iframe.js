@@ -1,28 +1,122 @@
 // admin_iframe.js
 // iframe调用父页面方法
 
+//
+var addNewWhiteIp = function () {
+    layer.open({
+        type: 1,
+        title: '添加白名单IP',
+        shadeClose: true,
+        shade: 0.8,
+        area: ['300px', '220px'],
+        content: `<div class="layui-form" style="padding: 10px 0 0 0;">
+                    <div class="layui-form-item">
+                        <label class="layui-form-label" style="width: 40px;">IP</label>
+                        <div class="layui-input-inline">
+                            <input type="text" name="ip" lay-verify="required|isAddress" maxlength="15" autocomplete="off" placeholder="请输入IP" class="layui-input">
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label" style="width: 40px;">备注</label>
+                        <div class="layui-input-inline">
+                            <input type="text" name="remark" maxlength="20" autocomplete="off" placeholder="请输入备注" class="layui-input">
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <button class="layui-btn" lay-submit lay-filter="add" style="margin-left: 120px;">添加</button>
+                    </div>
+                  </div>`,
+        success: function () {
+            form.verify({
+                isAddress: function(value) {
+                    if (!value) return;
+                    // 使用正则校验是否是IP
+                    if (!/^(([1-9]|([1-9]\d)|(1\d\d)|(2([0-4]\d|5[0-5])))\.)(([1-9]|([1-9]\d)|(1\d\d)|(2([0-4]\d|5[0-5])))\.){2}([1-9]|([1-9]\d)|(1\d\d)|(2([0-4]\d|5[0-5])))$/.test(value)) {
+                        return '请输入正确的IP地址';
+                    }
+                }
+            })
+            form.render();
+            form.on("submit(add)", function (data) {
+                let field = data.field;
+                $.ajax({
+                    url: "/crm/api/v1/system/add_white_list",
+                    type: "post",
+                    contentType: "application/json",
+                    data: JSON.stringify(field),
+                    success: function (res) {
+                    }
+                });
+                return false;
+            });
+        }
+    });
+}
+
+// 删除白名单IP
+var delWhiteIp = function (id) {
+    layer.confirm("确定删除该IP吗?", {
+        btn: ["确定", "取消"]
+    }, function () {
+        $.ajax({
+            url: "/crm/api/v1/system/del_white_list",
+            type: "post",
+            contentType: "application/json",
+            data: JSON.stringify({
+                id: id
+            }),
+            success: function (res) {
+                layer.msg("删除成功", { icon: 1 });
+                return false;
+            }
+        });
+    });
+}
+
 // 白名单IP
 var showWhiteIp = function () {
     // 新建白名单
     layer.open({
         type: 1,
-        area: ['500px', '300px'],
+        area: ['500px', '310px'],
         title: "白名单IP",
         shade: 0.6,
         shadeClose: true,
         maxmin: false,
         anim: 0,
         content: `<div>
+                    <div style="margin: 5px 0 5px 10px;">
+                        <input name="ip" placeholder="搜索IP" autocomplete="off" type="text" class="layui-input" style="width: 250px;">
+                        <div class="layui-input-split layui-input-suffix" style="cursor: pointer;height: 38px;left: 259px;top: 5px;">
+                            <i class="layui-icon layui-icon-search" style="line-height: 40px;"></i>
+                        </div>
+                        <button type="button" class="layui-btn layui-btn-sm layui-btn-normal" style="position: absolute; top: 10px; right: 30px;" onclick="addNewWhiteIp()">新增IP</button>
+                    </div>
                     <table class="layui-hide" id="myWhiteIp" lay-filter="myWhiteIp"></table>
                   </div>`,
         success: function () {
             table.render({
                 elem: "#myWhiteIp",
-                url: "",
+                url: "/crm/api/v1/system/get_white_list",
+                height: "200",
+                page: true,
+                limit: 3,
+                limits: [3],
+                parseData: function (res) {
+                    return {
+                        "code": res.code,
+                        "msg": res.code === 0 ? "" : res.message,
+                        "count": res.message.count,
+                        "data": res.message.data
+                    }
+                },
                 cols: [[
                     { field: "id", title:"ID", hide: true },
-                    { field: "ip", title:"IP", width:100 },
-                    { field: "desc", title: "备注" }
+                    { field: "ip", title:"IP", width: 200 },
+                    { field: "desc", title: "备注" },
+                    { field: "operate", title: "操作", templet: function(d) {
+                        return `<button type="button" class="layui-btn layui-btn-sm layui-btn-danger" onclick="delWhiteIp(${d.id})">删除</button>`;
+                    } }
                 ]]
             });
         }
