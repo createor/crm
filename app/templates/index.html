@@ -10,6 +10,7 @@
     <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
     <script type="text/javascript" src="{{ url_for('static', filename='driver/driver-min.js') }}"></script>
     <script type="text/javascript" src="{{ url_for('static', filename='js/js-cookie.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for('static', filename='js/watermark.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='driver/driver.css') }}">
 </head>
 <style>
@@ -338,6 +339,18 @@
             return false;
         });
 
+        /**
+         * @description 设置水印
+         * @param {String} text 水印文字
+        */
+        function setMark (text) {
+            watermark.init({
+                watermark_txt: text,
+                watermark_x_space: 200,
+                watermark_angle: 25
+            });
+        }
+
         // 判断密码有效期
         function getPwdState (data) {
             // 判断密码有效期是否少于10天,少于则弹窗提示
@@ -365,6 +378,9 @@
                 // 填充用户名和头像
                 $("#name").text(data.message.name);
                 $("#avator").attr("src", data.message.avator)
+                if (data.message.is_mark) {
+                    setMark(`${data.message.name}\n${data.message.ip}`);  // 设置水印
+                }
                 // 判断是否第一次登录,第一次登录显示新手引导
                 if (data.message.is_first) {
                     user_driver($, getPwdState(data));

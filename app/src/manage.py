@@ -337,13 +337,49 @@ def getEchart():
     '''
     args = request.args  # 获取请求参数
     table_name = args.get("table_name")
-    result = db_session.query(Header).filter().all()
+    # 查询规则
+    rules = db_session.query().filter().order_by().all()
+    result = []
+    for rule in rules:
+        if rule.mode == "1":  # 饼图
+            pie_result = db_session.query().group_by().all()
+            result.append({
+                "title": "测试",
+                "data": {
+                    "series": [
+                        {
+                            "name": "",
+                            "type": "pie",
+                            "radius": "50%",
+                            "data": [{"value": "", "name": ""}],
+                            "emphasis": {
+                                "itemStyle": {
+                                    "shadowBlur": 10,
+                                    "shadowOffsetX": 0,
+                                    "shadowColor": "rgba(0, 0, 0, 0.5)"
+                                }
+                            }
+                        }
+                    ]
+                }
+            })
+        if rule.mode == "2":  # 柱形图
+            result.append({
+                "title": "",
+                "xAxis": [],
+                "series": [
+                    {
+                        "data": [],
+                        "type": "bar"
+                    }
+                ]
+            })
+        if rule.mode == "3":  # 折线图
+            result.append({
+                "title": "",
+                "series": [{"name": "", "type": "line", "stack": "total", "data":[]}]
+            })
     return jsonify({
         "code": 0,
-        "message": {
-            "id": {
-                "title": "ID",
-                "order": 1,  # 顺序
-            }
-        }
+        "message": result
     }), 200

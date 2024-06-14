@@ -291,15 +291,16 @@
             let field = data.field;
             if (field.tableName) {
                 // 重载cardTable
-                // cardTable.reload("manageTable", {
-                //     where: queryJson,
-                // });
+                cardTable.reload("manageTable", {
+                    where: queryJson,
+                });
             }
             return false;
         });
 
         form.on("submit(addTable)", function () {
             window.parent.addNewTable(tableUid);
+            return false;
         });
 
         function showCharts () {
@@ -351,6 +352,7 @@
         $("#newRule").on("click", function () {
             // 新建或者编辑规则
             window.parent.addNewRule();
+            return false;
         });
 
         // 只有在新建用户、新建资产中点击创建时开始bind

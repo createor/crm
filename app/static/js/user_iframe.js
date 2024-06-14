@@ -241,6 +241,46 @@ var addNewTable = function () {
     return false;
 }
 
+/**
+ * @description 获取图表配置
+ * @param type 图表类型
+ * @param title 图表标题
+ * @param data 图表数据
+ */ 
+function getConfig (type, title, data) {
+    // 默认配置
+    let base_option = {
+        title: { text: title },
+        tooltip: { trigger: "axis" },
+        legend: { data: data.legend },
+        toolbox: { feature: { saveAsImage: {} } },  // 保存图片
+        xAxis: {
+            type: "category",
+            boundaryGap: false,
+            data: data.xAxis,
+        },  // x轴
+        yAxis: {
+            type: "value",
+        }, // y轴
+        series: data.series
+    };
+    switch(type) {
+        // 饼图
+        case "1":
+            option = {};
+            break;
+        // 折线图
+        case "2":
+            break;
+        // 柱形图
+        case "3":
+            base_option.title.left = "center";
+            base_option.tooltip.trigger = "item";
+            break;
+    }
+    return base_option;
+}
+
 // 新增图表规则
 var addNewRule = function (tableId) {
     $.ajax({
@@ -401,6 +441,7 @@ var addNewData = function (tableId, header) {
 // 修改列
 var alterCol = function (tableId) {
 }
+
 // 新增列
 var addNewCol = function (tableId) {
     layer.open({
@@ -475,31 +516,54 @@ var addNewCol = function (tableId) {
 // 
 var mulitDetect = function (tableId) {
     $.ajax({
-        url: "/crm/api/v1/manage/",
+        url: `/crm/api/v1/manage/${tableId}/head?type=1`,
         type: "get",
         success: function (data) {
-            layer.open({
-                type: 1,
-                title: "Ping探测任务",
-                area: ["500px", "300px"],
-                content: `<div>
-                            <form class="layui-form">
-                                <div class="layui-form-item">
-                                    <label class="layui-form-label">IP列</label>
-                                    <div class="layui-input-inline">
-                                        <select name="ip_col" lay-verify="required">
-                                            <option value="">请选择IP列</option>
-                                            ${option}
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="layui-form-item">
-                                    <button class="layui-btn" lay-submit lay-filter="createTask">创建任务</button>
-                                </div>
-                            </form>
-                          </div>`,
-                success: function () {}
-            });
+            if (data.code === 0) {
+                if (data.message.length === 0) {
+                    layer.msg("未找到相关字段", {icon: 3});
+                    return false;
+                } else {
+                    let option_template = "";
+                    layer.open({
+                        type: 1,
+                        title: "Ping探测任务",
+                        area: ["500px", "300px"],
+                        content: `<div>
+                                    <form class="layui-form">
+                                        <div class="layui-form-item">
+                                            <label class="layui-form-label">IP列</label>
+                                            <div class="layui-input-inline">
+                                                <select name="ip_col" lay-verify="required">
+                                                    <option value="">请选择IP列</option>
+                                                    ${option_template}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <button class="layui-btn" lay-submit lay-filter="createTask">创建任务</button>
+                                        </div>
+                                    </form>
+                                  </div>`,
+                        success: function () {
+                            form.render();
+                            if (!$().val()) {
+                                layer.msg("请选择IP列", { icon: 2 });
+                                return false;
+                            }
+                            form.on("submit(createTask)", function() {
+
+                                return false;
+                            });
+                        }
+                    });
+                }
+            }
+        },
+        error: function (err) {
+            let errMsg = err.responseJSON || JSON.parse(err.responseText);
+            layer.msg(errMsg.message, {icon: 2});
+            return false;
         }
     });
 }
@@ -507,16 +571,19 @@ var mulitDetect = function (tableId) {
 //
 var createNotify = function (tableId) {
     $.ajax({
-        url: "",
+        url: "/crm/api/v1/manage/",
         type: "get",
         success: function (data) {
+            let option_template = "";
             layer.open({
                 type: 1,
                 title: "到期提醒任务",
                 area: ["500px", "300px"],
                 content: `<div>
                             <form class="layui-form">
-                                <div class="layui-form-item"></div>
+                                <div class="layui-form-item">
+                                    <label class="layui-form-label">时间列</label>
+                                </div>
                                 <div class="layui-form-item">
                                     <button class="layui-btn">创建任务</button>
                                 </div>
