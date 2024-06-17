@@ -16,7 +16,7 @@
 
 <body>
     <div>
-        <form action="" class="layui-form" lay-filter="system">
+        <form class="layui-form" lay-filter="system">
             <fieldset class="layui-elem-field">
                 <legend>安全设置</legend>
                 <div class="layui-field-box">
@@ -59,6 +59,14 @@
                                 lay-skin="switch">
                         </div>
                     </div>
+                    <!-- 开启水印功能 -->
+                    <div class="layui-form-item" style="margin-top: 25px;">
+                        <label class="layui-form-label" style="width: 160px;text-align: left;">是否开启水印功能</label>
+                        <div class="layui-form-block">
+                            <input type="checkbox" name="watermark_enable" lay-filter="watermark_enable" title="开启|关闭"
+                                lay-skin="switch">
+                        </div>
+                    </div>
                 </div>
             </fieldset>
             <div class="layui-form-item" style="position: absolute;bottom: 50px;left: calc(50% - 100px)">
@@ -83,28 +91,31 @@
                     if (data.code === 0) {
                         $("input[name=white_list_enable]").prop("checked", data.message.enable_white);
                         if (data.message.enable_white) {
-                            $(".layui-choice").eq(0).css('display', 'inline-block');
+                            $(".layui-choice").eq(0).css("display", "inline-block");
                         }
                         $("input[name=failed_list_enable]").prop("checked", data.message.enable_failed);
                         if (data.message.enable_failed) {
-                            $(".layui-choice").eq(1).css('display', 'inline-block');
+                            $(".layui-choice").eq(1).css("display", "inline-block");
                         }
-                        $("input[name=single_enable]").prop("checked", data.message.enable_single);
                         $("input[name=failed_number]").val(data.message.failed_count);
-                        form.render("checkbox", "system");
+                        $("input[name=single_enable]").prop("checked", data.message.enable_single);
+                        $("input[name=watermark_enable]").prop("checked", data.message.enable_watermark);
+                        form.render("checkbox", "system");  // 渲染开关按钮
+                        return false;
+                    } else {
+                        layer.msg(data.message, { icon: 2 });
                         return false;
                     }
                 },
-                error: function (data) { }
+                error: function (err) {
+                    let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                    layer.msg(errMsg.message, { icon: 2 });
+                    return false;
+                }
             });
         }
 
         getConfig();
-
-        // 查看、添加白名单IP
-        $("#white_ip").on("click", function () {
-            window.parent.showWhiteIp();
-        });
 
         // 白名单开关
         form.on('switch(white_list_enable)', function (data) {
@@ -117,14 +128,19 @@
                 $(".layui-choice").eq(0).hide();
                 return false;
             }
+        });
+
+        // 查看、添加白名单IP
+        $("#white_ip").on("click", function () {
+            window.parent.showWhiteIp();
             return false;
         });
 
         // 登录失败开关
-        form.on('switch(failed_list_enable)', function (data) {
+        form.on("switch(failed_list_enable)", function (data) {
             let elem = data.elem;
             if (elem.checked) {
-                $(".layui-choice").eq(1).css('display', 'inline-block');
+                $(".layui-choice").eq(1).css("display", "inline-block");
                 return false;
             }
             if (!elem.checked) {
@@ -135,7 +151,7 @@
         });
 
         // 更新配置
-        form.on('submit(update_config)', function () {
+        form.on("submit(update_config)", function () {
             $.ajax({
                 url: "/crm/api/v1/system/update",
                 type: "post",
@@ -143,8 +159,9 @@
                 data: JSON.stringify({
                     "enable_white": $("input[name=white_list_enable]").prop('checked'),
                     "enable_failed": $("input[name=failed_list_enable]").prop('checked'),
+                    "failed_count": $("input[name=failed_number]").val(),
                     "enable_single": $("input[name=single_enable]").prop('checked'),
-                    "failed_count": $("input[name=failed_number]").val()
+                    "enable_watermark": $("input[name=watermark_enable]").prop('checked')
                 }),
                 beforeSend: function () {
                     loadIndex = layer.msg('更新中', {
@@ -158,7 +175,16 @@
                         layer.msg("更新配置成功", { icon: 1 });
                         getConfig();
                         return false;
+                    } else {
+                        layer.msg(data.message, { icon: 2 });
+                        return false;
                     }
+                },
+                error: function (err) {
+                    layer.close(loadIndex);
+                    let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                    layer.msg(errMsg.message, { icon: 2 });
+                    return false;
                 }
             });
             return false;

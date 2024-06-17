@@ -15,42 +15,48 @@ from datetime import datetime
 syslog = Blueprint("syslog", __name__)
 
 @syslog.route("/query", methods=methods.ALL)
-@verify(allow_methods=["GET"], is_admin=True)
+@verify(allow_methods=["GET"], module_name="查询操作日志", is_admin=True, check_ip=True)
 def queryLog():
     '''
     查询操作日志
     '''
-    args = request.args
-    page = args.get("page", default=1)
-    limit = args.get("limit", default=10)
-    query_condition = []  # 查询条件
-    query_string = []
-    operate_user = args.get("user")  # 用户名
-    operate_start = args.get("start")  # 开始时间
-    operate_end = args.get("end")  # 结束时间
+    args = request.args  # 获取查询参数
+    page = args.get("page", default=1)       # 页码,默认1
+    limit = args.get("limit", default=10)    # 每页数量,默认10
+    query_condition = []                     # 查询条件
+    operate_user = args.get("user", None)    # 用户名
+    operate_start = args.get("start", None)  # 开始时间
+    operate_end = args.get("end", datetime.now().replace(hour=23, minute=59, second=59, microsecond=0))      # 结束时间
     if operate_user is not None:
-        query_condition.append(Log.operate_user == operate_user)
-        query_string.append(f"user={operate_user}")
+        query_condition.append(Log.operate_user.in_(operate_user.split(",")))
     if operate_start is not None:
         query_condition.append(Log.operate_time >= datetime.strptime(operate_start, "%Y-%m-%dT%H:%M:%S"))
-        query_string.append(f"start={operate_start}")
-        if operate_end is not None:
-            query_condition.append(Log.operate_time <= datetime.strptime(operate_end, "%Y-%m-%dT%H:%M:%S"))
-            query_string.append(f"end={operate_end}")
-        else:
-            # 如果结束时间为空,默认为今天23:59:59
-            query_condition.append(Log.operate_time <= datetime.now().replace(hour=23, minute=59, second=59, microsecond=0))
-            query_string.append("end=today")
+        query_condition.append(Log.operate_time <= datetime.strptime(operate_end, "%Y-%m-%dT%H:%M:%S"))
     if len(query_condition) > 0:
         count = count = db_session.query(Log).filter(and_(*query_condition)).count()
-        result = db_session.query(Log).filter(and_(*query_condition)).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
+        if count == 0:
+            return jsonify({
+                "code": 0,
+                "message": {
+                    "count": 0,
+                    "data": []
+                }
+            }), 200
+        # 按操作时间倒序排序
+        result = db_session.query(Log).filter(and_(*query_condition)).order_by(Log.operate_time.desc()).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
     else:
         count = db_session.query(Log).count()
-        result = db_session.query(Log).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
-    condition_str = ",".join(query_string) if query_string else "无"
-    crmLogger.info(f"用户{g.username}查询日志:")
-    crmLogger.debug(f"过滤条件{condition_str}")
-    crmLogger.info(f"结果total={count}")
+        if count == 0:
+            return jsonify({
+                "code": 0,
+                "message": {
+                    "count": 0,
+                    "data": []
+                }
+            }), 200
+        result = db_session.query(Log).order_by(Log.operate_time.desc()).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
+    crmLogger.info(f"用户{g.username}查询日志: 结果total={count}")
+    crmLogger.debug(f"查询条件: operate_user={operate_user}, operate_start={operate_start}, operate_end={operate_end}, page={page}, limit={limit}")
     return jsonify({
         "code": 0,
         "message": {

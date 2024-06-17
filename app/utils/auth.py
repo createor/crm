@@ -12,7 +12,7 @@ import traceback
 from flask import jsonify, redirect, request, url_for, session, g
 from app.utils import crmLogger, redisClient
 
-def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: bool = True, is_admin: bool = False, allow_admin: list = ["admin"]):
+def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: bool = True, is_admin: bool = False, allow_admin: list = ["admin"], check_ip: bool = False):
     '''
     装饰函数,用于识别用户是否登录以及是否是admin用户
     :param allow_methods: 允许的方法,默认GET方法
@@ -20,6 +20,7 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
     :param auth_login: 是否校验用户登录情况,默认true
     :param is_admin: 是否只允许管理员访问,默认false
     :param allow_admin: 管理员列表,默认admin
+    :param check_ip: 是否校验用户IP,默认false
     :return:
     '''
     def wrapper(func):
@@ -31,9 +32,12 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
             ip_addr = request.remote_addr or "127.0.0.1" # 用户IP地址
             g.ip_addr = ip_addr
             # 判断是否开启IP白名单以及用户是否在白名单中
-            if bool(int(redisClient.getData("enable_white"))):
-                if not redisClient.getSet("white_list_ip", ip_addr):  # 如果不在白名单中无需响应
-                    return
+            if bool(int(redisClient.getData("crm:system:enable_white"))):
+                if not redisClient.getSet("crm:system:white_ip_list", ip_addr):  # IP不在白名单中
+                    return jsonify({
+                        "code": -1,
+                        "message": "无法访问, 你不在白名单中"
+                    }), 403
             if request.method in allow_methods:
                 try:
                     if auth_login:
@@ -47,6 +51,9 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
                                     "code": -1,
                                     "message": "无权限访问"
                                 }), 403
+                        if bool(int(redisClient.getData("crm:system:enable_single"))) and check_ip:  # 单点登陆校验IP
+                            if ip_addr != redisClient.getData(f"crm:{username}:ip"):
+                                return redirect(url_for("login", errMsg="账号已在其他地方登陆"))
                     return func(*args, **kwargs)
                 except (KeyError, TypeError):
                     crmLogger.error(f"错误的请求: {traceback.format_exc()}")

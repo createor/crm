@@ -1,6 +1,7 @@
 // admin_iframe.js
 // iframe调用父页面方法
 
+// crm_user module
 //
 var addNewWhiteIp = function () {
     layer.open({
@@ -123,40 +124,50 @@ var showWhiteIp = function () {
     });
 }
 
-// 新建用户
+/**
+ * @description 新建用户
+ */
 var addNewUser = function () {
     layer.open({
         type: 1,
         title: "新建用户",
         area: ["500px", "400px"],
+        shade: 0.6,
+        shadeClose: false,
+        maxmin: false,
         anim: 0,
-        content: `<div style="width:300px;padding-top:10px;">
+        content: `<div style="width: 300px;padding-top: 10px;">
                     <form class="layui-form" lay-filter="editUser">
                         <div class="layui-form-item">
                             <label class="layui-form-label">用户名</label>
                             <div class="layui-input-block">
-                                <input type="text" name="username" class="layui-input" autocomplete="off">
+                                <input type="text" name="username" lay-verify="required|isEnglish" placeholder="请输入用户名" class="layui-input" autocomplete="off">
                             </div>
                         </div>
                         <div class="layui-form-item">
                             <label class="layui-form-label">昵称</label>
                             <div class="layui-input-block">
-                                <input type="text" name="name" class="layui-input" autocomplete="off">
+                                <input type="text" name="name" placeholder="请输入昵称" class="layui-input" autocomplete="off">
                             </div>
                         </div>
                         <div class="layui-form-item">
                             <label class="layui-form-label">类型</label>
                             <div class="layui-input-block">
                                 <div class="layui-inline">
-                                    <input type="radio" name="type" value="1" title="永久用户" checked>
-                                    <input type="radio" name="type" value="2" title="临时用户">
+                                    <input type="radio" name="type" value="1" title="永久用户" lay-filter="type" checked>
+                                    <input type="radio" name="type" value="2" title="临时用户" lay-filter="type">
+                                    <!-- 临时用户日期选择 -->
+                                    <div style="width: 210px;position: absolute;margin: -33px 0px 0px 100px;display: none;" id="showExpire">
+                                        <label class="layui-form-label" style="width: 60px;">到期时间:</label>
+                                        <input type="text" class="layui-input" id="expire-time" placeholder="yyyy-MM-dd" style="width: 120px;">
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <div class="layui-form-item">
                             <label class="layui-form-label">所属组织</label>
                             <div class="layui-input-block">
-                                <input type="text" name="company" class="layui-input" autocomplete="off">
+                                <input type="text" name="company" placeholder="请输入组织/公司名称" class="layui-input" autocomplete="off">
                             </div>
                         </div>
                         <div class="layui-form-item" style="margin-left: 140px; margin-top: 40px;">
@@ -168,49 +179,125 @@ var addNewUser = function () {
                     </form>
                   </div>`,
         success: function() {
-            form.render();
+            form.verify({
+                // 校验用户名是否是英文字符
+                isEnglish: function(value) {
+                    if (!value) return;
+                    if (!/^[a-zA-Z]+$/.test(value)) {
+                        return "用户名只能包含英文字符";
+                    }
+                }
+            });
+            form.render();  // 渲染表格
+            // 日期渲染
+            laydate.render({
+                elem: "#expire-time",
+                disabledDate: function(date){
+                    return date.getTime() < Date.now();
+                }
+            });
+            form.on("radio(type)", function(data){
+                if (data.value === "2") {
+                    $("#showExpire").show();
+                } else {
+                    $("#showExpire").hide();
+                }
+                return false;
+            });
+            form.on("submit(create)", function(data) {
+                let field = data.field;
+                $.ajax({
+                    url: "/crm/api/v1/user/add",
+                    type: "post",
+                    contentType: "application/json",
+                    data: JSON.stringify(field),
+                    success: function(data) {
+                        if (data.code === 0) {
+                            layer.closeAll();
+                            layer.msg("创建成功", {icon: 1});
+                            // 重载用户表格
+                            table.reload("user");
+                            return false;
+                        } else {
+                            layer.msg(data.message, {icon: 2});
+                            return false;
+                       }
+                    },
+                    error: function(err) {
+                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                        layer.msg(errMsg.message, {icon: 2});
+                        return false;
+                    }
+                });
+                return false;
+            });
+            form.on("submit(cancel)", function() {
+                layer.closeAll();
+                return false;
+            });
         }
     })
 }
 
-// 编辑用户
+/**
+ * @description 编辑用户
+ * @param {object} userData 用户数据
+ */
 var showUserEdit = function (userData) {
     layer.open({
         type: 1,
         title: "编辑",
         area: ["500px", "300px"],
+        shade: 0.6,
+        shadeClose: false,
+        maxmin: false,
         anim: 0,
         content: `<div style="width:300px;padding-top:10px;">
                     <form class="layui-form" lay-filter="editUser">
                         <div class="layui-form-item">
-                            <label class="layui-form-label">用户名</label>
-                            <div class="layui-input-block">
-                                <input type="text" name="username" class="layui-input" autocomplete="off" readonly>
-                            </div>
-                        </div>
-                        <div class="layui-form-item">
                             <label class="layui-form-label">昵称</label>
                             <div class="layui-input-block">
-                                <input type="text" name="name" class="layui-input" autocomplete="off">
+                                <input type="text" name="name" placeholder="请输入昵称" class="layui-input" autocomplete="off">
                             </div>
                         </div>
                         <div class="layui-form-item">
                             <label class="layui-form-label">类型</label>
                             <div class="layui-input-block">
-                                <input type="text" name="type" class="layui-input" autocomplete="off" readonly>
+                                <input type="text" name="type" class="layui-input" autocomplete="off">
                             </div>
                         </div>
                         <div class="layui-form-item">
                             <label class="layui-form-label">所属组织</label>
                             <div class="layui-input-block">
-                                <input type="text" name="company" class="layui-input" autocomplete="off" readonly>
+                                <input type="text" name="company" placeholder="请输入组织/公司名称" class="layui-input" autocomplete="off">
                             </div>
+                        </div>
+                        <div class="layui-form-item">
+                            <button class="layui-btn" lay-submit lay-filter="update">更新信息</button>
                         </div>
                     </form>
                   </div>`,
         success: function () {
             form.render();
-            form.val("editUser", userData)
+            form.val("editUser", userData);  // 表单赋值
+            form.on("submit(update)",function (data) {
+                $.ajax({
+                    url: "",
+                    type: "post",
+                    contentType: "application/json",
+                    data: JSON.stringify(data.field),
+                    success: function (data) {
+                        if (data.code === 0) {
+                            layer.closeAll();
+                            layer.msg("更新成功", {icon: 1});
+                            // 重载用户表格
+                            table.reload("user");
+                            return false;
+                        } else {
+                        }
+                    }
+                });
+            });
         }
     });
 }
@@ -223,7 +310,7 @@ var showUserDel = function (userId, username) {
         function () {
             // 删除用户
             $.ajax({
-                url: "",
+                url: "/crm/api/v1/user/",
                 type: "post",
                 data: JSON.stringify({
                     "uid": userId,
@@ -298,8 +385,11 @@ var showUserUnlock = function (userId, username) {
     });  // 弹窗确认
 }
 
-// 重置密码
-var showUserReset = function (userId) {
+/**
+ * @description 重置密码
+ * @param {*} userId 
+ */
+var showUserReset = function (data) {
     layer.confirm("是否重置密码?", {
         title: "重置密码",
         btn: ["确定", "取消"],
@@ -309,8 +399,8 @@ var showUserReset = function (userId) {
                 url: "/crm/api/v1/user/reset",
                 type: "post",
                 data: JSON.stringify({
-                    "uid": userId,
-                    "username": username
+                    "uid": data.id,
+                    "username": data.username
                 }),
                 success: function (data) {},
                 error: function () {}

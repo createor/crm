@@ -215,7 +215,7 @@
         base: "{{ url_for('static', filename='layui/ext/') }}"
     }).extend({
         stepprogress: 'stepprogress/stepprogress'
-    }).use(["jquery", "element", "dropdown", "form", "layer", "table", "upload", "stepprogress", "util"], function () {
+    }).use(["jquery", "element", "dropdown", "form", "layer", "table", "upload", "stepprogress", "util", "laydate"], function () {
         const element = layui.element;
         const form = layui.form;
         const layer = layui.layer;
@@ -223,6 +223,7 @@
         const table = layui.table;
         const upload = layui.upload;
         const util = layui.util;
+        const laydate = layui.laydate;
         window.table = table;
         window.element = element;
         window.upload = upload;
@@ -230,6 +231,7 @@
         window.$ = $;
         window.layer = layer;
         window.stepprogress = layui.stepprogress;
+        window.laydate = laydate;
 
         var isEdit = false;  // 是否在编辑状态,如果是当用户尝试关闭或刷新页面时,提示他们有可能未保存的更改
 
@@ -383,7 +385,12 @@
                 }
                 // 判断是否第一次登录,第一次登录显示新手引导
                 if (data.message.is_first) {
-                    user_driver($, getPwdState(data));
+                    // 判断是否是管理员
+                    if (data.message.is_admin) {
+                        admin_driver($, getPwdState(data));
+                    } else {
+                        user_driver($, getPwdState(data));
+                    }
                 } else {
                     getPwdState(data)();
                 }

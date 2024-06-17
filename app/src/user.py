@@ -8,7 +8,6 @@
 '''
 import hashlib
 from flask import Blueprint, request, jsonify, session, redirect, g
-from app.src.system import readConfig
 from app.src.models import db_session, User, Log
 from app.utils import crmLogger, redisClient, methods, verify, DEFAULT_PASSWORD
 from datetime import date, timedelta
@@ -44,10 +43,9 @@ def login():
     # 用户名密码验证
     result = db_session.query(User).filter(User.username == userData["username"], User.password == hashlib.md5((userData["password"].upper() + SALE).encode()).hexdigest().lower()).first()
     # 判断是否开启锁定功能
-    enable_failed = readConfig(all=False, filter="enable_failed")
     if result is None:
-        if bool(enable_failed):
-            if int(redisClient.getData(userData["username"])) > int(readConfig(all=False, filter="failed_count")):  # 判断是否大于设置
+        if bool(int(redisClient.getData("enable_failed"))):
+            if int(redisClient.getData(userData["username"])) > int(redisClient.getData("failed_count")):  # 判断是否大于设置
                 return jsonify({
                     "code": -1,
                     "message": "用户已被锁定"
@@ -70,8 +68,9 @@ def login():
             "message": "用户已过期"
         }), 200
     # 登录成功
+    redisClient.setData("crm:{}:ip".format(userData["username"]), g.ip_addr)  # 记录用户登陆的IP
     # 判断是否开启锁定功能
-    if bool(enable_failed):
+    if bool(int(redisClient.getData("crm:system:enable_failed"))):
         # 清除用户的错误次数记录
         redisClient.setData(userData["username"], 0)
     # 数据库日志记录登录成功
@@ -238,7 +237,9 @@ def state():
             "avator": "/crm/api/v1/images/" + result.avator,
             "is_first": bool(result.is_first),
             "expire": td.days,
-            "company": result.company
+            "company": result.company,
+            "is_mark": bool(int(redisClient.getData("crm:system:enable_watermark"))),
+            "ip": g.ip_addr
         }
     }),200
     
@@ -261,8 +262,8 @@ def listUser():
     '''
     获取用户列表
     '''
-    userList = db_session.query(User.username).all()
+    userList = db_session.query(User.username, User.name, User.uid).all()
     return jsonify({
         "code": 0,
-        "message": [v.username for v in userList]
+        "message": [{"id": v.uid, "username": v.username, "name": v.name} for v in userList]
     }), 200

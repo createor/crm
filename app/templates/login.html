@@ -106,13 +106,15 @@
         const layer = layui.layer;
         const $ = layui.jquery;
 
-        // 获取验证码
+        /**
+         * @description 获取验证码
+        */
         function getCaptcha () {
             $.ajax({
                 url: "/crm/api/v1/captcha",
                 type: "get",
                 success: function (data) {
-                    $("#captcha_img").attr("src", "data:image/png;base64," + data.message);  // 绘制验证码图片
+                    $("#captcha_img").attr("src", "data:image/png;base64," + data.message);  // 绘制验证码图片,base64编码格式
                     return false;
                 },
                 error: function (data) {
@@ -139,7 +141,7 @@
                 contentType: "application/json;charset=UTF-8",
                 data: JSON.stringify({
                     "username": reqArgs.username,
-                    "password": CryptoJS.MD5(reqArgs.password).toString(),
+                    "password": CryptoJS.MD5(reqArgs.password).toString(),  // MD5加密密码
                     "captcha": reqArgs.captcha
                 }),
                 success: function (data) {

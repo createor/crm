@@ -1,4 +1,6 @@
 // user_driver module
+// 普通用户的引导模块
+
 function user_driver($, fn) {
     'use strict'
     const driver = window.driver.js.driver;

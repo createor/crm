@@ -9,16 +9,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='icon/filter/iconfont.css') }}">
     <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
 </head>
-<style>
-    #show_user_checkbox {
-        position: absolute;
-        z-index: 9999;
-        padding: 5px 10px 5px 5px;
-        border: 1px solid #c4c4c4;
-        background-color: white;
-        display: none;
-    }
-</style>
 
 <body>
     <div>
@@ -44,29 +34,33 @@
             </div>
         </div>
         <div>
-            <!-- 操作日志,保留半年 -->
+            <div style="margin: -10px 0px 10px 0px;">
+                <span style="color: red;">*</span><span>注意:仅保留一个月内操作日志</span>
+            </div>
+            <!-- 操作日志,保留1个月 -->
             <table class="layui-hide" id="log" lay-filter="log"></table>
         </div>
-        <div id="show_user_checkbox"></div>
     </div>
 </body>
 <script type="text/javascript">
-    layui.use(["table", "form", "laydate", "layer", "jquery"], function () {
+    layui.use(["table", "form", "laydate", "layer", "jquery", "tree"], function () {
         const table = layui.table;
         const form = layui.form;
         const laydate = layui.laydate;
         const layer = layui.layer;
+        const tree = layui.tree;
         const $ = layui.jquery;
 
+        // 渲染日志表格
         table.render({
             elem: "#log",
             id: "mylog",
             url: "/crm/api/v1/log/query",
-            height: "full-95",
+            height: "full-115",
             page: {
                 layout: ["limit", "count", "prev", "page", "next", "skip"],
                 curr: 1,
-                groups: 1
+                groups: 5
             },
             limit: 10,
             limits: [10],
@@ -88,6 +82,43 @@
             ]]
         });
 
+        /**
+         * @description 筛选用户
+        */
+        function filterUser () {
+            let checkData = tree.getChecked("filter");
+            if (checkData.length === 0 || checkData[0].children.length === 0) {
+                layer.msg("请选择用户", { icon: 2 });
+                return false;
+            }
+            let userList = [];
+            checkData[0].children.forEach(item => {
+                userList.push(item.field);
+            });
+            // 使用localstorage存储选择信息
+            localStorage.setItem("filter", JSON.stringify(userList));
+            // 判断日期是否存在
+            if ($("input[name=start_time]").val() && $("input[name=end_time]").val()) {
+                table.reloadData("mylog", {
+                    where: {
+                        user: userList.toString(),
+                        start: $("input[name=start_time]").val(),
+                        end: $("input[name=end_time]").val()
+                    }
+                });
+            } else {
+                table.reloadData("mylog", {
+                    where: {
+                        user: userList.toString()
+                    }
+                });
+            }
+            layer.closeAll();
+        }
+
+        window.filterUser = window.filterUser || filterUser;
+
+        // 工具事件
         table.on("colTool(log)", function (obj) {
             let event = obj.event;
             if (event === "filter") {
@@ -96,50 +127,93 @@
                     url: "/crm/api/v1/user/list",
                     type: "get",
                     success: function (data) {
-                        // 使用localstorage存储选择信息
-                        var hasChecked = JSON.parse(localStorage.getItem("filter")) || [];
-                        var tempDiv = "";
-                        data.message.forEach(item => {
-                            if (hasChecked.indexOf(item) !== -1) {
-                                tempDiv += "<input type='checkbox' name='" + item + "' value='" + item + "' title='" + item + "' checked><br/>"
-                            } else {
-                                tempDiv += "<input type='checkbox' name='" + item + "' value='" + item + "' title='" + item + "'><br/>"
-                            }
-                        });
-                        let pos = $(".icon-shaixuan").eq(0).offset();
-                        $("#show_user_checkbox").css("top", pos.top + 15 + "px");
-                        $("#show_user_checkbox").css("left", pos.left + 15 + "px");
-                        $("#show_user_checkbox").html("<div class='layui-form'>" + tempDiv + "</div>");
-                        form.render('checkbox');
-                        $("#show_user_checkbox").show();
+                        if (data.code === 0) {
+                            let hasChecked = JSON.parse(localStorage.getItem("filter")) || [];
+                            let tempDiv = [];
+                            data.message.forEach((item) => {
+                                tempDiv.push({
+                                    title: item.name ? item.name : item.username,
+                                    id: item.id,
+                                    field: item.username,
+                                    checked: hasChecked.includes(item.username)
+                                });
+                            });
+                            let layer_height = 28 * (tempDiv.length + 1) + 40 + "px";
+                            let pos = $(".icon-shaixuan").eq(0).offset();  // div位置
+                            layer.open({
+                                type: 1,
+                                title: false,
+                                area: ["170px", layer_height],
+                                content: `<div style="padding: 5px;">
+                                            <div id="show_user_checkbox"></div>
+                                            <div style="margin-top: 10px;">
+                                                <button type="button" class="layui-btn layui-btn-xs" style="margin-left: 60px;" onclick="filterUser()">筛选</button>
+                                            </div>
+                                          </div>`,
+                                offset: [pos.top + 15 + "px", pos.left + 15 + "px"],
+                                closeBtn: 0,
+                                shade: [0.1, "#FFF"],
+                                shadeClose: true,
+                                hideOnClose: true,
+                                resize: false,
+                                move: false,
+                                success: function () {
+                                    tree.render({
+                                        elem: "#show_user_checkbox",
+                                        showCheckbox: true,
+                                        id: "filter",
+                                        data: [{
+                                            title: "全选",
+                                            id: "all",
+                                            field: "all",
+                                            spread: true,
+                                            children: tempDiv
+                                        }]
+                                    });
+                                }
+                            });
+                        }
                     }
                 });
             }
         });
 
+        // 渲染日期框
         laydate.render({
             elem: "#time-range",
             range: ["#start-time", "#end-time"],
             type: "datetime",
             format: "yyyy-MM-ddTHH:mm:ss",
-            min: -60,
+            min: -30,  // 近一个月内时间
             disabledDate: function (date, type) {
                 return date.getTime() > Date.now();
             }
         });
 
+        // 通过日期、用户筛选日志
         form.on("submit(query)", function (data) {
             let field = data.field;
             if (!field.start_time && !field.end_time) {
                 layer.msg("时间不能为空", { icon: 2 });
                 return false;
             }
-            table.reloadData("mylog", {
-                where: {
-                    start: field.start_time,
-                    end: field.end_time
-                }
-            });
+            let checkData = JSON.parse(localStorage.getItem("filter")) || [];
+            if (checkData) {
+                table.reloadData("mylog", {
+                    where: {
+                        user: checkData.toString(),
+                        start: field.start_time,
+                        end: field.end_time
+                    }
+                })
+            } else {
+                table.reloadData("mylog", {
+                    where: {
+                        start: field.start_time,
+                        end: field.end_time
+                    }
+                });
+            }
             return false;
         });
     });

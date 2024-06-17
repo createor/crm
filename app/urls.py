@@ -28,10 +28,12 @@ def login():
     登录页
     '''
     ip_addr = request.remote_addr or "127.0.0.1"
-    enable_white = redisClient.getData("enable_white")
-    if enable_white is not None and bool(int(enable_white)):
-        if not redisClient.getSet(ip_addr):
-            return
+    if bool(int(redisClient.getData("crm:system:enable_white"))):
+        if not redisClient.getSet("crm:system:white_ip_list", ip_addr):
+            return jsonify({
+                "code": -1,
+                "message": "IP地址不在白名单中"
+            }), 403
     if request.method == "GET":
         if session.get("username") is not None:
             return redirect(url_for("index"))
