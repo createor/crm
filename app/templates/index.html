@@ -239,7 +239,7 @@
         element.on("nav(menu)", function (elem) {
             let url = elem.find("a").context.dataset.url;
             // 使用iframe插入页面
-            $(".layui-body-item").html("<iframe src='/crm/api/v1/" + url + "' frameborder='0' border='0' class='layui-iframe'></iframe>");
+            $(".layui-body-item").html(`<iframe src="/crm/api/v1/${url}" id="${url}" frameborder="0" border="0" class="layui-iframe"></iframe>`);
         });
 
         // 点击右侧面板显示通知信息
@@ -381,7 +381,12 @@
                 $("#name").text(data.message.name);
                 $("#avator").attr("src", data.message.avator)
                 if (data.message.is_mark) {
-                    setMark(`${data.message.name}\n${data.message.ip}`);  // 设置水印
+                    if (data.message.name) {
+                        setMark(`${data.message.name}\n${data.message.ip}`);  // 设置水印
+                    } else {
+                        // 如果没有设置昵称
+                        setMark(`${data.message.username}\n${data.message.ip}`);
+                    }
                 }
                 // 判断是否第一次登录,第一次登录显示新手引导
                 if (data.message.is_first) {

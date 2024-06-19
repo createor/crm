@@ -9,7 +9,7 @@
 from sqlalchemy import create_engine, Table, Column, Integer, String, DateTime, Text, Date
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from app.utils import redisClient, crmLogger
 from app.utils.config import cfg
 
@@ -67,11 +67,11 @@ class User(Base):
     password = Column(String(40), nullable=False)                                 # 用户密码
     create_time = Column(DateTime, default=datetime.now)                          # 用户创建时间
     create_user = Column(String(100))                                             # 用户创建者
-    update_time = Column(DateTime)                                                # 用户更新时间
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)   # 用户更新时间
     update_user = Column(String(100))                                             # 用户更新者
     type = Column(Integer, default=1)                                             # 用户类型: 1-永久用户,2-临时用户
-    expire_time = Column(Date, default=datetime.today() + timedelta(days=30))     # 临时用户到期时间,默认30天有效期
-    pwd_expire_time = Column(Date, default=datetime.today() + timedelta(days=90)) # 密码过期时间,默认90天有效期
+    expire_time = Column(Date, default=date.today() + timedelta(days=30))         # 临时用户到期时间,默认30天有效期
+    pwd_expire_time = Column(Date, default=date.today() + timedelta(days=90))     # 密码过期时间,默认90天有效期
     status = Column(Integer, default=1)                                           # 状态: 1-正常,2-到期用户,0-锁定用户
     company = Column(String(100))                                                 # 用户所属组织或者公司
     avator = Column(String(100), default="default")                               # 用户头像地址

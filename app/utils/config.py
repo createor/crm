@@ -10,6 +10,8 @@ import os, sys
 import hashlib
 import uuid
 import configparser
+from typing import Union
+from datetime import date
 
 # 程序路径
 if getattr(sys, "frozen", False):
@@ -83,3 +85,11 @@ def getUuid() -> str:
     :return:
     '''
     return str(uuid.uuid1())
+
+def formatDate(time: Union[date, None]) -> str:
+    '''
+    格式化时间
+    '''
+    if not time:
+        return ""
+    return time.strftime("%Y-%m-%d")

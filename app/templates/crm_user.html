@@ -35,13 +35,13 @@
         // 用户表格渲染
         table.render({
             elem: "#user",
-            is: "user",
+            id: "user",
             url: "/crm/api/v1/user/query",
             height: "full-75",
             page: {
                 layout: ["limit", "count", "prev", "page", "next", "skip"],
                 curr: 1,
-                groups: 1
+                groups: 5
             },
             limit: 10,
             limits: [10],
@@ -58,26 +58,35 @@
                 { field: "username", title: "用户名", width: 150 },
                 { field: "name", title: "昵称", width: 150 },
                 {
-                    fidld: "type", title: "类型", width: 200, templet: function (d) {
+                    fidld: "type", title: "类型", width: 250, templet: function (d) {
                         return d.type === 1 ? "永久用户" : `临时用户(${d.expire})`;
                     }
                 },
                 { field: "company", title: "所属组织", width: 220 },
                 {
                     field: "status", title: "状态", width: 80, templet: function (d) {
-                        if (d.status === 0) return "<span class='layui-badge'>过期</span>";
+                        if (d.status === 2) return "<span class='layui-badge'>过期</span>";
                         if (d.status === 1) return "<span class='layui-badge layui-bg-green'>正常</span>";
-                        if (d.status === 2) return "<span class='layui-badge layui-bg-orange'>锁定</span>";
+                        if (d.status === 0) return "<span class='layui-badge layui-bg-orange'>锁定</span>";
                     }
                 },
                 {
                     field: "operate", title: "操作", width: 260, templet: function (d) {
                         let defaultDiv = "<div><a class='layui-btn layui-btn-xs' lay-event='edit'>编辑</a><a class='layui-btn layui-btn-xs' lay-event='del'>删除</a><a class='layui-btn layui-btn-xs' lay-event='reset'>重置密码</a>";
-                        return d.status === 2 ? defaultDiv + "<a class='layui-btn layui-btn-xs' lay-event='unlock'>解锁</a></div>" : defaultDiv + "<a class='layui-btn layui-btn-xs' lay-event='lock'>锁定</a></div>";
+                        return d.status === 0 ? defaultDiv + "<a class='layui-btn layui-btn-xs' lay-event='unlock'>解锁</a></div>" : defaultDiv + "<a class='layui-btn layui-btn-xs' lay-event='lock'>锁定</a></div>";
                     }
                 }
             ]]
         });
+
+        /**
+         * @description 重载用户数据
+        */
+        function reloadData () {
+            table.reloadData("user");
+        }
+
+        window.reloadData = window.reloadData || reloadData;
 
         // 用户操作
         table.on("tool(user)", function (obj) {
@@ -88,16 +97,16 @@
                     window.parent.showUserEdit(data);
                     break;
                 case "del":  // 删除用户
-                    window.parent.showUserDel(data.id, data.username);
+                    window.parent.showUserDel(data);
                     break;
                 case "lock":  // 锁定用户
-                    window.parent.showUserLock(data.id, data.username);
+                    window.parent.showUserLock(data);
                     break;
                 case "unlock":  // 解锁用户
-                    window.parent.showUserUnlock(data.id, data.username);
+                    window.parent.showUserUnlock(data);
                     break;
-                case "reset":  // 重置秘密
-                    window.parent.showUserReset(data.id, data.username);
+                case "reset":  // 重置密码
+                    window.parent.showUserReset(data);
                     break;
             }
         });

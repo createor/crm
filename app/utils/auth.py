@@ -36,23 +36,23 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
                 if not redisClient.getSet("crm:system:white_ip_list", ip_addr):  # IP不在白名单中
                     return jsonify({
                         "code": -1,
-                        "message": "无法访问, 你不在白名单中"
+                        "message": "无法访问,你不在白名单中"
                     }), 403
             if request.method in allow_methods:
                 try:
-                    if auth_login:
+                    if auth_login:  # 校验是否登陆
                         username = session.get("username")  # 从session获取用户名
                         if username is None:
                             return redirect(url_for("login"))  # 未登录或者登录过期返回登录界面
                         g.username = username
-                        if is_admin:
+                        if is_admin:  # 校验是否是管理员
                             if username not in allow_admin:
                                 return jsonify({
                                     "code": -1,
-                                    "message": "无权限访问"
+                                    "message": "无权限访问,你不是管理员"
                                 }), 403
                         if bool(int(redisClient.getData("crm:system:enable_single"))) and check_ip:  # 单点登陆校验IP
-                            if ip_addr != redisClient.getData(f"crm:{username}:ip"):
+                            if ip_addr != str(redisClient.getData(f"crm:{username}:ip")):
                                 return redirect(url_for("login", errMsg="账号已在其他地方登陆"))
                     return func(*args, **kwargs)
                 except (KeyError, TypeError):

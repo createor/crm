@@ -118,10 +118,10 @@
         getConfig();
 
         // 白名单开关
-        form.on('switch(white_list_enable)', function (data) {
+        form.on("switch(white_list_enable)", function (data) {
             let elem = data.elem;
             if (elem.checked) {
-                $(".layui-choice").eq(0).css('display', 'inline-block');
+                $(".layui-choice").eq(0).css("display", "inline-block");
                 return false;
             }
             if (!elem.checked) {
