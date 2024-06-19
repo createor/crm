@@ -466,6 +466,8 @@ def state():
             "avator": "/crm/api/v1/images/" + result.avator,
             "is_first": bool(result.is_first),
             "expire": td.days,
+            "type": result.type,
+            "expire_time": result.expire_time if result.expire_time else "",
             "company": result.company,
             "is_mark": bool(int(redisClient.getData("crm:system:enable_watermark"))),
             "ip": g.ip_addr
@@ -485,6 +487,41 @@ def listUser():
         "message": [{"id": v.uid, "name": v.name, "username": v.username} for v in userList]
     }), 200
 
+@user.route("/modify", methods=methods.ALL)
+@verify(allow_methods=["POST"], module_name="用户修改资料", check_ip=True)
+def modifyUser():
+    '''
+    修改用户资料
+    '''
+    reqData = request.get_json()
+    try:
+        _user = db_session.query(User).filter(User.username == g.username).first()
+        if _user:
+            _user.name = reqData["nickname"]
+            _user.company = reqData["company"]
+            if reqData["avatar"]:
+                _user.avator = reqData["avatar"]
+            db_session.commit()
+    except:
+        db_session.rollback()
+        crmLogger.error(f"更新user表异常: {traceback.format_exc()}")
+    try:
+        update_log = Log(ip=g.ip_addr, operate_type="更新资料", operate_content="更新资料", operate_user=g.username)
+        db_session.add(update_log)
+        db_session.commit()
+    except:
+        db_session.rollback()
+        crmLogger.error(f"更新log表异常: {traceback.format_exc()}")
+    crmLogger.info("用户{}更新了资料".format(g.username))
+    return jsonify({
+        "code": 0,
+        "message": {
+            "ip": g.ip_addr,
+            "name": reqData["nickname"],
+            "username": g.username
+        }
+    }), 200
+
 @user.route("/mail", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="用户通知信息", check_ip=True)
 def getMail():
@@ -494,11 +531,18 @@ def getMail():
     return jsonify({
         "code": 0,
         "message": {
-            "count": 1,
-            "data": [
-                {
-                    "title": "通知1"
-                }
-            ]
+            "count": 2,
+            "data": {
+                "today": {
+                    "title": "通知",
+                    "detail": "测试"
+                },
+                "history": [
+                    {
+                        "title": "通知1",
+                        "detail": "测试1"
+                    }
+                ]
+            }
         }
     }), 200

@@ -16,7 +16,7 @@ import threading
 manage = Blueprint("manage", __name__)
 
 @manage.route("/query", methods=methods.ALL)
-@verify(allow_methods=["GET"], module_name="查询资产表")
+@verify(allow_methods=["GET"], module_name="查询资产表", check_ip=True)
 def query():
     '''
     查询所有资产表
@@ -57,7 +57,7 @@ def query():
     }), 200
 
 @manage.route("/<string:id>", methods=methods.ALL)
-@verify(allow_methods=["GET"], module_name="查询指定资产表")
+@verify(allow_methods=["GET"], module_name="查询指定资产表", check_ip=True)
 def queryTable(id):
     '''
     查找指定的资产表
@@ -118,7 +118,7 @@ def queryTable(id):
     }), 200
 
 @manage.route("/add", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="创建资产表")
+@verify(allow_methods=["POST"], module_name="创建资产表", check_ip=True)
 def addTable():
     '''
     创建资产表
@@ -170,7 +170,7 @@ def addTable():
         pass
 
 @manage.route("/template", methods=methods.ALL)
-@verify(allow_methods=["GET"], module_name="下载资产表模板")
+@verify(allow_methods=["GET"], module_name="下载资产表模板", check_ip=True)
 def downloadTemplate():
     '''
     下载资产表模板
@@ -178,7 +178,7 @@ def downloadTemplate():
     # return send_from_directory(UPLOAD_EXCEL_DIR, "资产表模板.xlsx", as_attachment=True)
 
 @manage.route("/import", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="导入资产表")
+@verify(allow_methods=["POST"], module_name="导入资产表", check_ip=True)
 def importTable():
     '''
     导入资产表
@@ -186,7 +186,7 @@ def importTable():
     pass
 
 @manage.route("/edit", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="修改资产表数据")
+@verify(allow_methods=["POST"], module_name="修改资产表数据", check_ip=True)
 def editData():
     '''
     修改资产表数据
@@ -194,7 +194,7 @@ def editData():
     userData = request.get_json()
 
 @manage.route("/alter", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="修改列属性")
+@verify(allow_methods=["POST"], module_name="修改列属性", check_ip=True)
 def alterColumn():
     '''
     修改资产表标题信息
@@ -202,7 +202,7 @@ def alterColumn():
     userData = request.get_json()
 
 @manage.route("/ping", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="ping探测")
+@verify(allow_methods=["POST"], module_name="ping探测", check_ip=True)
 def multDetect():
     '''
     多线程ping探测    
@@ -225,7 +225,7 @@ def multDetect():
     return Response(event_stream(), mimetype="text/event-stream")
 
 @manage.route("/notify", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="到期通知")
+@verify(allow_methods=["POST"], module_name="到期通知", check_ip=True)
 def notifyExpire():
     '''
     到期通知
@@ -243,7 +243,7 @@ def notifyExpire():
     return Response(event_stream(), mimetype="text/event-stream")
 
 @manage.route("/export", methods=methods.ALL)
-@verify(allow_methods=["GET"], module_name="导出资产表")
+@verify(allow_methods=["GET"], module_name="导出资产表", check_ip=True)
 def export():
     '''
     导出资产表
@@ -310,7 +310,7 @@ def getHeader():
     }), 200
 
 @manage.route("/setrule", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="创建图表规则")
+@verify(allow_methods=["POST"], module_name="创建图表规则", check_ip=True)
 def setEchartRule():
     '''
     创建图表规则
@@ -323,14 +323,14 @@ def setEchartRule():
     #创建图表规则
 
 @manage.route("/getrule", methods=methods.ALL)
-@verify(allow_methods=["GET"], module_name="获取图表规则")
+@verify(allow_methods=["GET"], module_name="获取图表规则", check_ip=True)
 def getEchartRules():
     '''
     获取图表规则
     '''
 
 @manage.route("/echart", methods=methods.ALL)
-@verify(allow_methods=["GET"], module_name="获取图表信息")
+@verify(allow_methods=["GET"], module_name="获取图表信息", check_ip=True)
 def getEchart():
     '''
     获取echart数据

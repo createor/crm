@@ -7,7 +7,6 @@
     <title>资产管理</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='layui/css/layui.css') }}">
     <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
-    <script type="text/javascript" src="{{ url_for('static', filename='js/lodash.js') }}"></script>
     <script type="text/javascript" src="{{ url_for('static', filename='js/echarts.min.js') }}"></script>
 </head>
 <style>
@@ -88,10 +87,10 @@
                     id="newRule"></a>
             </div>
             <div class="showEchart">
-                <div class="echart"></div>
-                <div class="echart"></div>
-                <div class="echart"></div>
                 <!-- 图表展示设置,自定义图表展示规则,三个 -->
+                <div class="echart"></div>
+                <div class="echart"></div>
+                <div class="echart"></div>
             </div>
             <div>
                 <table class="layui-hide" id="manage" lay-filter="manage"></table>
@@ -112,10 +111,7 @@
     <div style="width: 400px;display: inline-block; height: 20px;margin-left: 15px;">
         <div class="layui-input-group">
             <div class="layui-input-split layui-input-prefix" style="width: 120px;padding: 0;height: 30px;" id="prefix">
-                <select name="utype">
-                    <option value="id">ID</option>
-                    <option value="name">主机名称</option>
-                </select>
+                <select name="utype" id="utype"></select>
             </div>
             <input type="text" placeholder="搜索相关内容" name="keywords" class="layui-input" style="height: 32px;">
             <div class="layui-input-split layui-input-suffix" style="cursor: pointer;width: 30px;height: 30px;">
@@ -137,8 +133,10 @@
         const $ = layui.jquery;
         const dropdown = layui.dropdown;
         const cardTable = layui.cardTable;
-        var tableUid = "";
+        var tableUid = "";   // 资产表id
+        var isEdit = false;  // 是否在编辑状态,如果是当用户尝试关闭或刷新页面时,提示他们有可能未保存的更改
 
+        // 渲染资产表列表
         var currentTable = cardTable.render({
             elem: "#manageTable",
             url: "/crm/api/v1/manage/query",
@@ -155,20 +153,38 @@
                 countName: "message.total",
                 dataName: "message.data"
             },
-            done: function () {
-
-            }
+            done: function () { }
         });
 
-        currentTable.on('row(manageTable)', function (obj) {
-            tableUid = obj.value.id;  // 表格的id
-            $("#showAllManage").hide()
-            $("#showManage").show();
-            showCharts();
+        currentTable.on("row(manageTable)", function (obj) {
+            tableUid = obj.value.id;    // 表格的id
+            let header = "";  // 表格的header
+            $.ajax({
+                url: "/crm/api/v1",
+                type: "get",
+                success: function (data) {
+                    if (data.code === 0) {
+                        let option_templ = "";
+                        data.message.forEach((item) => {
+                            option_templ += `<option value="${field}">${title}</option>`;
+                        });
+                        $("#utype").html(option_templ);
+                        header = data.message;
+                    } else { }
+                    return false;
+                },
+                error: function () {
+                    return false;
+                }
+            });
+            $("#showAllManage").hide(); // 隐藏资产表列表
+            $("#showManage").show();    // 显示具体资产表表格
+            showCharts();               // 展示图表
             table.render({
                 elem: "#manage",
                 url: "/crm/api/v1/manage/" + tableUid,
                 toolbar: '#toolBar',
+                cellMinWidth: 80,
                 defaultToolbar: [
                     { title: "批量探测", layEvent: "LAYTABLE_PROBE", icon: "layui-icon-wifi" },
                     { title: "到期提醒", layEvent: "LAYTABLE_NOTICE", icon: "layui-icon-notice" },
@@ -180,7 +196,7 @@
                 page: {
                     layout: ["limit", "count", "prev", "page", "next", "skip"],
                     curr: 1,
-                    groups: 1
+                    groups: 5
                 },
                 limit: 6,
                 limits: [6],
@@ -193,12 +209,7 @@
                         "data": result.message.data
                     }
                 },
-                cols: [[
-                    { checkbox: true, fixed: true },
-                    { field: "id", title: "ID" },
-                    { field: "ip", title: "IP" },
-                    { field: "name", title: "主机名称" }
-                ]],
+                cols: [[{ checkbox: true, fixed: true }].concat(header)],
                 done: function () {
                     // 下拉按钮选项
                     dropdown.render({
@@ -236,7 +247,7 @@
         });
 
         // 表格复选框触发事件
-        table.on('checkbox(manage)', function (obj) {
+        table.on("checkbox(manage)", function (obj) {
             let id = obj.config.id;
             let checkStatus = table.checkStatus(id);
             if (checkStatus.data.length > 0) {
@@ -249,17 +260,17 @@
         });
 
         // 工具栏事件
-        table.on('toolbar(manage)', function (obj) {
+        table.on("toolbar(manage)", function (obj) {
             let id = obj.config.id;
             let checkStatus = table.checkStatus(id);
             switch (obj.event) {
-                case "add":  // 录入数据
+                case "add":   // 录入数据
                     window.parent.addNewData(tableUid);
                     break;
-                case "edit":
+                case "edit":  // 行编辑
                     if (checkStatus.data.length > 1) {
                         layer.msg("不支持批量编辑", { icon: 2 });
-                        return
+                        return false;
                     }
                     layer.open({
                         type: 1,
@@ -267,16 +278,16 @@
                         area: ["500px", "300px"]
                     });
                     break;
-                case "LAYTABLE_PROBE":
+                case "LAYTABLE_PROBE":   // 批量ping
                     window.parent.mulitDetect(tableUid);
                     break;
-                case "LAYTABLE_NOTICE":
+                case "LAYTABLE_NOTICE":  // 新建通知
                     window.parent.createNotify(tableUid);
                     break;
-                case "LAYTABLE_TIPS":
+                case "LAYTABLE_TIPS":    // 新增列
                     window.parent.addNewCol(tableUid);
                     break;
-                case "LAYTABLE_EXPORT":
+                case "LAYTABLE_EXPORT":  // 导出表格
                     $.ajax({
                         url: "",
                         type: "get",
@@ -286,23 +297,68 @@
             }
         });
 
+        /**
+         * @description 防抖
+         * @param {Function} func 函数
+         * @param {Number} wait 延迟时间
+         * @param {Boolean} immediate 是否立即执行
+        */
+        function debounce (func, wait, immediate) {
+            let timeout;
+            return function () {
+                let context = this, args = arguments;
+                let later = function () {
+                    timeout = null;
+                    if (!immediate) func.apply(context, args);
+                };
+                let callNow = immediate && !timeout;
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+                if (callNow) func.apply(context, args);
+            };
+        }
+
+        /**
+         * @description 根据标题搜索资产表
+        */
+        function searchTable () {
+            let value = $("#tableName").val();
+            if (value) {
+                $.ajax({
+                    url: `${value}`,
+                    type: "get",
+                    success: function (data) { }
+                });
+            }
+        }
+
+        // 搜索提示
+        // let debouncedSearch = debounce(searchTable, 500);
+        // $("#tableName").keyup(debouncedSearch);
+
         // 搜索标题
         form.on("submit(search)", function (data) {
             let field = data.field;
             if (field.tableName) {
                 // 重载cardTable
                 cardTable.reload("manageTable", {
-                    where: queryJson,
+                    where: {
+                        title: field.tableName
+                    },
                 });
             }
             return false;
         });
 
+        // 新增资产表
         form.on("submit(addTable)", function () {
             window.parent.addNewTable(tableUid);
             return false;
         });
 
+        /**
+         * @description 显示图表
+        */
         function showCharts () {
             // 请求图表配置
             // $.ajax()
@@ -349,20 +405,18 @@
             });
         }
 
+        // 新建图表规则
         $("#newRule").on("click", function () {
             // 新建或者编辑规则
             window.parent.addNewRule();
             return false;
         });
 
-        // 只有在新建用户、新建资产中点击创建时开始bind
-        // window.addEventListener("beforeunload", () => {
-        //     if (isEdit) {
-        //         layer.msg("检测到你有未保存的信息,是否保存")
-        //     }
-        // });
-        // 其他时候取消事件绑定unbind
-
+        window.addEventListener("beforeunload", () => {
+            if (isEdit) {
+                layer.msg("检测到你有未保存的信息,是否保存")
+            }
+        });
     });
 </script>
 

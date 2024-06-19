@@ -182,6 +182,14 @@ class Notify(Base):
     create_user = Column(String(100))                                       # 任务创建者
     create_time = Column(DateTime, default=datetime.now)                    # 任务创建时间
 
+class Notice(Base):
+    ''''''
+    __tablename__ = "crm_notice"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    message = Column(String(40), nullable=False)
+    notify_id = Column(String(40), nullable=False)
+    is_read = Column(Integer, default=0)  # 0-未读,1-已读
+
 class NotifyMessage(Base):
     '''到期提醒消息表'''
     __tablename__ = "crm_notify_message"

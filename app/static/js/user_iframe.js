@@ -33,7 +33,9 @@ var checkLength = function (that) {
     $("#char-count").text(that.value.length);
 }
 
-// 新建资产表
+/**
+ * @description 新建资产表
+ */
 var addNewTable = function () {
     // 新建资产表 
     layer.open({
