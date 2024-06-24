@@ -11,6 +11,7 @@ var addNewWhiteIp = function () {
         type: 1,
         title: '添加白名单IP',
         shadeClose: false,
+        move: false,
         shade: 0.8,
         area: ['300px', '220px'],
         content: `<div class="layui-form" style="padding: 10px 0 0 0;">
@@ -46,7 +47,7 @@ var addNewWhiteIp = function () {
                 $.ajax({
                     url: "/crm/api/v1/system/add_white_list",
                     type: "post",
-                    contentType: "application/json",
+                    contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
                         ip: field.ip,
                         description: field.remark
@@ -85,7 +86,7 @@ var delWhiteIp = function (id, ip) {
         $.ajax({
             url: "/crm/api/v1/system/delete_white_list",
             type: "post",
-            contentType: "application/json",
+            contentType: "application/json;charset=utf-8",
             data: JSON.stringify({
                 id: id,
                 ip: ip
@@ -121,6 +122,7 @@ var showWhiteIp = function () {
         shade: 0.6,
         shadeClose: false,
         maxmin: false,
+        move: false,
         anim: 0,
         content: `<div>
                     <div style="margin: 5px 0 5px 10px;">
@@ -185,6 +187,7 @@ var addNewUser = function () {
         shade: 0.6,
         shadeClose: false,
         maxmin: false,
+        move: false,
         anim: 0,
         content: `<div style="width: 300px;padding-top: 10px;">
                     <form class="layui-form" lay-filter="editUser">
@@ -265,7 +268,7 @@ var addNewUser = function () {
                 $.ajax({
                     url: "/crm/api/v1/user/add",
                     type: "post",
-                    contentType: "application/json",
+                    contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
                         username: field.username,
                         name: field.name,
@@ -313,6 +316,7 @@ var showUserEdit = function (userData) {
         shade: 0.6,
         shadeClose: false,
         maxmin: false,
+        move: false,
         anim: 0,
         content: `<div style="width:300px;padding-top:10px;">
                     <form class="layui-form" lay-filter="editUser">
@@ -370,7 +374,7 @@ var showUserEdit = function (userData) {
                 $.ajax({
                     url: "/crm/api/v1/user/edit",
                     type: "post",
-                    contentType: "application/json",
+                    contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
                         uid: userData.id,
                         username: userData.username,
@@ -424,7 +428,7 @@ var showUserDel = function (data) {
             $.ajax({
                 url: "/crm/api/v1/user/del",
                 type: "post",
-                contentType: "application/json",
+                contentType: "application/json;charset=utf-8",
                 data: JSON.stringify({
                     "uid": data.id,
                     "username": data.username
@@ -465,7 +469,7 @@ var showUserLock = function (data) {
             $.ajax({
                 url: "/crm/api/v1/user/lock",
                 type: "post",
-                contentType: "application/json",
+                contentType: "application/json;charset=utf-8",
                 data: JSON.stringify({
                     "uid": data.id,
                     "username": data.username
@@ -505,7 +509,7 @@ var showUserUnlock = function (data) {
             $.ajax({
                 url: "/crm/api/v1/user/unlock",
                 type: "post",
-                contentType: "application/json",
+                contentType: "application/json;charset=utf-8",
                 data: JSON.stringify({
                     "uid": data.id,
                     "username": data.username
@@ -545,7 +549,7 @@ var showUserReset = function (data) {
             $.ajax({
                 url: "/crm/api/v1/user/reset",
                 type: "post",
-                contentType: "application/json",
+                contentType: "application/json;charset=utf-8",
                 data: JSON.stringify({
                     "uid": data.id,
                     "username": data.username

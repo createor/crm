@@ -53,6 +53,8 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD: ""  # mysql的密码
       - MYSQLD_EVENT_SCHEDULER: "ON"  # 是否开启计划任务
+      # 挂载my.cnf配置文件
+      - MYSQL_SQL_MODE: "STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION" # 设置group_by
     networks:
       - default
     expose:

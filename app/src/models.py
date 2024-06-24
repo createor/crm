@@ -47,6 +47,11 @@ def init_cache():
     if len(white_ip) > 0:
         for item in white_ip:
             redisClient.setSet("crm:system:white_ip_list", item.ip)
+    # 缓存资产表信息用于搜索
+    manage_list = db_session.query(Manage.name).all()
+    if len(manage_list) > 0:
+        for item in manage_list:
+            redisClient.setSet("crm:manage:table_name", item.name)
     crmLogger.info("缓存初始化完成")
 
 def init_db():
@@ -221,7 +226,7 @@ def initManageTable(table_name: str=""):
     :pararm table_name: 资产表名称
     :return:
     '''
-    return Table(table_name, Base.metadata, autoload_with=engine)
+    return Table(table_name, Base.metadata, Column("_id", Integer, primary_key=True, autoincrement=True), extend_existing=True, autoload=True, autoload_with=engine)
 
 def addColumn(table_name: Table, col: Column) -> bool:
     '''

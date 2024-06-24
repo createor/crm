@@ -42,6 +42,9 @@ SERVER_PORT = cfg.getint("server", "port")
 # 用户默认密码
 DEFAULT_PASSWORD = hashlib.md5("Password@123_".encode()).hexdigest()
 
+# 系统默认数据库
+SYSTEM_DEFAULT_TABLE = ["crm_user", "crm_setting", "crm_log", "crm_header", "crm_manage", "crm_white_list", "crm_file", "crm_echart"]
+
 # 允许上传的文件后缀
 ALLOWED_EXTENSIONS = ["png", "jpg", "jpeg", "xls", "xlsx"]
 

@@ -38,43 +38,58 @@ class redisConnPool:
         :param value: 值
         :param expire: 过期时间,单位:秒
         '''
-        if expire == 0:
-            self.conn.set(key, value)
-        else:
-            # 设置过期时间
-            self.conn.set(key, value, ex=expire)
+        try:
+            if expire == 0:
+                self.conn.set(key, value)
+            else:
+                # 设置过期时间
+                self.conn.set(key, value, ex=expire)
+        finally:
+            self.conn.close()
 
-    def getData(self, key: str) -> Union[bytes, None]:
+    def getData(self, key: str) -> Union[str, None]:
         '''
         读取数据
         :param key: 键
         :return:
         '''
-        result = self.conn.get(key)
+        try:
+            result = self.conn.get(key)
+        finally:
+            self.conn.close()
         if result is None:
             return None
-        return result.decode()
+        return result.decode("utf-8")
     
     def delData(self, key) -> None:
         '''
         删除数据
         :param key: 键
         '''
-        self.conn.delete(key)
+        try:
+            self.conn.delete(key)
+        finally:
+            self.conn.close()
 
     def setIncr(self, key: str, amount: int=1) -> None:
         '''
         设置自增
         :param amount: 自增数
         '''
-        self.conn.incr(key, amount)
+        try:
+            self.conn.incr(key, amount)
+        finally:
+            self.conn.close()
 
     def setDecr(self, key: str, amount: int=1) -> None:
         '''
         设置自减
         :param amount: 自减数
         '''
-        self.conn.decr(key, amount)
+        try:
+            self.conn.decr(key, amount)
+        finally:
+            self.conn.close()
 
     def setHash(self, hashName: str, key: str, value: str) -> None:
         '''
@@ -83,7 +98,21 @@ class redisConnPool:
         :param key: hash中的键
         :parm value: hash中键对应的值
         '''
-        self.conn.hset(hashName, key, value)
+        try:
+            self.conn.hset(hashName, key, value)
+        finally:
+            self.conn.close()
+    
+    def setHashData(self, hashName: str, data: dict) -> None:
+        '''
+        写入dict
+        :param hashName: hash名称
+        :param data: dict
+        '''
+        try:
+            self.conn.hmset(hashName, data)
+        finally:
+            self.conn.close()
 
     def getHash(self, hashName: str, key: str) -> str:
         '''
@@ -92,13 +121,30 @@ class redisConnPool:
         :param key: hash中的键
         :return:
         '''
-        return self.conn.hget(hashName, key)
+        try:
+            return self.conn.hget(hashName, key)
+        finally:
+            self.conn.close()
+    
+    def getHashData(self, hashName: str) -> dict:
+        '''
+        获取dict中的所有键值对
+        :param hashName: hash名称
+        :return:
+        '''
+        try:
+            return self.conn.hgetall(hashName)
+        finally:
+            self.conn.close()
     
     def delHash(self, hashName: str, key: str) -> None:
         '''
         删除dict中的键值对
         '''
-        self.conn.hdel(hashName, key)
+        try:
+            self.conn.hdel(hashName, key)
+        finally:
+            self.conn.close()
 
     def setSet(self, setName: str, *value: str) -> None:
         '''
@@ -106,7 +152,10 @@ class redisConnPool:
         :param setName: set名称
         :param *value: 值
         '''
-        self.conn.sadd(setName, *value)
+        try:
+            self.conn.sadd(setName, *value)
+        finally:
+            self.conn.close()
 
     def getSet(self, setName: str, value: str) -> bool:
         '''
@@ -115,7 +164,21 @@ class redisConnPool:
         :param value: 值
         :return:
         '''
-        return self.conn.sismember(setName, value)
+        try:
+            return self.conn.sismember(setName, value)
+        finally:
+            self.conn.close()
+    
+    def getSetData(self, setName: str) -> list:
+        '''
+        获取set中的所有成员
+        :param setName: set名称
+        :return:
+        '''
+        try:
+            return list(self.conn.smembers(setName))
+        finally:
+            self.conn.close()
     
     def delSet(self, setName: str, value: str) -> bool:
         '''
@@ -123,7 +186,10 @@ class redisConnPool:
         :param setName: set名称
         :param value: 值
         '''
-        self.conn.srem(setName, value)
+        try:
+            self.conn.srem(setName, value)
+        finally:
+            self.conn.close()
 
     def lpush(self, listName: str, value: str) -> None:
         '''
@@ -131,7 +197,10 @@ class redisConnPool:
         :param listName: 列表名称
         :param value: 值
         '''
-        self.conn.lpush(listName, value)
+        try:
+            self.conn.lpush(listName, value)
+        finally:
+            self.conn.close()
 
     def llen(self, listName: str) -> int:
         '''
@@ -139,7 +208,10 @@ class redisConnPool:
         :param listName: 列表名称
         :return:
         '''
-        return self.conn.llen(listName)
+        try:
+            return self.conn.llen(listName)
+        finally:
+            self.conn.close()
     
     def rpop(self, listName: str) -> str:
         '''
@@ -147,6 +219,9 @@ class redisConnPool:
         :param listName: 列表名称
         :return:
         '''
-        return self.conn.rpop(listName)
+        try:
+            return self.conn.rpop(listName)
+        finally:
+            self.conn.close()
 
 redisClient = redisConnPool(passwd=cfg.get("database", "redis_pwd"), host=cfg.get("database", "redis_host"), port=int(cfg.get("database", "redis_port")), db=int(cfg.get("database", "redis_db")))

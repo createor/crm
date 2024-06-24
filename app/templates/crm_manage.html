@@ -64,6 +64,9 @@
                             <input type="text" name="tableName" id="tableName" placeholder="" class="layui-input"
                                 autocomplete="off">
                         </div>
+                        <div id="showkeyword"
+                            style="display: none;position: absolute;width: 195px;height: auto;margin-left: 53px;z-index: 9999;background-color: white;border: 1px solid rgb(238, 238, 238);">
+                        </div>
                     </div>
                     <div class="layui-inline">
                         <button type="button" class="layui-btn layui-btn-primary" lay-submit lay-filter="search">
@@ -88,9 +91,9 @@
             </div>
             <div class="showEchart">
                 <!-- 图表展示设置,自定义图表展示规则,三个 -->
-                <div class="echart"></div>
-                <div class="echart"></div>
-                <div class="echart"></div>
+                <div class="echart" id="chart0"></div>
+                <div class="echart" id="chart1"></div>
+                <div class="echart" id="chart2"></div>
             </div>
             <div>
                 <table class="layui-hide" id="manage" lay-filter="manage"></table>
@@ -107,7 +110,6 @@
     </div>
     <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="edit" id="edit">编辑选中的数据</a>
     <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="del" id="del">删除选中的数据</a>
-    <!-- 搜索 -->
     <div style="width: 400px;display: inline-block; height: 20px;margin-left: 15px;">
         <div class="layui-input-group">
             <div class="layui-input-split layui-input-prefix" style="width: 120px;padding: 0;height: 30px;" id="prefix">
@@ -158,25 +160,35 @@
 
         currentTable.on("row(manageTable)", function (obj) {
             tableUid = obj.value.id;    // 表格的id
+            localStorage.setItem("tableUid", tableUid);
             let header = "";  // 表格的header
-            $.ajax({
-                url: "/crm/api/v1",
-                type: "get",
-                success: function (data) {
-                    if (data.code === 0) {
-                        let option_templ = "";
-                        data.message.forEach((item) => {
-                            option_templ += `<option value="${field}">${title}</option>`;
-                        });
-                        $("#utype").html(option_templ);
-                        header = data.message;
-                    } else { }
-                    return false;
-                },
-                error: function () {
-                    return false;
-                }
-            });
+            if (localStorage.getItem("header")) {
+                header = JSON.parse(localStorage.getItem("header"))[tableUid] || "";
+            }
+            if (!header) {
+                $.ajax({
+                    url: `/crm/api/v1/manage/header?id=${tableUid}`,
+                    type: "get",
+                    success: function (data) {
+                        if (data.code === 0) {
+                            let option_templ = "";
+                            data.message.forEach((item) => {
+                                option_templ += `<option value="${item.field}">${item.title}</option>`;
+                            });
+                            $("#utype").html(option_templ);
+                            header = data.message;
+                            // 本地存储
+                            let obj = new Object();
+                            obj[tableUid] = header;
+                            localStorage.setItem("header", JSON.stringify(obj));
+                        } else { }
+                        return false;
+                    },
+                    error: function () {
+                        return false;
+                    }
+                });
+            }
             $("#showAllManage").hide(); // 隐藏资产表列表
             $("#showManage").show();    // 显示具体资产表表格
             showCharts();               // 展示图表
@@ -214,31 +226,24 @@
                     // 下拉按钮选项
                     dropdown.render({
                         elem: "#dropdownBtn",
-                        show: true,
-                        data: [
-                            {
-                                id: "downTempl",  // 下载资产表录入模板表格
-                                title: "下载资产录入模板"
-                            }, {
-                                id: "importDataByExcel",  // 导入资产表录入模板表格
-                                title: "导入资产录入模板"
-                            }
-                        ],
-                        click: function (obj) {
-                            switch (obj.id) {
-                                case "downTempl":
-                                    $.ajax({
-                                        url: "" + tableUid,
-                                        type: "get",
-                                        success: function (data) {
-                                            let target = document.createElement("a");
-                                        }
-                                    });
-                                    break;
-                                case "importDataByExcel":
-                                    // layer.open();  // 显示导入进度
-                                    break;
-                            }
+                        content: `<div style="width: 117.7px;">
+                                  <button type="button" class="layui-btn layui-btn-primary layui-border layui-btn-sm" id="downTempl">下载资产录入模板</button>
+                                  <button type="button" class="layui-btn layui-btn-sm" style="margin-left: 0px;" id="importDataByExcel">导入资产录入模板</button>
+                                  </div>`,
+                        ready: function () {
+                            // 下载模板
+                            $("#downTempl").on("click", function () {
+                                $.ajax({
+                                    url: "" + tableUid,
+                                    type: "get",
+                                    success: function (data) {
+                                        let target = document.createElement("a");
+                                    }
+                                });
+                            });
+                            // 导入模板数据
+                            $("#importDataByExcel").on("click", function () {
+                            });
                         }
                     });
                 }
@@ -272,11 +277,7 @@
                         layer.msg("不支持批量编辑", { icon: 2 });
                         return false;
                     }
-                    layer.open({
-                        type: 1,
-                        title: "编辑",
-                        area: ["500px", "300px"]
-                    });
+                    window.parent.editColData(tableUid, checkStatus.data[0]);
                     break;
                 case "LAYTABLE_PROBE":   // 批量ping
                     window.parent.mulitDetect(tableUid);
@@ -289,7 +290,7 @@
                     break;
                 case "LAYTABLE_EXPORT":  // 导出表格
                     $.ajax({
-                        url: "",
+                        url: "/crm/api/v1/manage/export/" + tableUid,
                         type: "get",
                         success: function (data) { }
                     });
@@ -325,16 +326,37 @@
             let value = $("#tableName").val();
             if (value) {
                 $.ajax({
-                    url: `${value}`,
+                    url: `/crm/api/v1/manage/title?k=${value}`,
                     type: "get",
-                    success: function (data) { }
+                    success: function (data) {
+                        if (data.code === 0) {
+                            if (data.message.length > 0) {
+                                let keyword_templ = "";
+                                data.message.forEach((item) => {
+                                    keyword_templ += `<div style="padding: 10px;cursor: pointer;">${item}</div>`;
+                                });
+                                $("#showkeyword").html(keyword_templ);
+                                $("#showkeyword").show();
+                                $("#showkeyword div").on("click", function () {
+                                    $("#tableName").val($(this).text());
+                                    $("#showkeyword").hide();
+                                });
+                            } else {
+                                $("#showkeyword").hide();
+                            }
+                        }
+                        return false;
+                    },
+                    error: function () {
+                        return false;
+                    }
                 });
             }
         }
 
         // 搜索提示
-        // let debouncedSearch = debounce(searchTable, 500);
-        // $("#tableName").keyup(debouncedSearch);
+        let debouncedSearch = debounce(searchTable, 300);
+        $("#tableName").keyup(debouncedSearch);
 
         // 搜索标题
         form.on("submit(search)", function (data) {
@@ -361,48 +383,19 @@
         */
         function showCharts () {
             // 请求图表配置
-            // $.ajax()
-            document.querySelectorAll(".echart").forEach((item) => {
-                // let config = JSON.parse();  // 解析配置
-                // confg.series[0].data = "" // 填充数据
-                let myChart = echarts.init(item);
-                let option = {
-                    title: {
-                        text: "1",
-                        subtext: "2",
-                        left: "center"
-                    },
-                    tooltip: {
-                        trigger: "item"
-                    },
-                    legend: {
-                        orient: "vertical",
-                        left: "left"
-                    },
-                    series: [
-                        {
-                            name: "4",
-                            type: "pie",
-                            radius: "50%",
-                            data: [
-                                { value: 1048, name: 'Search Engine' },
-                                { value: 735, name: 'Direct' },
-                                { value: 580, name: 'Email' },
-                                { value: 484, name: 'Union Ads' },
-                                { value: 300, name: 'Video Ads' }
-                            ],
-                            emphasis: {
-                                itemStyle: {
-                                    shadowBlur: 10,
-                                    shadowOffsetX: 0,
-                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
-                                }
-                            }
-                        }
-                    ]
+            $.ajax({
+                url: `/crm/api/v1/manage/echart?id=${tableUid}`,
+                type: "get",
+                success: function (data) {
+                    if (data.code === 0) {
+                        data.message.forEach((item, index) => {
+                            let chartDom = document.getElementById(`chart${index}`);
+                            let myChart = echarts.init(chartDom);
+                            myChart.setOption(item);
+                        });
+                    }
                 }
-                option && myChart.setOption(option);
-            });
+            })
         }
 
         // 新建图表规则

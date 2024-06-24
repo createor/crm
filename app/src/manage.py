@@ -7,10 +7,11 @@
 @Desc    :  资产管理模块
 '''
 import os
+import traceback
 from flask import Blueprint, request, jsonify, g, Response
-from app.utils import methods, crmLogger, readExcel, UPLOAD_EXCEL_DIR, getUuid, verify, redisClient, converWords
-from app.src.models import db_session, Manage, Header, Log, Task, DetectResult, generateManageTable
-from sqlalchemy import or_
+from app.utils import methods, crmLogger, readExcel, UPLOAD_EXCEL_DIR, SYSTEM_DEFAULT_TABLE, getUuid, verify, redisClient, converWords
+from app.src.models import db_session, Manage, Header, Log, Options, Echart, Task, DetectResult, generateManageTable, initManageTable
+from sqlalchemy import or_, func
 import threading
 
 manage = Blueprint("manage", __name__)
@@ -27,7 +28,10 @@ def query():
     limit = int(args.get("limit", default=3))  # 每页显示数量,默认3条
     # 按最新创建的表格降序
     if title:  # 如果存在标题搜索
-        count = db_session.query(Manage).filter(Manage.name.like("%{}%".format(title))).count()
+        try:
+            count = db_session.query(Manage).filter(Manage.name.like("%{}%".format(title))).count()
+        finally:
+            db_session.close()
         if count == 0:  # 如果没有搜索到结果,直接返回空列表
             return jsonify({
                 "code": 0,
@@ -36,9 +40,16 @@ def query():
                     "data": []
                 }
             }), 200
-        result = db_session.query(Manage).filter(Manage.name.like("%{}%".format(title))).order_by(Manage.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+        try:
+            # 搜索结果
+            result = db_session.query(Manage).filter(Manage.name.like("%{}%".format(title))).order_by(Manage.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+        finally:
+            db_session.close()
     else:
-        count = db_session.query(Manage).count()
+        try:
+            count = db_session.query(Manage).count()
+        finally:
+            db_session.close()
         if count == 0:
             return jsonify({
                 "code": 0,
@@ -47,13 +58,106 @@ def query():
                     "data": []
                 }
             }), 200
-        result = db_session.query(Manage).order_by(Manage.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+        try:
+            result = db_session.query(Manage).order_by(Manage.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+        finally:
+            db_session.close()
+    try:
+        # 写入log表
+        query_log = Log(ip=g.ip_addr, operate_type="查询资产表", operate_content=f"查询资产表,title={title}", operate_user=g.username)
+        db_session.add(query_log)
+        db_session.commit()
+    except:
+        db_session.rollback()
+        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+    finally:
+        db_session.close()
+    crmLogger.info(f"用户{g.username}查询了资产表,title={title},page={page},limit={limit}")
     return jsonify({
         "code": 0,
         "message": {
             "total": count,
             "data": [{"id": item.uuid, "title": item.name, "remark": item.description, "image": f"/crm/api/v1/images/{item.table_image}", "time": f"{item.create_time}创建"} for item in result]
         }
+    }), 200
+
+@manage.route("/title", methods=methods.ALL)
+@verify(allow_methods=["GET"], module_name="查询资产表标题", check_ip=True)
+def queryTitle():
+    '''
+    查询所有资产表标题
+    '''
+    args = request.args  # 获取请求参数
+    title = args.get("k", None)  # 搜索关键字
+    if title:
+        return jsonify({
+            "code": 0,
+            "message": [item.decode("utf-8") for item in redisClient.getSetData("crm:manage:table_name") if title in item.decode("utf-8")]  # 从redis中查询
+        }), 200
+    else:
+        return jsonify({
+            "code": 0,
+            "message": []
+        }), 200
+
+@manage.route("/header", methods=methods.ALL)
+@verify(allow_methods=["GET"], module_name="查询资产表字段", check_ip=True)
+def getHeader():
+    '''
+    获取表格的头部字段
+    '''
+    args = request.args  # 获取请求参数
+    id = args.get("id", None)  # 表格的uuid
+    if not id:
+        return jsonify({
+            "code": -1,
+            "message": "缺少id参数"
+        }), 400
+    # 查看表是否存在
+    try:
+        table = db_session.query(Manage).filter(Manage.uuid == id).first()
+    finally:
+        db_session.close()
+    if not table:
+        return jsonify({
+            "code": -1,
+            "message": "资产表不存在"
+        }), 400
+    try:
+        result = db_session.query(Header).filter(Header.table_name == table.table_name).order_by(Header.order.asc()).all()
+    finally:
+        db_session.close()
+    if not result:
+        return jsonify({
+            "code": 0,
+            "message": []
+        }), 200
+    data = []
+    for item in result:
+        obj = {
+            "field": item.value,
+            "title": item.name,
+            "fieldTitle": item.name,
+            "type": item.type,
+            "is_mark": bool(item.is_desence),
+            "must_input": bool(item.must_input)
+        }
+        if item.type == 2:  # 如果是下拉框
+            try:
+                options = db_session.query(Options).filter(Options.table_name == id, Options.header_value == item.value).all()
+            finally:
+                db_session.close()
+            _obj = {}
+            _templ = ""
+            for opt in options:
+                _obj[opt.option_value] = opt.option_name
+                _templ += f"<option value='{opt.option_value}'>{opt.option_name}</option>"
+            obj["option"] = _obj
+            obj["templet"] = "<select><option value=''>请选择</option>" + _templ + "</select>"
+        data.append(obj)
+    return jsonify({
+        "code": 0,
+        "message": data
     }), 200
 
 @manage.route("/<string:id>", methods=methods.ALL)
@@ -71,7 +175,7 @@ def queryTable(id):
     args = request.args                        # 获取请求参数
     page = int(args.get("page", default=1))    # 当前页码,默认第一页
     limit = int(args.get("limit", default=6))  # 每页显示数量,默认6条
-    columns = db_session.query(Header).filter(Header.table_name == table.table_name).all()  # 获取表头信息,所有列
+    columns = db_session.query(Header.value).filter(Header.table_name == table.table_name).all()  # 获取表头信息,所有列
     if not columns:  # 如果没有表头信息,则返回空列表
         return jsonify({
             "code": 0,
@@ -83,8 +187,9 @@ def queryTable(id):
     # 根据用户搜索关键字返回数据
     key = args.get("key", None)      # 用户查找的字段
     value = args.get("value", None)  # 用户查找的值
+    queryTable = initManageTable(table.table_name)
     if key and value:  # 如果存在关键字搜索
-        count = db_session.query(table.table_name).filter((getattr(table.table_name, key).like(f"%{value}%"))).count()
+        count = db_session.query(queryTable).filter((getattr(queryTable.c, key).like(f"%{value}%"))).count()
         if count == 0:  # 如果没有搜索到结果,直接返回空列表
             return jsonify({
                 "code": 0,
@@ -93,9 +198,9 @@ def queryTable(id):
                     "data": []
                 }
             }), 200
-        result = db_session.query(table.table_name).filter((getattr(table.table_name, key).like(f"%{value}%"))).order_by(table.table_name._id.desc()).offset((page - 1) * limit).limit(limit).all()
+        result = db_session.query(queryTable).filter((getattr(queryTable.c, key).like(f"%{value}%"))).order_by(queryTable.c._id.desc()).offset((page - 1) * limit).limit(limit).all()
     else:
-        count = db_session.query(table.table_name).count()
+        count = db_session.query(queryTable).count()
         if count == 0:
             return jsonify({
                     "code": 0,
@@ -104,16 +209,19 @@ def queryTable(id):
                         "data": []
                     }
                 }), 200
-    result = db_session.query(table.table_name).order_by(table.table_name._id.desc()).offset((page - 1) * limit).limit(limit).all()
+    result = db_session.query(queryTable).order_by(queryTable.c._id.desc()).offset((page - 1) * limit).limit(limit).all()
+    data = []
     for item in result:
+        obj = {}
+        obj["_id"] = item._id
         for col in columns:
-            if col.name not in item.__dict__:
-                item.__dict__[col.name] = None  
+            obj[col.value] = getattr(item, col.value)
+        data.append(obj)
     return jsonify({
         "code": 0,
         "message": {
             "total": count,
-            "data": [{"id": item._id, col: item[col]} for item in result for col in columns]
+            "data": data
         }
     }), 200
 
@@ -128,8 +236,16 @@ def addTable():
     table_name = userData.get("name", None)    # 资产表标题
     table_keyword = userData.get("keyword")    # 资产表关键字
     table_desc = userData.get("desc")          # 资产表描述
+    if table_name in SYSTEM_DEFAULT_TABLE:
+        return jsonify({
+            "code": -1,
+            "message": "不能使用系统表"
+        }), 200
     # 判断表名是否已存在
-    is_exist_table = db_session.query(Manage).filter(or_(Manage.name == table_name, Manage == table_keyword)).first()
+    try:
+        is_exist_table = db_session.query(Manage).filter(or_(Manage.name == table_name, Manage == table_keyword)).first()
+    finally:
+        db_session.close()
     if is_exist_table:
         return jsonify({
             "code": -1,
@@ -178,7 +294,7 @@ def downloadTemplate():
     # return send_from_directory(UPLOAD_EXCEL_DIR, "资产表模板.xlsx", as_attachment=True)
 
 @manage.route("/import", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="导入资产表", check_ip=True)
+@verify(allow_methods=["POST"], module_name="导入资产表数据", check_ip=True)
 def importTable():
     '''
     导入资产表
@@ -191,7 +307,16 @@ def editData():
     '''
     修改资产表数据
     '''
-    userData = request.get_json()
+    reqData = request.get_json()
+    try:
+        db_session.query()
+        db_session.commit()
+    except:
+        db_session.rollback()
+    return jsonify({
+        "code": 0,
+        "message": "修改成功"
+    }), 200
 
 @manage.route("/alter", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="修改列属性", check_ip=True)
@@ -199,7 +324,20 @@ def alterColumn():
     '''
     修改资产表标题信息
     '''
-    userData = request.get_json()
+    reqData = request.get_json()
+    try:
+        table = db_session.query(Manage).filter()
+        db_session.commit()
+    except:
+        db_session.rollback()
+        return jsonify({
+            "code": -1,
+            "message": "数据库异常"
+        }), 500
+    return jsonify({
+        "code": 0,
+        "message": "修改成功"
+    }), 200
 
 @manage.route("/ping", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="ping探测", check_ip=True)
@@ -260,55 +398,6 @@ def export():
             yield ''
     return Response(event_stream(), mimetype="text/event-stream")
 
-@manage.route("/header", methods=methods.ALL)
-@verify(allow_methods=["GET"])
-def getHeader():
-    '''
-    获取表格的头部字段
-    '''
-    args = request.args  #
-    table_name = args.get("table_name")
-    result = db_session.query(Header).filter().all()
-    return jsonify({
-        "code": 0,
-        "message": {
-            "id": {
-                "title": "ID",
-                "order": 1,  # 顺序
-                "type": 1,  # 1-文本,2-下拉框,3-时间
-                "decode": 0  # 是否脱敏,1-是,0-不是
-            },
-            "name": {
-                "title": "名称",
-                "order": 2,
-                "type": 1,
-                "decode": 0
-            },
-            "type": {
-                "title": "类型",
-                "order": 3,
-                "type": 3,
-                "option": {  # 如果是下拉框,下拉选项
-                    "switch": "交换机",
-                    "route": "路由器"
-                },
-                "decode": 0
-            },
-            "password": {
-                "title": "密码",
-                "order": 4,
-                "type": 1,
-                "decode": 1
-            },
-            "create_time": {
-                "title": "创建时间",
-                "order": 5,
-                "type": 3,
-                "decode": 0
-            }
-        }
-    }), 200
-
 @manage.route("/setrule", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="创建图表规则", check_ip=True)
 def setEchartRule():
@@ -322,12 +411,38 @@ def setEchartRule():
     config = userData["config"]  # 图表配置
     #创建图表规则
 
+
 @manage.route("/getrule", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="获取图表规则", check_ip=True)
 def getEchartRules():
     '''
     获取图表规则
     '''
+    args = request.args  # 获取请求参数
+    id = args.get("id", None)  # 获取表id
+    if not id:
+        return jsonify({
+            "code": -1,
+            "message": "缺少id参数"
+        }), 400
+    # 查询表是否存在
+    table = db_session.query(Manage).filter(Manage.uuid == id).first()
+    if not table:
+        return jsonify({
+            "code": -1,
+            "message": "资产表不存在"
+        }), 400
+    # 查询规则
+    rules = db_session.query(Echart).filter(Echart.table_name == id).order_by(Echart.id.asc()).all()
+    if not rules:
+        return jsonify({
+            "code": 0,
+            "message": []
+        }), 200
+    return jsonify({
+        "code": 0,
+        "message": [{"id": rule.id, "type": rule.type, "keyword": rule.keyword} for rule in rules]
+    }), 200
 
 @manage.route("/echart", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="获取图表信息", check_ip=True)
@@ -336,22 +451,58 @@ def getEchart():
     获取echart数据
     '''
     args = request.args  # 获取请求参数
-    table_name = args.get("table_name")
+    id = args.get("id", None)  # 获取表id
+    if not id:
+        return jsonify({
+            "code": -1,
+            "message": "缺少id参数"
+        }), 400
+    # 查询表是否存在
+    table = db_session.query(Manage).filter(Manage.uuid == id).first()
+    if not table:
+        return jsonify({
+            "code": -1,
+            "message": "资产表不存在"
+        }), 400
     # 查询规则
-    rules = db_session.query().filter().order_by().all()
+    rules = db_session.query(Echart).filter(Echart.table_name == id).order_by(Echart.id.asc()).all()
+    if not rules:
+        return jsonify({
+            "code": -1,
+            "message": "没有图表规则"
+        }), 400
     result = []
+    queryTable = initManageTable(table.table_name)
     for rule in rules:
-        if rule.mode == "1":  # 饼图
-            pie_result = db_session.query().group_by().all()
-            result.append({
-                "title": "测试",
-                "data": {
+        if rule.type == 1:  # 饼图
+            pie_result = db_session.query(getattr(queryTable.c, rule.keyword), func.count(1)).group_by(getattr(queryTable.c, rule.keyword)).all()
+            if pie_result:
+                data = []
+                for i in pie_result:
+                    data.append({"value": i[1], "name": i[0]})
+                result.append({
+                    "title": {
+                        "text": rule.name,
+                        "left": "center"
+                    },
+                    "tooltip": {
+                        "trigger": "item"
+                    },
+                    "legend": {
+                        "orient": "vertical",
+                        "left": "left"
+                    },
+                    "toolbox": {
+                        "feature": {
+                            "saveAsImage": {}
+                        }
+                    },
                     "series": [
                         {
-                            "name": "",
+                            "name": rule.name,
                             "type": "pie",
                             "radius": "50%",
-                            "data": [{"value": "", "name": ""}],
+                            "data": data,
                             "emphasis": {
                                 "itemStyle": {
                                     "shadowBlur": 10,
@@ -361,23 +512,72 @@ def getEchart():
                             }
                         }
                     ]
-                }
-            })
-        if rule.mode == "2":  # 柱形图
+                })
+        if rule.type == 2:  # 柱形图
+            bar_result = db_session.query(getattr(queryTable.c, rule.keyword), func.count(1)).group_by(getattr(queryTable.c, rule.keyword)).all()
+            if bar_result:
+                data_1 = []
+                data_2 = []
+                for i in pie_result:
+                    data_1.append(i[0])
+                    data_2.append(i[1])
+                result.append({
+                    "title": {
+                        "text": rule.name
+                    },
+                    "xAxis": {
+                        "type": "category",
+                        "data": data_1
+                    },
+                    "yAxis": {
+                        "type": "value"
+                    },
+                    "toolbox": {
+                        "feature": {
+                            "saveAsImage": {}
+                        }
+                    },
+                    "series": [
+                        {
+                            "data": data_2,
+                            "type": "bar"
+                        }
+                    ]
+                })
+        if rule.type == 3:  # 折线图
+            # 根据日期排序
+            data = []
+            data.append({"name": "", "type": "line", "stack": "total", "data":[]})
             result.append({
-                "title": "",
-                "xAxis": [],
-                "series": [
-                    {
-                        "data": [],
-                        "type": "bar"
+                "title": {
+                    "text": rule.name
+                },
+                "tooltip": {
+                    "trigger": "axis"
+                },
+                "legend": {
+                    "data": []
+                },
+                "grid": {
+                    "left": "3%",
+                    "right": "4%",
+                    "bottom": "3%",
+                    "containLabel": True
+                },
+                "xAxis": {
+                    "type": "category",
+                    "boundaryGap": False,
+                    "data": []
+                },
+                "yAxis": {
+                    "type": "value"
+                },
+                "toolbox": {
+                    "feature": {
+                        "saveAsImage": {}
                     }
-                ]
-            })
-        if rule.mode == "3":  # 折线图
-            result.append({
-                "title": "",
-                "series": [{"name": "", "type": "line", "stack": "total", "data":[]}]
+                },
+                "series": []
             })
     return jsonify({
         "code": 0,
