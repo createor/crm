@@ -120,10 +120,10 @@ def upload():
         file_uuid = getUuid()  # 文件uuid
         path_type = 1  # 默认文件上传路径
         if affix in ["xlsx", "xls"]:
-            file.save(os.path.join(UPLOAD_EXCEL_DIR, file_uuid + "." + affix))  # 表格保存
+            file.save(os.path.join(UPLOAD_EXCEL_DIR, f"{file_uuid}.{affix}"))  # 表格保存
         else:
             path_type = 2
-            file.save(os.path.join(UPLOAD_IMAGE_DIR, file_uuid + "." + affix))  # 图片保存
+            file.save(os.path.join(UPLOAD_IMAGE_DIR, f"{file_uuid}.{affix}"))  # 图片保存
         # 使用clamav扫描文件
         # filepath = os.path.join(UPLOAD_EXCEL_DIR, file_uuid + "." + affix) if path_type == 1 else os.path.join(UPLOAD_IMAGE_DIR, file_uuid + "." + affix)
         # if not scan_file(filepath):
@@ -133,7 +133,7 @@ def upload():
         #         "message": "文件含有不安全的内容"
         #     }), 200
         # 写入数据库
-        upload_file = File(uuid=file_uuid, filename=filename, filepath=path_type, upload_user=g.username)
+        upload_file = File(uuid=file_uuid, filename=filename, affix=affix, filepath=path_type, upload_user=g.username)
         db_session.add(upload_file)
         db_session.commit()
         return jsonify({
@@ -151,13 +151,13 @@ def download_image(filename):
     '''
     图片访问地址
     '''
-    file = db_session.query(File.filename).filter(File.uuid == filename).first()
+    file = db_session.query(File.affix).filter(File.uuid == filename).first()
     if file is None:
         return jsonify({
             "code": -1,
             "message": "文件不存在"
         }), 400
-    return send_from_directory(UPLOAD_IMAGE_DIR, file.filename)
+    return send_from_directory(UPLOAD_IMAGE_DIR, f"{filename}.{file.affix}")
 
 @app.route("/crm/api/v1/file/<string:filename>", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="表格下载")
@@ -165,13 +165,13 @@ def download_file(filename):
     '''
     下载资产表导出的表格文件
     '''
-    file = db_session.query(File.filename).filter(File.uuid == filename).first()
+    file = db_session.query(File.filename, File.affix).filter(File.uuid == filename).first()
     if file is None:
         return jsonify({
             "code": -1,
             "message": "文件不存在"
         }), 400
-    return send_file(os.path.join(TEMP_DIR, file.filename), as_attachment=True, download_name=file.filename)
+    return send_file(os.path.join(TEMP_DIR, f"{filename}.{file.affix}"), as_attachment=True, download_name=file.filename)
 
 @app.route("/crm/api/v1/help", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="帮助手册")

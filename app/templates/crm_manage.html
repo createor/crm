@@ -234,10 +234,27 @@
                             // 下载模板
                             $("#downTempl").on("click", function () {
                                 $.ajax({
-                                    url: "" + tableUid,
+                                    url: `/crm/api/v1/manage/template?id=${tableUid}`,
                                     type: "get",
-                                    success: function (data) {
+                                    success: function (data, _, xhr) {
+                                        let disposition = xhr.getResponseHeader("Content-Disposition");
+                                        let filenameUTF8Regex = /filename\*\=UTF-8''(.*)/;
+                                        let utf8Matches = filenameUTF8Regex.exec(disposition);
+                                        let filename = utf8Matches ? decodeURIComponent(utf8Matches[1]) : "资产录入模板.xlsx";
+                                        let blob = new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
                                         let target = document.createElement("a");
+                                        let url = window.URL.createObjectURL(blob);
+                                        target.href = url;
+                                        target.download = filename;
+                                        document.body.appendChild(target);
+                                        target.click();
+                                        window.URL.revokeObjectURL(url);
+                                        return false;
+                                    },
+                                    error: function (err) {
+                                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                                        layer.msg(errMsg.message, { icon: 2 });
+                                        return false;
                                     }
                                 });
                             });
@@ -289,10 +306,28 @@
                     window.parent.addNewCol(tableUid);
                     break;
                 case "LAYTABLE_EXPORT":  // 导出表格
+                    // 判断当前是否有筛选
                     $.ajax({
-                        url: "/crm/api/v1/manage/export/" + tableUid,
+                        url: `/crm/api/v1/manage/export?id=${tableUid}`,
                         type: "get",
-                        success: function (data) { }
+                        success: function (data) {
+                            // 返回文件id、文件名
+                            if (data.code === 0) {
+                                let target = document.createElement("a");
+                                target.href = `/crm/api/v1/file/${data.message.id}`;
+                                target.download = data.message.filename;
+                                document.body.appendChild(target);
+                                target.click();
+                            } else {
+                                layer.msg(`导出错误: ${data.message}`, { icon: 2 });
+                            }
+                            return false;
+                        },
+                        error: function (err) {
+                            let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                            layer.msg(err.message, { icon: 2 });
+                            return false;
+                        }
                     });
                     break;
             }

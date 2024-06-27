@@ -28,6 +28,7 @@ class redisConnPool:
                                 password=passwd
                             )
             self.conn = redis.Redis(connection_pool=self.pool)
+            self.pubsub = None
         except Exception as e:
             crmLogger.error(f"redis连接错误: {e}")
     
@@ -224,4 +225,37 @@ class redisConnPool:
         finally:
             self.conn.close()
 
+    def subscribe(self, channel: str, fun: callable):
+        '''
+        获取订阅对象
+        :param channel: 频道
+        :param fun: 回调函数
+        '''
+        if self.pubsub is None:
+            self.pubsub = self.conn.pubsub()
+        self.pubsub.subscribe(**{channel: fun})
+        self.pubsub.run_in_thread(sleep_time=0.001)
+    
+    def publish(self, channel: str, message: str):
+        '''
+        发布消息
+        '''
+        try:
+            self.conn.publish(channel, message)
+        finally:
+            self.conn.close()
+
+    def unSubscribe(self):
+        '''
+        取消订阅
+        '''
+        if self.pubsub is not None:
+            self.pubsub.unsubscribe()
+            self.pubsub.close()
+            self.pubsub = None
+
 redisClient = redisConnPool(passwd=cfg.get("database", "redis_pwd"), host=cfg.get("database", "redis_host"), port=int(cfg.get("database", "redis_port")), db=int(cfg.get("database", "redis_db")))
+def export(message):
+    ''''''
+    print(message["data"])
+redisClient.subscribe("export", export)

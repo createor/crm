@@ -6,6 +6,7 @@
 @Version :  1.0
 @Desc    :  数据库模型模块
 '''
+from typing import Union
 from sqlalchemy import create_engine, Table, Column, Integer, String, DateTime, Text, Date
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -135,6 +136,7 @@ class File(Base):
     uuid = Column(String(40), primary_key=True, unique=True, nullable=False)  # 文件的唯一标识
     filename = Column(String(255), nullable=False)                            # 文件名
     filepath = Column(Integer, default=1)                                     # 文件路径: 1-excel_path,2-image_path,0-temp_path
+    affix = Column(String(10), nullable=False)                                # 文件后缀
     upload_user = Column(String(100))                                         # 文件上传者
     upload_time = Column(DateTime, default=datetime.now)                      # 文件上传时间
 
@@ -184,8 +186,14 @@ class Notify(Base):
     '''到期提醒表'''
     __tablename__ = "crm_notify"
     id = Column(String(40), primary_key=True, unique=True, nullable=False)  # 任务id
+    name = Column(String(255), nullable=False)                              # 任务名
+    table = Column(String(20))                                              # 表名
+    keyword = Column(String(20))                                            # 日期列名
+    status = Column(Integer, default=1)                                     # 状态: 1-启动,0-停止
     create_user = Column(String(100))                                       # 任务创建者
     create_time = Column(DateTime, default=datetime.now)                    # 任务创建时间
+    update_user = Column(String(100))                                            # 更新者
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)  # 更新时间
 
 class Notice(Base):
     ''''''
@@ -204,7 +212,16 @@ class NotifyMessage(Base):
     receiver = Column(String(100))                                          # 过期提示消息接收者
     create_time = Column(DateTime, default=datetime.now)
 
-def generateManageTable(table_name: str="", *cols):
+class History(Base):
+    '''导入导出历史记录表'''
+    __tablename__ = "crm_history"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    file_uuis = Column(String(40), nullable=False)  # 导入或导出的文件id
+    mode = Column(Integer, nullable=False)          # 1-导出,2-导入
+    create_user = Column(String(100))
+    create_time = Column(DateTime, default=datetime.now)
+
+def generateManageTable(table_name: str="", cols=[]) -> Union[Table, None]:
     '''
     生成新资产表
     :param table_name: 资产表名称
@@ -216,17 +233,29 @@ def generateManageTable(table_name: str="", *cols):
     cols.append(Column('_create_time', DateTime, default=datetime.now))
     cols.append(Column('_update_user', String(100)))
     cols.append(Column('_update_time', DateTime, default=datetime.now, onupdate=datetime.now))
-    dynamic_table = Table(table_name, Base.metadata, *cols)
-    Base.metadata.create(engine, [dynamic_table])  # 创建动态表格
+    dynamic_table = Table(table_name, Base.metadata, *cols, extend_existing=True)
+    try:
+        with engine.connect() as conn:
+            dynamic_table.create(conn)  # 创建动态表格
+    except:
+        return None
     return dynamic_table
 
-def initManageTable(table_name: str=""):
+def initManageTable(table_name: str="") -> Table:
     '''
     实例化已有的资产表
     :pararm table_name: 资产表名称
     :return:
     '''
-    return Table(table_name, Base.metadata, Column("_id", Integer, primary_key=True, autoincrement=True), extend_existing=True, autoload=True, autoload_with=engine)
+    return Table(table_name, 
+                 Base.metadata, 
+                 Column("_id", Integer, primary_key=True, autoincrement=True), 
+                 Column('_create_user', String(100)), 
+                 Column('_create_time', DateTime, default=datetime.now), 
+                 Column('_update_time', DateTime, default=datetime.now, onupdate=datetime.now),
+                 extend_existing=True, 
+                 autoload=True, 
+                 autoload_with=engine)
 
 def addColumn(table_name: Table, col: Column) -> bool:
     '''

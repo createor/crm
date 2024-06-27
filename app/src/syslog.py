@@ -33,28 +33,34 @@ def queryLog():
         query_condition.append(Log.operate_time >= datetime.strptime(operate_start, "%Y-%m-%dT%H:%M:%S"))
         query_condition.append(Log.operate_time <= datetime.strptime(operate_end, "%Y-%m-%dT%H:%M:%S"))
     if len(query_condition) > 0:
-        count = count = db_session.query(Log).filter(and_(*query_condition)).count()
-        if count == 0:
-            return jsonify({
-                "code": 0,
-                "message": {
-                    "count": 0,
-                    "data": []
-                }
-            }), 200
-        # 按操作时间倒序排序
-        result = db_session.query(Log).filter(and_(*query_condition)).order_by(Log.operate_time.desc()).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
+        try:
+            count = count = db_session.query(Log).filter(and_(*query_condition)).count()
+            if count == 0:
+                return jsonify({
+                    "code": 0,
+                    "message": {
+                        "count": 0,
+                        "data": []
+                    }
+                }), 200
+            # 按操作时间倒序排序
+            result = db_session.query(Log).filter(and_(*query_condition)).order_by(Log.operate_time.desc()).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
+        finally:
+            db_session.close()
     else:
-        count = db_session.query(Log).count()
-        if count == 0:
-            return jsonify({
-                "code": 0,
-                "message": {
-                    "count": 0,
-                    "data": []
-                }
-            }), 200
-        result = db_session.query(Log).order_by(Log.operate_time.desc()).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
+        try:
+            count = db_session.query(Log).count()
+            if count == 0:
+                return jsonify({
+                    "code": 0,
+                    "message": {
+                        "count": 0,
+                        "data": []
+                    }
+                }), 200
+            result = db_session.query(Log).order_by(Log.operate_time.desc()).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
+        finally:
+            db_session.close()
     crmLogger.info(f"用户{g.username}查询日志: 结果total={count}")
     crmLogger.debug(f"查询条件: operate_user={operate_user}, operate_start={operate_start}, operate_end={operate_end}, page={page}, limit={limit}")
     return jsonify({

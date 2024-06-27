@@ -44,6 +44,9 @@ var addNewTable = function () {
         title: "新建资产表",
         shade: 0.6,
         shadeClose: false,
+        move: false,
+        resize: false,
+        maxmin: false,
         content: `<div class="layui-container" style="width: 100%;height: 100%;padding-top: 10px;">
                     <div id="stepProgressBar"></div>
                     <div class="stepContent layui-form" style="padding-top: 10px;text-align: left;">
@@ -51,7 +54,7 @@ var addNewTable = function () {
                             <div class="layui-inline">
                                 <label class="layui-form-label" style="width: 100px;">表名(必填)</label>
                                 <div class="layui-input-inline" style="width: 250px;">
-                                    <input type="text" name="mangeName" id="manageName" autocomplete="off" lay-verify="required" placeholder="请输入中文名称" class="layui-input">
+                                    <input type="text" name="manageName" id="manageName" autocomplete="off" lay-verify="required" placeholder="请输入中文名称" class="layui-input">
                                 </div>
                             </div>
                         </div>
@@ -209,8 +212,7 @@ var addNewTable = function () {
                         contentType: "application/json;charset=utf-8",
                         data: JSON.stringify({
                             "name": $("input[name='manageName']").val(),
-                            "table_name": $("input[name='emanegName']").val(),
-                            "mode": $("input[name='mode']:checked").val(),
+                            "keyword": $("input[name='emanegName']").val(),
                             "filename": $("input[name='filename']").val() ? $("input[name='filename']").val() : "",
                             "desc": $("#remark").val(),
                         }),
@@ -227,8 +229,19 @@ var addNewTable = function () {
                                 $(".stepContent").eq(3).html("<div style='padding: 35px 0;margin-left: -10px;'> \
                                     <i class='layui-icon layui-icon-error' style='font-size: 100px;color: red;'></i> \
                                     </div> \
-                                    <span style='margin-left: -10px;font-size: 20px;'>创建失败</span>");
+                                    <span style='margin-left: -10px;font-size: 20px;'>创建失败: " + data.message + "</span>");
                             }
+                            stepprogress.next('stepProgressBar');
+                            $(".stepContent").eq(2).hide();
+                            $(".stepContent").eq(3).show();
+                            return false;
+                        },
+                        error: function (err) {
+                            let errMsg = err.responseJSON || JSON.parse(err,responseText);
+                            $(".stepContent").eq(3).html("<div style='padding: 35px 0;margin-left: -10px;'> \
+                                    <i class='layui-icon layui-icon-error' style='font-size: 100px;color: red;'></i> \
+                                    </div> \
+                                    <span style='margin-left: -10px;font-size: 20px;'>创建失败: " + errMsg.message + "</span>");
                             stepprogress.next('stepProgressBar');
                             $(".stepContent").eq(2).hide();
                             $(".stepContent").eq(3).show();
@@ -583,29 +596,59 @@ var mulitDetect = function (tableId) {
     });
 }
 
-//
+/**
+ * @description 新建到期通知
+ * @param {*} tableId 表id
+ */
 var createNotify = function (tableId) {
-    $.ajax({
-        url: "/crm/api/v1/manage/",
-        type: "get",
-        success: function (data) {
-            let option_template = "";
-            layer.open({
-                type: 1,
-                title: "到期提醒任务",
-                area: ["500px", "300px"],
-                content: `<div>
-                            <form class="layui-form">
-                                <div class="layui-form-item">
-                                    <label class="layui-form-label">时间列</label>
-                                </div>
-                                <div class="layui-form-item">
-                                    <button class="layui-btn">创建任务</button>
-                                </div>
-                            </form>
-                          </div>`,
-                success: function () {}
-            });
-        }
+    let id = tableId || localStorage.getItem("tableUid");
+    let header = JSON.parse(localStorage.getItem("header"))[id];
+    let option_template = "";
+    // 判断header中是否有date、datetime属性列
+    header.forEach((item) => {
+
     });
+    if (1 === 1) {
+        layer.open({
+            type: 1,
+            title: "到期提醒任务",
+            area: ["500px", "300px"],
+            shade: 0.6,
+            shadeClose: false,
+            resize: false,
+            move: false,
+            maxmin: false,
+            content: `<div style="padding: 10px;">
+                        <form class="layui-form">
+                            <div class="layui-form-item">
+                                <label class="layui-form-label">时间列</label>
+                                <div class="layui-input-inline">
+                                    <select>
+                                    <option value="">请选择</option>
+                                    ${option_template}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="layui-form-item">
+                                <button class="layui-btn" lay-submit lay-filter="add">创建任务</button>
+                            </div>
+                        </form>
+                      </div>`,
+            success: function () {
+                form.render();
+                form.on("submit(add)", function(data) {
+                    $.ajax({
+                        url: `/crm/api/v1/manage/id=${id}`,
+                        type: "post",
+                        success: function (data) {},
+                        error: function (err) {}
+                    });
+                    return false;
+                })
+            }
+        });
+    } else {
+        layer.msg("未存在时间列,请新增或修改列", { icon: 2 });
+        return false;
+    }
 }

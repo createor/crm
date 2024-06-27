@@ -7,11 +7,15 @@
 @Desc    :  资产管理模块
 '''
 import os
+import io
 import traceback
-from flask import Blueprint, request, jsonify, g, Response
-from app.utils import methods, crmLogger, readExcel, UPLOAD_EXCEL_DIR, SYSTEM_DEFAULT_TABLE, getUuid, verify, redisClient, converWords
-from app.src.models import db_session, Manage, Header, Log, Options, Echart, Task, DetectResult, generateManageTable, initManageTable
-from sqlalchemy import or_, func
+from flask import Blueprint, request, jsonify, g, Response, send_file, make_response
+from app.utils import methods, crmLogger, readExcel, createExcel, UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, getUuid, verify, redisClient, converWords, job
+from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, File, DetectResult, Notify, initManageTable, generateManageTable
+from sqlalchemy import or_, func, Column, String, Text, Date
+from sqlalchemy.sql import insert
+from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
 import threading
 
 manage = Blueprint("manage", __name__)
@@ -231,29 +235,38 @@ def addTable():
     '''
     创建资产表
     '''
-    userData = request.get_json()              # 获取请求参数
-    filename = userData.get("filename", None)  # excel文件名
-    table_name = userData.get("name", None)    # 资产表标题
-    table_keyword = userData.get("keyword")    # 资产表关键字
-    table_desc = userData.get("desc")          # 资产表描述
-    if table_name in SYSTEM_DEFAULT_TABLE:
-        return jsonify({
-            "code": -1,
-            "message": "不能使用系统表"
-        }), 200
-    # 判断表名是否已存在
+    reqData = request.get_json()                # 获取请求参数
+    # 校验参数
+    if not all(key in reqData for key in ["filename", "name", "keyword", "desc"]):
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    filename = reqData["filename"]              # excel文件名
+    table_name = reqData["name"]                # 资产表标题
+    table_keyword = reqData["keyword"].lower()  # 资产表别名
+    table_desc = reqData["desc"]                # 资产表描述
+    if not table_name or not table_keyword:
+        return jsonify({"code": -1, "message": "表名或表别名不能为空"}), 400
+    if table_keyword in SYSTEM_DEFAULT_TABLE:
+        return jsonify({"code": -1, "message": "不能使用系统表表名"}), 400
+    # 判断表是否已存在
     try:
-        is_exist_table = db_session.query(Manage).filter(or_(Manage.name == table_name, Manage == table_keyword)).first()
+        # 使用or查询
+        is_exist_table = db_session.query(Manage).filter(or_(Manage.name == table_name, Manage.table_name == table_keyword)).first()
     finally:
         db_session.close()
     if is_exist_table:
-        return jsonify({
-            "code": -1,
-            "message": "表或关键字已存在"
-        }), 200
+        return jsonify({"code": -1, "message": "表名或表别名已存在"}), 400
     if filename:
         # 表格导入资产表方式
-        temp_table = readExcel(os.path.join(UPLOAD_EXCEL_DIR, filename))  # 读取表格
+        try:
+            file = db_session.query(File.affix).filter(File.uuid == filename).first()
+        finally:
+            db_session.close()
+        if not file:
+            return jsonify({
+                "code": -1,
+                "message": "导入的表格文件不存在"
+            }), 400
+        temp_table = readExcel(os.path.join(UPLOAD_EXCEL_DIR, f"{filename}.{file.affix}"))  # 读取表格
         if temp_table is None:
             return jsonify({
                 "code": -1,
@@ -262,28 +275,90 @@ def addTable():
         # 表头字段
         table_headers = temp_table.columns.tolist()
         if len(table_headers) == 0:
-            crmLogger.error(f"读取表格{filename}失败: 表头读取为空")
+            crmLogger.error(f"读取表格文件{filename}失败: 原因: 表头读取为空")
             return jsonify({
                 "code": -1,
                 "message": "读取表格失败"
             }), 200
-        header_data = [Header(name=k, value=v["pinyin"], table_name=table_name, order=v["index"], create_user=g.username) for k, v in converWords(table_headers).items()]
-        db_session.add_all(header_data)
-        db_session.add(Manage(uuid=getUuid(), name=table_name, description=table_desc, create_user=g.username))
-        db_session.add(Log(ip=g.ip_addr, operate_type="创建资产表", operate_content=f"创建资产表{table_name}", operate_user=g.username))
-        db_session.commit()
-        manageTable = generateManageTable(table_name)  # 创建表
-        # 批量插入数据
-        db_session.add_all([manageTable(**v) for v in temp_table.to_dict(orient="records")])
-        db_session.commit()
-        crmLogger.info(f"创建资产表{table_name}成功")
-        return jsonify({
-            "code": 0,
-            "message": "success"
-        }), 200
+        column_header = converWords(table_headers)
+        try:
+            header_data = [Header(name=k, value=v["pinyin"], table_name=table_keyword, order=v["index"], create_user=g.username) for k, v in column_header.items()]
+            db_session.add_all(header_data)
+            db_session.commit()
+        except:
+            db_session.rollback()
+            crmLogger.error(f"写入header表异常: {traceback.format_exc()}")
+            return jsonify({
+                "code": -1,
+                "message": "数据库异常"
+            }), 500
+        finally:
+            db_session.close()
+        manageTable = generateManageTable(table_keyword, [Column(h["pinyin"], String(255)) for _, h in column_header.items()])  # 创建表
+        try:
+            table_uuid = getUuid()
+            db_session.add(Manage(uuid=table_uuid, name=table_name, table_name=table_keyword, description=table_desc, create_user=g.username))
+            db_session.commit()
+        except:
+            db_session.rollback()
+            crmLogger.error(f"写入manage表异常: {traceback.format_exc()}")
+            return jsonify({
+                "code": -1,
+                "message": "数据库异常"
+            }), 500
+        finally:
+            db_session.close()
+        try:
+            # 批量插入数据
+            with engine.connect() as conn:
+                # 记录错误
+                insert_data = temp_table.to_dict(orient="records")
+                new_insert_data = []
+                for i in insert_data:
+                    for c, v in column_header.items():
+                        new_data = i.pop(c)
+                        if isinstance(new_data, datetime):
+                            # 修改列属性为date
+                            new_data = new_data.strftime("%Y-%m-%d %H:%M:%S")
+                        i.update({v["pinyin"]: new_data})
+                    new_insert_data.append(i)
+                stmt = insert(manageTable)
+                conn.execute(stmt, insert_data)
+        except:
+            crmLogger.error(f"写入{table_name}表异常: {traceback.format_exc()}")
+            return jsonify({
+                "code": -1,
+                "message": "数据库异常"
+            }), 500
     else:
         # 直接创建资产表,后面创建列方式
-        pass
+        initManageTable(table_keyword)
+        try:
+            table_uuid = getUuid()
+            db_session.add(Manage(uuid=table_uuid, name=table_name, table_name=table_keyword, description=table_desc, create_user=g.username))
+            db_session.commit()
+        except:
+            db_session.rollback()
+            crmLogger.error(f"写入manage表异常: {traceback.format_exc()}")
+            return jsonify({
+                "code": -1,
+                "message": "数据库异常"
+            }), 500
+        finally:
+            db_session.close()
+    try:
+        create_log = Log(ip=g.ip_addr, operate_type="创建资产表", operate_content=f"创建资产表{table_name}", operate_user=g.username)
+        db_session.add(create_log)
+    except:
+        db_session.rollback()
+    finally:
+        db_session.close()
+        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+    crmLogger.info(f"用户{g.username}创建资产表{table_name}成功")
+    return jsonify({
+        "code": 0,
+        "message": table_uuid
+    }), 200
 
 @manage.route("/template", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="下载资产表模板", check_ip=True)
@@ -291,7 +366,73 @@ def downloadTemplate():
     '''
     下载资产表模板
     '''
-    # return send_from_directory(UPLOAD_EXCEL_DIR, "资产表模板.xlsx", as_attachment=True)
+    args = request.args        # 获取请求参数
+    id = args.get("id", None)  # 获取表uuid
+    try:
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == id).first()
+    finally:
+        db_session.close()
+    # 查询的表不存在
+    if not table:
+        return jsonify({
+            "code": -1,
+            "message": "资产表不存在"
+        }), 400
+    # 如果redis有缓存,直接返回
+    templ_file = redisClient.getData(f"crm:{id}:template")
+    if templ_file:
+        try:
+            file = db_session.query(File.filename, File.affix).filter(File.uuid == templ_file).first()
+        finally:
+            db_session.close()
+        with open(os.path.join(TEMP_DIR, f"{templ_file}.{file.affix}"), "rb") as f:
+            file_binary = f.read()
+        return send_file(io.BytesIO(file_binary), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, attachment_filename=f"{file.filename}")
+    else:
+        # 查询header
+        try:
+            header = db_session.query(Header.name, Header.type, Header.value, Header.value_type, Header.must_input, Header.order).filter(Header.table_name == table.table_name).order_by(Header.order.asc()).all()
+        finally:
+            db_session.close()
+        if not header:
+            return jsonify({
+                "code": -1,
+                "message": "资产表暂无字段"
+            }), 400
+        table_header = {}
+        table_styles = {}
+        for h in header:
+            if h.must_input == 1:
+                table_header[f"{h.name}*"] = chr(h.order + 65)
+            else:
+                table_header[f"{h.name}"] = chr(h.order + 65)
+            if h.value_type == 2:
+                try:
+                    opt = db_session.query(Options.option_name, Options.option_value).filter(Options.table_name == table.table_name, Options.header_value == h.value).all()
+                finally:
+                    db_session.close()
+                table_styles[f"{h.name}"] = {
+                    "type": 2,
+                    "options": ",".join([o.option_name for o in opt])
+                }
+        fileUuid = getUuid()
+        if not createExcel(TEMP_DIR, fileUuid, "导入模板", table_header, {}, table_styles, True):
+            return jsonify({
+                "code": -1,
+                "message": "创建模板文件失败"
+            }), 500
+        # 写入redis
+        redisClient.setData(f"crm:{id}:template", fileUuid)
+        # 写入file表
+        try:
+            db_session.add(File(uuid=fileUuid, filename=f"{table.name}导入模板.xlsx", affix="xlsx", filepath=0, upload_user="system"))
+            db_session.commit()
+        except:
+            db_session.rollback()
+        finally:
+            db_session.close()
+        crmLogger.info(f"生成资产表<{table.name}>导入模板文件完成")
+        return send_file(os.path.join(TEMP_DIR, f"{fileUuid}.xlsx"), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, attachment_filename=f"{table.name}导入模板.xlsx")  # 下载文件
 
 @manage.route("/import", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="导入资产表数据", check_ip=True)
@@ -363,22 +504,109 @@ def multDetect():
     return Response(event_stream(), mimetype="text/event-stream")
 
 @manage.route("/notify", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="到期通知", check_ip=True)
+@verify(allow_methods=["GET", "POST"], module_name="到期通知", check_ip=True)
 def notifyExpire():
     '''
     到期通知
     '''
-    args = request.args  # 获取请求参数
-    id = args.get("id")  # 资产表id
-    # 设置通知消息样式
-
-    # 设置单元格下拉样式
-
-    # sse推送进度
-    def event_stream():
-        while True:
-            yield ''
-    return Response(event_stream(), mimetype="text/event-stream")
+    if request.method == "GET":    # 获取所有通知
+        args = request.args        # 获取请求参数
+        id = args.get("id", None)  # 资产表id
+        page = int(args.get("page", 1))    # 页码
+        limit = int(args.get("limit", 5))  # 每页数量
+        try:
+            table = db_session.query(Manage).filter(Manage.uuid == id).first()
+        finally:
+            db_session.close()
+        if not table:
+            return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        try:
+            count = db_session.query(Notify).filter(Notify.table == table.table_name, Notify.create_user == g.username).count()
+            if count == 0:
+                return jsonify({
+                    "code": 0,
+                    "message": []
+                }), 200
+            data = db_session.query(Notify).filter(Notify.table == table.table_name, Notify.create_user == g.username).order_by(Notify.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+        finally:
+            db_session.close()
+        return jsonify({
+            "code": 0,
+            "message": {
+                "count": count,
+                "data": [{"id": i.id, "name": i.name, "status": i.status, "create_time": i.create_time} for i in data]
+            }
+        }), 200
+    elif request.method == "POST":
+        reqData = request.get_json()   # 获取请求数据
+        # 校验参数
+        if not all(key in reqData for key in ["id", "task_id", "name", "operate"]):
+            return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+        id = reqData["id"]              # 资产表id
+        task_id = reqData["task_id"]    # 任务id
+        name = reqData["name"]          # 任务名
+        operate = reqData["operate"]    # 任务操作
+        try:
+            table = db_session.query(Manage).filter(Manage.uuid == id).first()
+        finally:
+            db_session.close()
+        if not table:
+            return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        try:
+            # 查询是否已经存在通知
+            if task_id:
+                is_exist_notify = db_session.query(Notify).filter(Notify.id == task_id, Notify.status == 1,).first()
+            else:
+                is_exist_notify = db_session.query(Notify).filter(Notify.table == table.table_name, Notify.status == 1, Notify.create_user == g.username).first()
+            if operate == "add":  # 新建通知
+                if is_exist_notify:
+                    return jsonify({"code": -1, "message": "该资产表已经存在通知"}), 400
+                else:
+                    # 创建定时任务
+                    task_id = getUuid()
+                    def getTaskFun(timeWord):
+                        def fun():
+                            # 查询过期数据
+                            try:
+                                today = datetime.now().strftime("%Y-%m-%d")  # 获取今天日期
+                                expire_data = db_session.query().filter(NotifyMessage.expire_table == "crm_notify", NotifyMessage.expire_id == id).all()
+                            finally:
+                                db_session.close()
+                            # 写入数据库
+                            try:
+                                db_session.commit()
+                            except:
+                                db_session.rollback()
+                                crmLogger.error()
+                            finally:
+                                db_session.close()
+                        return fun
+                    try:
+                        job.setJob(task_id, "00:00:00", getTaskFun())
+                        
+                    except:
+                        pass
+                    # 写入数据库
+                    try:
+                        add_log = Log()
+                        db_session.add(add_log)
+                        db_session.commit()
+                    except:
+                        db_session.rollback()
+                    finally:
+                        db_session.close()
+                    crmLogger.info(f"{task_id}任务添加成功")
+                    return jsonify({
+                        "code": 0,
+                        "message": "创建成功"
+                    }), 200
+            if operate == "stop":  # 停止通知
+                if is_exist_notify:
+                    pass
+                else:
+                    return jsonify({"code": 0, "message": "已停止通知"}), 200
+        finally:
+            db_session.close()  
 
 @manage.route("/export", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="导出资产表", check_ip=True)
@@ -388,15 +616,18 @@ def export():
     '''
     args = request.args  # 获取请求参数
     id = args.get("id")  # 资产表id
-    # 设置导出表样式
-
-    # 设置单元格下拉样式
-
+    # 
+    redisClient.publish("export", {
+        "id": id,
+        "filter": "",
+        "user": g.username
+    })
     # sse推送进度
-    def event_stream():
-        while True:
-            yield ''
-    return Response(event_stream(), mimetype="text/event-stream")
+    # def event_stream():
+    #     while True:
+    #         yield ''
+    # return Response(event_stream(), mimetype="text/event-stream")
+    return jsonify({"code": 0}), 200
 
 @manage.route("/setrule", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="创建图表规则", check_ip=True)
@@ -450,15 +681,16 @@ def getEchart():
     '''
     获取echart数据
     '''
-    args = request.args  # 获取请求参数
+    args = request.args        # 获取请求参数
     id = args.get("id", None)  # 获取表id
+    # 参数不存在
     if not id:
         return jsonify({
             "code": -1,
             "message": "缺少id参数"
         }), 400
     # 查询表是否存在
-    table = db_session.query(Manage).filter(Manage.uuid == id).first()
+    table = db_session.query(Manage.table_name).filter(Manage.uuid == id).first()
     if not table:
         return jsonify({
             "code": -1,
