@@ -27,22 +27,16 @@ def queryLog():
     operate_user = args.get("user", None)    # 用户名
     operate_start = args.get("start", None)  # 开始时间
     operate_end = args.get("end", datetime.now().replace(hour=23, minute=59, second=59, microsecond=0))      # 结束时间
-    if operate_user is not None:
+    if operate_user is not None:  # 筛选用户为空
         query_condition.append(Log.operate_user.in_(operate_user.split(",")))
-    if operate_start is not None:
+    if operate_start is not None: # 筛选时间为空
         query_condition.append(Log.operate_time >= datetime.strptime(operate_start, "%Y-%m-%dT%H:%M:%S"))
         query_condition.append(Log.operate_time <= datetime.strptime(operate_end, "%Y-%m-%dT%H:%M:%S"))
-    if len(query_condition) > 0:
+    if len(query_condition) > 0:  # 存在筛选条件
         try:
             count = count = db_session.query(Log).filter(and_(*query_condition)).count()
             if count == 0:
-                return jsonify({
-                    "code": 0,
-                    "message": {
-                        "count": 0,
-                        "data": []
-                    }
-                }), 200
+                return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
             # 按操作时间倒序排序
             result = db_session.query(Log).filter(and_(*query_condition)).order_by(Log.operate_time.desc()).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
         finally:
@@ -51,13 +45,7 @@ def queryLog():
         try:
             count = db_session.query(Log).count()
             if count == 0:
-                return jsonify({
-                    "code": 0,
-                    "message": {
-                        "count": 0,
-                        "data": []
-                    }
-                }), 200
+                return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
             result = db_session.query(Log).order_by(Log.operate_time.desc()).offset((int(page) - 1) * int(limit)).limit(int(limit)).all()
         finally:
             db_session.close()

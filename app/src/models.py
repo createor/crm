@@ -149,6 +149,7 @@ class Header(Base):
     value = Column(String(255), nullable=False)           # 英文字段
     value_type = Column(Integer, default=1)               # 值类型: 1-字符串,2-数字,3-日期,4-大文本
     table_name = Column(String(20), nullable=False)       # 归属哪个资产表
+    is_unique = Column(Integer, default=0)                # 是否唯一: 1-是,0-否
     is_desence = Column(Integer, default=0)               # 是否脱敏: 1-是,0-否
     must_input = Column(Integer, default=0)               # 是否必填: 1-是,0-否
     order = Column(Integer, default=0)                    # 排序
