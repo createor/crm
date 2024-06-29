@@ -12,6 +12,7 @@ import uuid
 import configparser
 from typing import Union
 from datetime import date
+from app.utils.logger import crmLogger
 
 # 程序路径
 if getattr(sys, "frozen", False):
@@ -25,17 +26,20 @@ elif __file__:
 def readConfig() -> configparser.ConfigParser:
     '''
     读取配置文件
+    :return:
     '''
     if not os.path.exists(os.path.join(BASE_DIR, "server.ini")):
-        raise FileNotFoundError("配置文件不存在")
+        crmLogger.error("配置文件server.ini不存在")
+        raise FileNotFoundError("配置文件server.ini不存在")
     config = configparser.ConfigParser()
-    config.read(os.path.join(BASE_DIR, "server.ini"), encoding="utf-8")
+    config.read(os.path.join(BASE_DIR, "server.ini"), encoding="utf-8")  # 读取配置文件
     return config
 
-cfg = readConfig()
+cfg = readConfig()  # 实例化
 
 # 服务监听地址
 SERVER_HOST = cfg.get("server", "host")
+
 # 服务监听端口
 SERVER_PORT = cfg.getint("server", "port")
 
@@ -52,6 +56,7 @@ ALLOWED_EXTENSIONS = ["png", "jpg", "jpeg", "xls", "xlsx"]
 UPLOAD_EXCEL_DIR = os.path.join(BASE_DIR, cfg.get("server", "upload"), "excels")
 if not os.path.exists(UPLOAD_EXCEL_DIR):
     os.makedirs(UPLOAD_EXCEL_DIR)  # 如果不存在则创建
+
 # 图片文件上传保存路径
 UPLOAD_IMAGE_DIR = os.path.join(BASE_DIR, cfg.get("server", "upload"), "images")
 if not os.path.exists(UPLOAD_IMAGE_DIR):
@@ -66,6 +71,7 @@ if not os.path.exists(TEMP_DIR):
 LOG_PATH = os.path.join(BASE_DIR, cfg.get("server", "log"))
 if not os.path.exists(LOG_PATH):
     os.makedirs(LOG_PATH)  # 如果不存在则创建
+
 # 日志级别
 LOG_LEVEL = cfg.get("server", "level")
 
@@ -92,6 +98,7 @@ def getUuid() -> str:
 def formatDate(time: Union[date, None]) -> str:
     '''
     格式化时间
+    :return:
     '''
     if not time:
         return ""

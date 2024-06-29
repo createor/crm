@@ -13,6 +13,7 @@
     <script type="text/javascript" src="{{ url_for('static', filename='js/watermark.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='driver/driver.css') }}">
 </head>
+
 <style>
     *,
     html,
@@ -115,7 +116,7 @@
             <div class="layui-layout layui-layout-admin">
                 <!-- 头部 -->
                 <div class="layui-header">
-                    <!-- logo -->
+                    <!-- logo图标 -->
                     <div class="layui-logo layui-bg-black">
                         <div>
                             <i class="layui-icon-logo"></i>
@@ -206,12 +207,14 @@
     </div>
 
 </body>
+
 <!-- 根据不同角色加载不同引导脚本 -->
 {% if is_admin %}
 <script type="text/javascript" src="{{ url_for('static', filename='js/admin_driver.js') }}"></script>
 {% else %}
 <script type="text/javascript" src="{{ url_for('static', filename='js/user_driver.js') }}"></script>
 {% endif %}
+
 <script type="text/javascript">
     layui.config({
         base: "{{ url_for('static', filename='layui/ext/') }}"
@@ -226,6 +229,7 @@
         const upload = layui.upload;
         const util = layui.util;
         const laydate = layui.laydate;
+
         window.table = table;
         window.element = element;
         window.upload = upload;
@@ -254,6 +258,7 @@
                 shadeClose: false,
                 maxmin: false,
                 move: false,
+                resize: false,
                 anim: 0,
                 content: `<div style="width: 320px;padding: 15px 0px 0px 50px;">
                             <form class="layui-form">
@@ -340,7 +345,10 @@
             });
         }
 
-        // 判断密码有效期
+        /**
+         * @description 判断密码有效期
+         * @param {Object} data 用户数据
+        */
         function getPwdState (data) {
             // 判断密码有效期是否少于10天,少于则弹窗提示
             return function () {
@@ -357,6 +365,30 @@
                     });
                 }
             }
+        }
+
+        /**
+        * @description 标为已读
+        * @param {String} id 通知id
+        */
+        function markRead (id) {
+            $.ajax({
+                url: "/crm/api/v1/",
+                type: "get",
+                success: function (data) { }
+            });
+        }
+
+        /**
+         * @description 查看详情
+         * @param {String} id 通知id
+        */
+        function showDetail (id) {
+            $.ajax({
+                url: "/crm/api/v1/",
+                type: "get",
+                success: function (data) { }
+            });
         }
 
         // 加载用户状态信息
@@ -397,30 +429,6 @@
                 return false;
             }
         });
-
-        /**
-         * @description 标为已读
-         * @param {String} id 通知id
-        */
-        function markRead (id) {
-            $.ajax({
-                url: "/crm/api/v1/",
-                type: "get",
-                success: function (data) { }
-            });
-        }
-
-        /**
-         * @description 查看详情
-         * @param {String} id 通知id
-        */
-        function showDetail (id) {
-            $.ajax({
-                url: "/crm/api/v1/",
-                type: "get",
-                success: function (data) { }
-            });
-        }
 
         // 加载用户通知
         $.ajax({
@@ -496,6 +504,7 @@
                 shadeClose: false,
                 maxmin: false,
                 move: false,
+                resize: false,
                 anim: 0,
                 content: `<div style="width: 320px;padding: 15px 0px 0px 60px;">
                             <form class="layui-form" lay-filter="user_info">
@@ -536,7 +545,6 @@
                     // 用户修改资料
                     form.on("submit(modify_info)", function (data) {
                         let field = data.field;
-                        console.log(field);
                         $.ajax({
                             url: "/crm/api/v1/user/modify",
                             type: "post",

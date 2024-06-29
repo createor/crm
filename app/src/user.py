@@ -19,132 +19,129 @@ user = Blueprint("user", __name__)
 SALE = "1We4Zx0Mn" # md5的加盐值
 
 @user.route("/login", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="登录", auth_login=False)
+@verify(allow_methods=["POST"], module_name="用户登录", auth_login=False)
 def login():
     '''
     用户登录
     '''
-    # 获取session中验证码的id
-    captcha_id = session.get("captcha_id")
-    # 如果获取为空则返回登录页
-    if captcha_id is None:
+    captcha_id = session.get("captcha_id")  # 获取session中验证码的id
+    
+    if captcha_id is None:  # 如果获取为空则返回登录页
         return redirect("/login", code=302)
+
     reqData = request.get_json()  # 获取请求数据
-    # 校验参数
-    if not all(key in reqData for key in ["username", "password", "captcha"]):
+    
+    if not all(key in reqData for key in ["username", "password", "captcha"]):  # 校验body参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
-    # 验证码验证
+
     cache_captcha = redisClient.getData(captcha_id)
-    if cache_captcha is None:
-        return jsonify({
-            "code": -2,
-            "message": "验证码错误"
-        }), 200
-    if reqData["captcha"].lower() != str(cache_captcha):
-        return jsonify({
-            "code": -2,
-            "message": "验证码错误"
-        }), 200
-    # 用户名密码验证
-    try:
+    if cache_captcha is None or reqData["captcha"].lower() != cache_captcha:  # 验证码验证
+        return jsonify({"code": -2, "message": "验证码错误"}), 200
+    
+    try:  # 用户名密码验证
+
         result = db_session.query(User).filter(User.username == reqData["username"]).first()
+
     finally:
+
         db_session.close()
+
     if result is None:  # 用户名不存在
-        return jsonify({
-            "code": -1,
-            "message": "用户名或密码错误"
-        }), 200
+        return jsonify({"code": -1, "message": "用户名或密码错误"}), 200
+    
     if result.password != hashlib.md5((reqData["password"].upper() + SALE).encode()).hexdigest().lower():  # 密码错误
+
         if bool(int(redisClient.getData("crm:system:enable_failed"))):  # 判断是否开启锁定功能
+
             if redisClient.getData("crm:{}:failed".format(reqData["username"])) and int(redisClient.getData("crm:{}:failed".format(reqData["username"]))) > int(redisClient.getData("crm:system:failed_count")):  # 判断是否大于设置错误次数
-                # 写入数据库
-                try:
+
+                try:  # 更新user表
+
                     _user = db_session.query(User).filter(User.username == reqData["username"]).first()
                     if _user:
-                        _user.status = 0   # 更新用户状态为锁定
+                        _user.status = 0   # 超出次数则更新用户状态为锁定
                         db_session.commit()
+
                 except:
-                    db_session.rollback()  # 回滚数据
-                    crmLogger.error(f"更新user表异常: {traceback.format_exc()}")  # 日志记录
-                    return jsonify({
-                        "code": -1,
-                        "message": "数据库异常"
-                    }), 500
+
+                    db_session.rollback()  # 发生异常则回滚数据
+
+                    crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")  # 日志记录
+
+                    return jsonify({"code": -1, "message": "数据库异常"}), 500
+                
                 finally:
+
                     db_session.close()
-                return jsonify({
-                    "code": -1,
-                    "message": "用户已被锁定"
-                }), 200
+
+                return jsonify({"code": -1, "message": "用户已被锁定"}), 200
+            
             else:
-                # 更新redis中记录加1
-                redisClient.setIncr("crm:{}:failed".format(reqData["username"]))
-        return jsonify({
-            "code": -1,
-            "message": "用户名或密码错误"
-        }), 200
+                
+                redisClient.setIncr("crm:{}:failed".format(reqData["username"]))  # 没有超过次数则在redis中记录加1
+
+        return jsonify({"code": -1, "message": "用户名或密码错误"}), 200
+
     # 判断用户状态
     if result.status == 0:
-        return jsonify({
-            "code": -1,
-            "message": "用户已被锁定"
-        }), 200
-    if result.status == 2:
-        return jsonify({
-            "code": -1,
-            "message": "用户已过期"
-        }), 200
-    # 判断是否是临时用户且授权是否过期
-    if result.type == 2 and result.expire_time < date.today():
+        return jsonify({"code": -1, "message": "用户已被锁定"}), 200
+    elif result.status == 2:
+        return jsonify({"code": -1, "message": "用户已过期"}), 200
+    
+    if result.type == 2 and result.expire_time < date.today():  # 判断用户是否是临时用户且授权是否过期
         try:
+
             result.status = 2    # 更新用户状态为过期
             db_session.commit()
+
         except:
+
             db_session.rollback()
-            crmLogger.error(f"更新user表异常: {traceback.format_exc()}")
-            return jsonify({
-                "code": -1,
-                "message": "数据库异常"
-            }), 500
+
+            crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+
+            return jsonify({"code": -1, "message": "数据库异常"}), 500
+        
         finally:
+
             db_session.close()
-        return jsonify({
-            "code": -1,
-            "message": "用户已过期"
-        }), 200
-    # 判断密码是否过期
-    if result.pwd_expire_time < date.today():
-        return jsonify({
-            "code": -1,
-            "message": "用户密码已过期"
-        }), 200
+
+        return jsonify({"code": -1, "message": "用户已过期"}), 200
+    
+    if result.pwd_expire_time < date.today():  # 判断密码是否过期
+        return jsonify({"code": -1, "message": "用户密码已过期"}), 200
+
     # 登录成功
     redisClient.setData("crm:{}:ip".format(reqData["username"]), g.ip_addr)  # 记录用户登陆的IP
-    # 判断是否开启锁定功能
-    if bool(int(redisClient.getData("crm:system:enable_failed"))):
-        # 清除用户的错误次数记录
-        redisClient.setData("crm:{}:failed".format(reqData["username"]), 0)
-    # 数据库日志记录登录成功
-    try:
+
+    if bool(int(redisClient.getData("crm:system:enable_failed"))):  # 判断是否开启锁定功能
+        redisClient.setData("crm:{}:failed".format(reqData["username"]), 0)  # 清除用户的错误次数记录
+
+    try:  # 数据库日志记录登录成功
+
         login_log = Log(ip=g.ip_addr, operate_type="登录", operate_content="登录成功", operate_user=reqData["username"])
         db_session.add(login_log)
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+
     finally:
+
         db_session.close()
-    crmLogger.info(f"用户{reqData["username"]}登录成功")
-    # redis删除验证码
-    redisClient.delData(captcha_id)    
+
+    crmLogger.info("用户{}登录成功".format(reqData["username"]))
+
+    redisClient.delData(captcha_id)  # redis删除已使用的验证码
+
     # 设置session
     session["username"] = result.username
     session.permanent = True
-    return jsonify({
-        "code": 0,
-        "message": "登录成功"
-    }), 200
+
+    return jsonify({"code": 0, "message": "登录成功"}), 200
 
 @user.route("/logout", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="用户登出", check_ip=True)
@@ -153,22 +150,27 @@ def logout():
     用户登出
     '''
     session.pop("username", None)  # 清除session
-    try:
-        # 写入log表
+
+    try:  # 写入log表
+        
         logout_log = Log(ip=g.ip_addr, operate_type="登出", operate_content="登出系统", operate_user=g.username)
         db_session.add(logout_log)
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        
     finally:
+
         db_session.close()
-    # 写入日志文件
-    crmLogger.info(f"用户{g.username}登出系统")
-    return jsonify({
-        "code": 0,
-        "message": "登出成功"
-    }), 200
+
+
+    crmLogger.info(f"用户{g.username}成功登出系统")  # 写入日志文件
+
+    return jsonify({"code": 0, "message": "登出成功"}), 200
 
 @user.route("/query", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="用户查询", is_admin=True, check_ip=True)
@@ -177,25 +179,41 @@ def query():
     查询用户
     '''
     args = request.args  # 获取请求参数
+
     page = int(args.get("page", default=1))
     limit = int(args.get("limit", default=10))
+
     try:
+
         count = db_session.query(User).filter(User.username != "admin").count()
+
         if count == 0:
-            return jsonify({"code": 0, "message": {"count": 0, "data": []}}), 200
+            return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
+        
         result = db_session.query(User).filter(User.username != "admin").offset((page - 1) * limit).limit(limit).all()
+
     finally:
+
         db_session.close()
-    try:
+
+    try:  # 写入log表
+
         query_log = Log(ip=g.ip_addr, operate_type="查询用户", operate_content="查询用户", operate_user=g.username)
         db_session.add(query_log)
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+
     finally:
+
         db_session.close()
-    crmLogger.info(f"用户{g.username}查询所有用户")
+
+    crmLogger.info(f"用户{g.username}成功查询所有用户")
+
     return jsonify({
         "code": 0,
         "message": {
@@ -210,62 +228,76 @@ def addUser():
     '''
     创建用户
     '''
+
     reqData = request.get_json()  # 获取请求数据
-    # 校验参数
-    if not all(key in reqData for key in ["username", "type", "expire_time", "name", "company"]):
+    
+    if not all(key in reqData for key in ["username", "type", "expire_time", "name", "company"]):  # 校验body参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
-    # 判断用户是否已经存在
-    try:
+    
+    try:  # 判断用户是否已经存在
+
         is_exist = db_session.query(User).filter(User.username == reqData["username"]).first()
+
     finally:
+
         db_session.close()
+
     if is_exist:
-        return jsonify({
-            "code": -1,
-            "message": "{}用户名已存在".format(reqData["username"])
-        }), 200
-    user_expire_time = ""
+        return jsonify({"code": -1, "message": "{}用户已存在".format(reqData["username"])}), 200
+    
     if int(reqData["type"]) == 2:
+
         user_expire_time = reqData["expire_time"]
+
         if not user_expire_time:
             user_expire_time = date.today() + timedelta(days=30)  # 如果临时用户没有设置过期时间则默认有效期30天
+
     try:
+
         newUser = User(
             name=reqData["name"],
             username=reqData["username"],
-            password=hashlib.md5((DEFAULT_PASSWORD.upper() + SALE).encode()).hexdigest().lower(),
+            password=hashlib.md5((DEFAULT_PASSWORD.upper() + SALE).encode()).hexdigest().lower(),  # 设置密码为默认密码
             create_user=g.username,
             type=int(reqData["type"]),
             expire_time=user_expire_time,
             pwd_expire_time=(date.today() + timedelta(days=90)),  # 默认90天密码有效期
-            company=reqData["company"],
-            avator=""
+            company=reqData["company"]
         )
         db_session.add(newUser)
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"写入user表异常: {traceback.format_exc()}")
-        return jsonify({
-            "code": -1,
-            "message": "数据库异常"
-        }), 500
+
+        crmLogger.error(f"写入user表发生异常: {traceback.format_exc()}")
+
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    
     finally:
+
         db_session.close()
-    try:
-        add_log = Log(ip=g.ip_addr, operate_type="创建用户", operate_content="创建用户{}".format(reqData["username"]), operate_user=g.username)
+
+    try:  # 写入log表
+
+        add_log = Log(ip=g.ip_addr, operate_type="创建用户", operate_content="创建用户({})".format(reqData["username"]), operate_user=g.username)
         db_session.add(add_log)
         db_session.commit()  # 提交事务
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+
     finally:
+
         db_session.close()
-    crmLogger.info("用户{}创建了用户{}".format(g.username, reqData["username"]))
-    return jsonify({
-        "code": 0,
-        "message": "用户创建成功"
-    }), 200
+
+    crmLogger.info("用户{}成功创建了用户{}".format(g.username, reqData["username"]))
+
+    return jsonify({"code": 0, "message": "用户创建成功"}), 200
 
 @user.route("/edit", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="用户编辑", is_admin=True, check_ip=True)
@@ -274,30 +306,39 @@ def editUser():
     编辑用户
     '''
     reqData = request.get_json()  # 获取请求数据
-    # 校验参数
-    if not all(key in reqData for key in ["uid", "username", "expire_time", "type", "company"]):
+    
+    if not all(key in reqData for key in ["uid", "username", "expire_time", "type", "company"]):  # 校验参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
     try:
+
         result = db_session.query(User).filter(User.uid == reqData["uid"], User.username == reqData["username"]).first()
+
     finally:
+
         db_session.close()
+
     if not result:  # 判断用户是否存在
-        return jsonify({
-            "code": -1,
-            "message": "用户不存在"
-        }), 400
+        return jsonify({"code": -1, "message": "用户不存在"}), 400
+
     userStatus = None
-    if int(reqData["type"]) == 1:  # 如果用户是永久用户,则将过期状态改为正常
+
+    if int(reqData["type"]) == 1:  # 如果设置用户是永久用户,则将过期状态改为正常
+
         userStatus = 1 if result.status == 2 else None
+
     else:
+
         if reqData["expire_time"] and datetime.strptime(reqData["expire_time"], "%Y-%m-%d").date() > date.today():  # 如果用户是临时用户且授权时间大于今天则将过期状态改为正常
+            
             userStatus = 1 if result.status == 2 else None
+
         else:
-            return jsonify({
-                "code": -1,
-                "message": "请选择临时用户过期时间"
-            }), 400
-    try:
+
+            return jsonify({"code": -1, "message": "请选择临时用户过期时间"}), 400
+        
+    try:  # 更新用户信息
+
         result.name = reqData["name"]
         result.type = int(reqData["type"])
         if reqData["expire_time"]:
@@ -306,29 +347,38 @@ def editUser():
         if userStatus:
             result.status = userStatus
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"更新user表异常: {traceback.format_exc()}")
-        return jsonify({
-            "code": -1,
-            "message": "数据库异常"
-        }), 500
+
+        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    
     finally:
+
         db_session.close()
-    try:
-        edit_log = Log(ip=g.ip_addr, operate_type="编辑用户", operate_content="编辑用户{}".format(reqData["username"]), operate_user=g.username)
+
+    try:  # 写入log表
+
+        edit_log = Log(ip=g.ip_addr, operate_type="编辑用户", operate_content="编辑用户({})".format(reqData["username"]), operate_user=g.username)
         db_session.add(edit_log)
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+
     finally:
+
         db_session.close()
-    crmLogger.info("用户{}信息更新成功".format(reqData["username"]))
-    return jsonify({
-        "code": 0,
-        "message": "用户编辑成功"
-    }), 200
+
+    crmLogger.info("用户{}成功更新了{}信息".format(g.username, reqData["username"]))
+
+    return jsonify({"code": 0, "message": "用户编辑成功"}), 200
 
 @user.route("/del", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="删除用户", is_admin=True, check_ip=True)
@@ -337,37 +387,48 @@ def deleteUser():
     删除用户
     '''
     reqData = request.get_json()  # 获取请求数据
-    # 校验参数
-    if not all(key in reqData for key in ["uid", "username"]):
+
+    if not all(key in reqData for key in ["uid", "username"]):  # 校验参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
     try:
+
         _user = db_session.query(User).filter(User.uid == reqData["uid"], User.username == reqData["username"]).first()
         if _user:  # 判断用户是否存在
             db_session.delete(_user)  # 删除数据
             db_session.commit()
+
     except:
+
         db_session.rollback()  # 回滚数据
-        crmLogger(f"删除user表异常: {traceback.format_exc()}")  # 日志记录
-        return jsonify({
-            "code": -1,
-            "message": "数据库异常"
-        }), 500
+
+        crmLogger(f"删除user表发生异常: {traceback.format_exc()}")  # 日志记录
+
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    
     finally:
+
         db_session.close()
-    try:
-        delete_log = Log(ip=g.ip_addr, operate_type="删除用户", operate_content="删除用户{}".format(reqData["username"]), operate_user=g.username)
+
+    try:  # 写入log表
+
+        delete_log = Log(ip=g.ip_addr, operate_type="删除用户", operate_content="删除用户({})".format(reqData["username"]), operate_user=g.username)
         db_session.add(delete_log)
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+
     finally:
+
         db_session.close()
-    crmLogger.info("删除用户{}成功".format(reqData["username"]))
-    return jsonify({
-        "code": 0,
-        "message": "删除用户成功"
-    }), 200
+
+    crmLogger.info("用户{}成功删除了用户{}".format(g.username, reqData["username"]))
+
+    return jsonify({"code": 0, "message": "删除用户成功"}), 200
 
 @user.route("/lock", methods=methods.ALL)
 @verify(allow_methods=methods.ALL, module_name="用户锁定", is_admin=True, check_ip=True)
@@ -375,38 +436,56 @@ def lockUser():
     '''
     锁定用户
     '''
-    reqData = request.get_json()
-    # 校验参数
-    if not all(key in reqData for key in ["uid", "username"]):
+    reqData = request.get_json()  # 获取请求数据
+    
+    if not all(key in reqData for key in ["uid", "username"]):  # 校验body参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
     try:
+
         _user = db_session.query(User).filter(User.uid == reqData["uid"], User.username == reqData["username"]).first()
+
         if _user:
-            _user.status = 0
-            db_session.commit()
+            if _user.status == 2:
+
+                return jsonify({"code": -1, "message": "无法锁定已过期用户"}), 400
+            
+            elif _user.status == 1:
+
+                _user.status = 0
+                db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"更新user表异常: {traceback.format_exc()}")
-        return jsonify({
-            "code": -1,
-            "message": "数据库异常"
-        }), 500
+
+        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+
     finally:
+
         db_session.close()
-    try:
-        lock_log = Log(ip=g.ip_addr, operate_type="锁定用户", operate_content="锁定用户{}".format(reqData["username"]), operate_user=g.username)
+
+    try:  # 写入log表
+
+        lock_log = Log(ip=g.ip_addr, operate_type="锁定用户", operate_content="锁定用户({})".format(reqData["username"]), operate_user=g.username)
         db_session.add(lock_log)
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+
     finally:
+
         db_session.close()
-    crmLogger.info("用户{}锁定了用户{}状态".format(g.username, reqData["username"]))
-    return jsonify({
-        "code": 0,
-        "message": "用户锁定成功"
-    }), 200
+
+    crmLogger.info("用户{}成功锁定了用户{}".format(g.username, reqData["username"]))
+
+    return jsonify({"code": 0, "message": "用户锁定成功"}), 200
 
 @user.route("/unlock", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="用户解锁", is_admin=True, check_ip=True)
@@ -415,37 +494,55 @@ def unlockUser():
     解锁用户
     '''
     reqData = request.get_json()  # 获取请求数据
-    # 校验参数
-    if not all(key in reqData for key in ["uid", "username"]):
+    
+    if not all(key in reqData for key in ["uid", "username"]):  # 校验body参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
     try:
+
         _user = db_session.query(User).filter(User.uid == reqData["uid"], User.username == reqData["username"]).first()
+
         if _user:
-            _user.status = 1
-            db_session.commit()
+            if _user.status == 2:
+
+                return jsonify({"code": -1, "message": "无法解锁已过期用户"}), 400
+            
+            elif _user.status == 0:
+
+                _user.status = 1
+                db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"更新user表异常: {traceback.format_exc()}")
-        return jsonify({
-            "code": -1,
-            "message": "数据库异常"
-        }), 500
+
+        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    
     finally:
+
         db_session.close()
-    try:
-        unlock_log = Log(ip=g.ip_addr, operate_type="解锁用户", operate_content="解锁用户{}".format(reqData["username"]), operate_user=g.username)
+
+    try:  # 写入log表
+
+        unlock_log = Log(ip=g.ip_addr, operate_type="解锁用户", operate_content="解锁用户({})".format(reqData["username"]), operate_user=g.username)
         db_session.add(unlock_log)
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+
     finally:
+
         db_session.close()
-    crmLogger.info("用户{}解锁了用户{}状态".format(g.username, reqData["username"]))
-    return jsonify({
-        "code": 0,
-        "message": "用户解锁成功"
-    }), 200
+
+    crmLogger.info("用户{}成功解锁了用户{}".format(g.username, reqData["username"]))
+
+    return jsonify({"code": 0, "message": "用户解锁成功"}), 200
 
 @user.route("/setpwd", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="密码修改", check_ip=True)
@@ -454,46 +551,57 @@ def setPassword():
     更新用户的密码
     '''
     reqData = request.get_json()  # 获取请求数据
-    # 校验参数
-    if not all(key in reqData for key in ["old_password", "new_password"]):
+    
+    if not all(key in reqData for key in ["old_password", "new_password"]):  # 校验参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
-    # 判断旧密码是否正确
-    try:
+    
+    try:  # 判断旧密码是否正确
+
         is_right_old_passwd = db_session.query(User).filter(User.username == g.username, User.password == hashlib.md5((reqData["old_password"].upper()+SALE).encode()).hexdigest().lower()).first()
+
     finally:
+
         db_session.close()
+
     if is_right_old_passwd is None:
-        return jsonify({
-            "code": -1,
-            "message": "旧密码不正确"
-        }), 200
-    # 更新数据库中用户的密码和密码过期时间
-    try:
+        return jsonify({ "code": -1, "message": "旧密码不正确"}), 200
+    
+    try:  # 更新数据库中用户的密码和密码过期时间
+
         db_session.query(User).filter(User.username == g.username).update({"password": hashlib.md5((reqData["new_password"].upper()+SALE).encode()).hexdigest().lower(), "pwd_expire_time": date.today() + timedelta(days=90)})
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"更新user表异常: {traceback.format_exc()}")
-        return jsonify({
-            "code": -1,
-            "message": "数据库异常"
-        }), 500
+
+        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    
     finally:
+
         db_session.close()
-    try:
+
+    try:  # 写入log表
+
         update_log = Log(ip=g.ip_addr, operate_type="修改密码", operate_content="修改密码", operate_use=g.username)
         db_session.add(update_log)
         db_session.commit()
+
     except:
+
         db_session.rollback()
+
         crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+
     finally:
+
         db_session.close()
-    crmLogger.info(f"用户{g.username}修改了密码")
-    return jsonify({
-        "code": 0,
-        "message": "密码更新成功"
-    }), 200
+
+    crmLogger.info(f"用户{g.username}成功修改了密码")
+
+    return jsonify({"code": 0, "message": "密码更新成功"}), 200
 
 @user.route("/reset", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="密码重置", is_admin=True, check_ip=True)
@@ -502,35 +610,46 @@ def resetPwd():
     重置用户的密码为默认密码
     '''
     reqData = request.get_json()  # 获取请求数据
-    # 校验参数
-    if not all(key in reqData for key in ["uid", "username"]):
+    
+    if not all(key in reqData for key in ["uid", "username"]):  # 校验参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
     try:
-        db_session.query(User).filter(User.uid == reqData["uid"], User.username == reqData["username"]).update({"password": hashlib.md5((DEFAULT_PASSWORD.upper()+SALE).encode()).hexdigest().lower()})
+
+        db_session.query(User).filter(User.uid == reqData["uid"], User.username == reqData["username"]).update({"password": hashlib.md5((DEFAULT_PASSWORD.upper()+SALE).encode()).hexdigest().lower(), "pwd_expire_time": date.today() + timedelta(days=90)})
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"更新user表异常: {traceback.format_exc()}")
-        return jsonify({
-            "code": -1,
-            "message": "数据库异常"
-        }), 500
+
+        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    
     finally:
+
         db_session.close()
+
     try:
+
         reset_log = Log(ip=g.ip_addr, operate_type="密码重置", operate_content="重置用户{}的密码".format(reqData["username"]), operate_user=g.username)
         db_session.add(reset_log)
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+
     finally:
+
         db_session.close()
-    crmLogger.info("用户{}重置密码成功".format(reqData["username"]))
-    return jsonify({
-        "code": 0,
-        "message": "密码重置成功"
-    }), 200
+
+    crmLogger.info("用户{}成功重置了用户{}的密码".format(g.username, reqData["username"]))
+
+    return jsonify({"code": 0, "message": "密码重置成功"}), 200
 
 @user.route("/state", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="用户状态", check_ip=True)
@@ -538,22 +657,33 @@ def state():
     '''
     获取用户状态
     '''
+    try:  # 查询用户
+
+        result = db_session.query(User).filter(User.username == g.username).first()
+
+    finally:
+
+        db_session.close()
+    
+    if not result:
+        return jsonify({"code": -1, "message": "用户不存在"}), 400
+
     now = date.today()  # 获取今天日期
-    result = db_session.query(User).filter(User.username == g.username).first()
     td = result.pwd_expire_time - now  # 密码有效时间
+
     return jsonify({
         "code": 0,
         "message": {
-            "name": result.name,
-            "username": result.username,
-            "avator": "/crm/api/v1/images/" + result.avator,
-            "is_first": bool(result.is_first),
-            "expire": td.days,
-            "type": result.type,
-            "expire_time": result.expire_time if result.expire_time else "",
-            "company": result.company,
-            "is_mark": bool(int(redisClient.getData("crm:system:enable_watermark"))),
-            "ip": g.ip_addr
+            "name": result.name,  # 用户昵称
+            "username": result.username,  # 用户名
+            "avator": "/crm/api/v1/images/" + result.avator,  # 头像地址
+            "is_first": bool(result.is_first),  # 是否首次登陆
+            "expire": td.days,    # 密码有效天数
+            "type": result.type,  # 用户类型
+            "expire_time": result.expire_time if result.expire_time else "",  # 临时用户过期时间
+            "company": result.company,  # 公司、组织名称
+            "is_mark": bool(int(redisClient.getData("crm:system:enable_watermark"))),  # 是否显示水印
+            "ip": g.ip_addr  # 用户IP地址
         }
     }),200
 
@@ -563,8 +693,16 @@ def listUser():
     '''
     获取用户列表
     '''
-    userList = db_session.query(User.username, User.name, User.uid).all()
+    try:
+
+        userList = db_session.query(User.username, User.name, User.uid).all()
+    
+    finally:
+
+        db_session.close()
+
     crmLogger.info(f"用户{g.username}查询所有用户列表信息")
+
     return jsonify({
         "code": 0,
         "message": [{"id": v.uid, "name": v.name, "username": v.username} for v in userList]
@@ -576,26 +714,42 @@ def modifyUser():
     '''
     修改用户资料
     '''
-    reqData = request.get_json()
+    reqData = request.get_json()  # 获取请求数据
+
+    if not all(key in reqData for key in ["nickname", "company", "avatar"]):  # 校验参数
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+
     try:
+
         _user = db_session.query(User).filter(User.username == g.username).first()
+
         if _user:
             _user.name = reqData["nickname"]
             _user.company = reqData["company"]
             if reqData["avatar"]:
                 _user.avator = reqData["avatar"]
             db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"更新user表异常: {traceback.format_exc()}")
-    try:
+
+        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+
+    try:  # 写入log表
+
         update_log = Log(ip=g.ip_addr, operate_type="更新资料", operate_content="更新资料", operate_user=g.username)
         db_session.add(update_log)
         db_session.commit()
+
     except:
+
         db_session.rollback()
-        crmLogger.error(f"更新log表异常: {traceback.format_exc()}")
+
+        crmLogger.error(f"更新log表发生异常: {traceback.format_exc()}")
+
     crmLogger.info("用户{}更新了资料".format(g.username))
+
     return jsonify({
         "code": 0,
         "message": {
@@ -611,10 +765,17 @@ def getMail():
     '''
     获取通知
     '''
+    try:
+        pass
+    except:
+        db_session.rollback()
+    finally:
+        db_session.close()
+
     return jsonify({
         "code": 0,
         "message": {
-            "count": 2,
+            "total": 2,
             "data": {
                 "today": {
                     "title": "通知",

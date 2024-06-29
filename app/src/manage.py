@@ -7,10 +7,13 @@
 @Desc    :  资产管理模块
 '''
 import os
+import time
+import json
 import traceback
-from flask import Blueprint, request, jsonify, g, Response, send_file, make_response
-from app.utils import methods, crmLogger, readExcel, createExcel, UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, getUuid, verify, redisClient, converWords, job
-from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, File, DetectResult, Notify, initManageTable, generateManageTable
+from flask import Blueprint, request, jsonify, g, Response, send_file
+from app.utils import UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, methods, crmLogger, readExcel, createExcel, getUuid, verify, redisClient, converWords, job
+from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, File, DetectResult, Notify, initManageTable, generateManageTable, addColumn, alterColumn
+from app.src.task import exportTableTask
 from sqlalchemy import or_, func, Column, String, Text, Date
 from sqlalchemy.sql import insert
 from datetime import datetime
@@ -19,7 +22,7 @@ manage = Blueprint("manage", __name__)
 
 @manage.route("/query", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="查询资产表", check_ip=True)
-def query():
+def queryTable():
     '''
     查询所有资产表
     '''
@@ -81,7 +84,7 @@ def query():
 
 @manage.route("/title", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="查询资产表标题", check_ip=True)
-def queryTitle():
+def queryTableTitle():
     '''
     查询所有资产表标题
     '''
@@ -99,7 +102,7 @@ def queryTitle():
 
 @manage.route("/header", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="查询资产表字段", check_ip=True)
-def getHeader():
+def getTableHeader():
     '''
     获取表格的头部字段
     '''
@@ -228,7 +231,7 @@ def queryTable(id):
 
 @manage.route("/add", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="创建资产表", check_ip=True)
-def addTable():
+def addTableData():
     '''
     创建资产表
     '''
@@ -355,7 +358,7 @@ def addTable():
 
 @manage.route("/template", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="下载资产表模板", check_ip=True)
-def downloadTemplate():
+def downloadTableTemplate():
     '''
     下载资产表模板
     '''
@@ -435,14 +438,13 @@ def downloadTemplate():
 
 @manage.route("/import", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="导入资产表数据", check_ip=True)
-def importTable():
+def importTableFromExcel():
     '''
     导入资产表
     '''
     reqData = request.get_json()  # 获取请求数据
 
-    # 校验body参数
-    if not all(key in reqData for key in ["file_uuid", "table_id"]):
+    if not all(key in reqData for key in ["file_uuid", "table_id"]):  # 校验body参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
 
     file_uuid = reqData["file_uuid"]    # 获取上传的文件uuid
@@ -466,7 +468,7 @@ def importTable():
     
     temp_table = readExcel(os.path.join(UPLOAD_EXCEL_DIR, f"{file_uuid}.{file.affix}"))  # 读取表格
 
-    if temp_table is None:  # 读取失败
+    if temp_table is None:  # 读取表格失败
         return jsonify({"code": -1, "message": "读取导入表格失败"}), 400
 
     table_headers = temp_table.columns.tolist()  # 获取表头字段
@@ -501,10 +503,9 @@ def importTable():
 
     return jsonify({"code": 0, "message": "导入数据成功"}), 200
 
-
 @manage.route("/edit", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="修改资产表数据", check_ip=True)
-def editData():
+def editTableData():
     '''
     修改资产表数据
     '''
@@ -555,35 +556,74 @@ def editData():
 
     return jsonify({"code": 0, "message": "修改成功"}), 200
 
-@manage.route("/alter", methods=methods.ALL)
+@manage.route("/alter_column", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="修改列属性", check_ip=True)
-def alterColumn():
+def alterTableColumn():
     '''
     修改资产表列信息
     '''
     reqData = request.get_json()
 
-    # 如何列名修改则更新header表
-
-    # 如果列属性修改则更新对应表列属性
-
+    if not all(key in reqData for key in ["id", "name", "type", "options"]):   # 校验body参数
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
     try:
-        table = db_session.query(Manage).filter()
+        table = db_session.query(Manage.table_name).filter(Manage.uuid == reqData["id"]).first()
+    finally:
+        db_session.close()
+
+    try:  # 先查询出对应header信息
+        curr_header = db_session.query(Header).filter(Header.uuid == reqData["id"]).first()
+    finally:
+        db_session.close()
+
+    try:  # 如何列名修改则更新header表
+        curr_header.name = reqData["name"]
         db_session.commit()
     except:
         db_session.rollback()
-        return jsonify({
-            "code": -1,
-            "message": "数据库异常"
-        }), 500
-    return jsonify({
-        "code": 0,
-        "message": "修改成功"
-    }), 200
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    finally:
+        db_session.close()
+
+    # 如果列属性修改则更新对应表列属性
+    # 固定长度
+    # f"VARCHAR({length})"
+    if not alterColumn(table.table_name, reqData["id"], reqData["type"]):
+        return jsonify({"code": -1, "message": "修改失败"}), 400
+
+    try:  # 如果type是下拉列表则更新option表
+        _opt = db_session.query(Options).filter(Options.header_uuid == curr_header.uuid).all()
+        if _opt:  # 如果有option则删除
+            db_session.delete(_opt)
+            db_session.commit()
+    except:
+        db_session.rollback()
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    finally:
+        db_session.close()
+        
+    return jsonify({"code": 0, "message": "修改成功"}), 200
+
+@manage.route("/add_clumn", methods=methods.ALL)
+@verify(allow_methods=["POST"], module_name="添加列", check_ip=True)
+def addTableColumn():
+    '''
+    添加资产表列
+    '''
+    reqData = request.get_json()
+
+    if not all(key in reqData for key in ["id", "name", "type", "options"]):   # 校验body参数
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
+    if not addColumn(reqData["id"], reqData["name"], reqData["type"], reqData["options"]):  # 添加列
+        return jsonify({"code": -1, "message": "添加失败"}), 400
+    
+    return jsonify({"code": 0, "message": "添加成功"}), 200
 
 @manage.route("/ping", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="ping探测", check_ip=True)
-def multDetect():
+def multDetectHost():
     '''
     多线程ping探测    
     '''
@@ -598,15 +638,12 @@ def multDetect():
     db_session.add(task_data)
     db_session.commit()
     # 查询任务队列最右边是不是此任务,如果是则执行,执行完成后删除最右边
-    # sse推送进度
-    def event_stream():
-        while True:
-            yield ''
-    return Response(event_stream(), mimetype="text/event-stream")
+    
+    return jsonify({"code": 0, "message": "xx"}), 200
 
 @manage.route("/notify", methods=methods.ALL)
 @verify(allow_methods=["GET", "POST"], module_name="到期通知", check_ip=True)
-def notifyExpire():
+def notifyExpireData():
     '''
     到期通知
     '''
@@ -639,6 +676,7 @@ def notifyExpire():
             }
         }), 200
     elif request.method == "POST":
+
         reqData = request.get_json()   # 获取请求数据
         # 校验参数
         if not all(key in reqData for key in ["id", "task_id", "name", "operate"]):
@@ -720,58 +758,122 @@ def export():
     id = args.get("id", None)          # 资产表id
     filter = args.get("filter", None)  # 筛选条件
 
-    # 
-    redisClient.publish("export", {
-        "id": id,
-        "filter": "",
+    if not id:  # 如果请求参数没有资产表id
+        return jsonify({"code": -1, "message": "缺少id参数"}), 400
+    
+    try:  # 查询是否存在资产表
+        table = db_session.query(Manage.name, Manage.table_image).filter(Manage.uuid == id).first()
+    finally:
+        db_session.close()
+
+    if not table:  # 如果资产表不存在
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+
+    task_id = getUuid()  # 任务id
+
+    # 将任务条件到队列
+    redisClient.lpush("crm:task:export", json.dumps({
+        "table_id": id,
+        "table_name": table.table_name,
+        "task_id": task_id,
+        "filter": filter,
         "user": g.username
-    })
+    }))
+
+    exportTableTask()
+
+    return jsonify({"code": 0, "message": task_id}), 200
+
+@manage.route("/process/<string:task_id>", methods=methods.ALL)
+@verify(allow_methods=["GET"], module_name="查询任务进度", check_ip=True)
+def progress(task_id):
+    '''
+    查询任务进度
+    '''
     # sse推送进度
-    # def event_stream():
-    #     while True:
-    #         yield ''
-    # return Response(event_stream(), mimetype="text/event-stream")
-    return jsonify({"code": 0}), 200
+    def event_stream():
+        while True:
+            time.sleep(0.3)
+            data = redisClient.getData(f"crm:task:{task_id}")  # done:total
+            if not data:
+                yield "speed: 0\n\n"
+                continue
+            done, total = map(int, data.split(":"))
+            rate = (done / total) * 100
+            if rate >= 100:
+                yield "speed: 100\n\n"
+                break
+            yield f"speed: {rate}\n\n"
+    return Response(event_stream(), mimetype="text/event-stream")
 
 @manage.route("/rule", methods=methods.ALL)
-@verify(allow_methods=["GET", "POST"], module_name="创建图表规则", check_ip=True)
+@verify(allow_methods=["GET", "POST"], module_name="获取或创建图表规则", check_ip=True)
 def setEchartRule():
     '''
-    创建图表规则
+    或者或创建图表规则
     '''
-    if request.method == "GET":  # 查询图表规则
-        args = request.args  # 获取请求参数
+    if request.method == "GET":    # 查询图表规则
+
+        args = request.args        # 获取请求参数
+
         id = args.get("id", None)  # 获取表id
+        
         if not id:
-            return jsonify({
-                "code": -1,
-                "message": "缺少id参数"
-            }), 400
-        # 查询表是否存在
-        table = db_session.query(Manage).filter(Manage.uuid == id).first()
-        if not table:
-            return jsonify({
-                "code": -1,
-                "message": "资产表不存在"
-            }), 400
-        # 查询规则
-        rules = db_session.query(Echart).filter(Echart.table_name == id).order_by(Echart.id.asc()).all()
-        if not rules:
-            return jsonify({
-                "code": 0,
-                "message": []
-            }), 200
+            return jsonify({"code": -1, "message": "缺少id参数"}), 400
+        
+        try:  # 查询资产表表是否存在
+            table = db_session.query(Manage.table_name).filter(Manage.uuid == id).first()
+        finally:
+            db_session.close()
+
+        if not table:  # 资产表不存在
+            return jsonify({"code": -1, "message": "资产表不存在"}), 400
+
+        try:  # 查询规则,升序
+            rules = db_session.query(Echart).filter(Echart.table_name == id).order_by(Echart.id.asc()).all()
+        finally:
+            db_session.close()
+
+        if not rules:  # 查无规则
+            return jsonify({"code": 0, "message": []}), 200
+
         return jsonify({
             "code": 0,
             "message": [{"id": rule.id, "type": rule.type, "keyword": rule.keyword} for rule in rules]
         }), 200
+
     elif request.method == "POST":  # 创建图表规则
-        userData = request.get_json()  # 用户的请求body数据
-        table_name = userData["table_name"]  # 表名
-        keyword = userData["keyword"]  # 关键字
-        type = userData["type"]  # 图表类型
-        config = userData["config"]  # 图表配置
-        #创建图表规则
+
+        reqData = request.get_json()  # 获取请求数据
+
+        if not all(key in reqData for key in ["id", "task_id", "name", "operate"]):  # 校验body参数
+            return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+
+        name = reqData["name"]  # 名称
+        table_name = reqData["table_name"]  # 表名
+        keyword = reqData["keyword"]  # 关键字
+        type = reqData["type"]  # 图表类型
+        config = reqData["config"]  # 图表配置
+        
+        try:  # 先删除规则
+            db_session.query(Echart).filter(Echart.table_name == reqData["id"]).delete()
+            db_session.commit()
+        except:
+            db_session.rollback()
+            return jsonify({"code": -1, "message": "数据库异常"}), 500
+        finally:
+            db_session.close()
+
+        try:  # 再创建规则
+            db_session.add_all()
+            db_session.commit()
+        except:
+            db_session.rollback()
+            return jsonify({"code": -1, "message": "数据库异常"}), 500
+        finally:
+            db_session.close()
+
+        return jsonify({"code": 0, "message": "创建成功"}), 200
 
 @manage.route("/echart", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="获取图表信息", check_ip=True)

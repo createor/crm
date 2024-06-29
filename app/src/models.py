@@ -7,7 +7,7 @@
 @Desc    :  数据库模型模块
 '''
 from typing import Union
-from sqlalchemy import create_engine, Table, Column, Integer, String, DateTime, Text, Date
+from sqlalchemy import create_engine, Table, Column, Integer, String, DateTime, Text, Date, text
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta, date
@@ -59,9 +59,9 @@ def init_db():
     '''
     初始化数据库
     '''
-    # crmLogger.info("正在初始化数据库")
-    # Base.metadata.create_all(bind=engine)  # 创建所有表
-    # crmLogger.info("数据库初始化完成")
+    crmLogger.info("正在初始化数据库")
+    Base.metadata.create_all(bind=engine)  # 创建所有表
+    crmLogger.info("数据库初始化完成")
     init_cache()
 
 class User(Base):
@@ -270,18 +270,29 @@ def addColumn(table_name: Table, col: Column) -> bool:
         db_session.commit()
         return True
     except:
+        db_session.rollback()
         crmLogger.error(f"添加字段失败")
         return False
+    finally:
+        db_session.close()
     
-def alterColumn(table_name: str, col_name: str, source_type: str, dist_type: str) -> bool:
+def alterColumn(table_name: str, col_name: str, dist_type: str) -> bool:
     '''
     资产表修改字段属性
     :param table_name: 资产表名称
-    :param col: 新数据列
+    :param col_name: 数据列名称
+    :param dist_type: 目标数据类型
     :return:
     '''
-    # try:
-    #     db_session.execute(
-    pass
+    try:
+        alter_column_sql = text(f"ALTER TABLE {table_name} ALTER COLUMN {col_name} TYPE {dist_type}")
+        db_session.execute(alter_column_sql)
+        db_session.commit()
+        return True
+    except:
+        db_session.rollback()
+        return False
+    finally:
+        db_session.close()
 
 init_db()

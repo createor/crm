@@ -8,6 +8,7 @@
 '''
 from typing import Union
 import redis
+import redis.lock
 from app.utils import crmLogger
 from app.utils.config import cfg
 
@@ -254,8 +255,10 @@ class redisConnPool:
             self.pubsub.close()
             self.pubsub = None
 
+    def lock(self, lock_name: str, timeout: int) -> redis.lock.Lock:
+        '''
+        获取锁
+        '''
+        return self.conn.lock(lock_name, timeout=timeout)
+
 redisClient = redisConnPool(passwd=cfg.get("database", "redis_pwd"), host=cfg.get("database", "redis_host"), port=int(cfg.get("database", "redis_port")), db=int(cfg.get("database", "redis_db")))
-def export(message):
-    ''''''
-    print(message["data"])
-redisClient.subscribe("export", export)

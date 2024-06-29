@@ -10,6 +10,7 @@
     <script type="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
     <script type="text/javascript" src="{{ url_for('static', filename='js/crypto-js.min.js') }}"></script>
 </head>
+
 <style>
     *,
     html,
@@ -100,11 +101,13 @@
         </div>
     </div>
 </body>
+
 <script type="text/javascript">
     layui.use(function () {
         const form = layui.form;
         const layer = layui.layer;
         const $ = layui.jquery;
+        const errMsg = { errMsg } || "";  // 错误信息
 
         /**
          * @description 获取验证码
@@ -117,7 +120,7 @@
                     $("#captcha_img").attr("src", "data:image/png;base64," + data.message);  // 绘制验证码图片,base64编码格式
                     return false;
                 },
-                error: function (data) {
+                error: function () {
                     return false;
                 }
             });
@@ -147,22 +150,26 @@
                 success: function (data) {
                     if (data.code === 0) {
                         window.location.href = "/index";  // 跳转到首页
-                        return false;
                     } else {
                         getCaptcha(); // 刷新验证码
                         layer.msg(data.message, { icon: 2 });
-                        return false;
                     }
+                    return false;
                 },
-                error: function (data) {
-                    let errMsg = data.responseJSON || JSON.parse(data.responseText);
+                error: function (err) {
+                    let errMsg = err.responseJSON || JSON.parse(err.responseText);
                     layer.msg(errMsg.message, { icon: 2 });
                     getCaptcha(); // 刷新验证码
                     return false;
                 }
             });
             return false;
-        })
+        });
+
+        if (errMsg.length > 0) {
+            layer.msg(errMsg, { icon: 2 });
+            return false;
+        }
     });
 </script>
 

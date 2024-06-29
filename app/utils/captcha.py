@@ -21,14 +21,13 @@ def getCaptcha(length: int = 4) -> Tuple[str, str]:
     :param length: 验证码长度
     :return: 验证码,验证码图片base64编码
     '''
-    # 验证码
-    captcha_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k = length))
+    captcha_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k = length))  # 生成验证码
     try:
-        image = ImageCaptcha().generate_image(captcha_code)
+        image = ImageCaptcha().generate_image(captcha_code)  # 生成图片
     except Exception:
         crmLogger.error(f"生成验证码失败: {traceback.format_exc()}")
         return "", ""
     buffer = io.BytesIO()
     image.save(buffer, format="JPEG")
-    img_str = base64.b64encode(buffer.getvalue()).decode()
+    img_str = base64.b64encode(buffer.getvalue()).decode()  # 图片转成base64编码
     return captcha_code.lower(), img_str

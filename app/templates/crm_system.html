@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='layui/css/layui.css') }}">
     <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
 </head>
+
 <style>
     .layui-inline .layui-choice {
         display: none;
@@ -75,14 +76,16 @@
         </form>
     </div>
 </body>
+
 <script type="text/javascript">
     layui.use(["form", "jquery", "layer"], function () {
         const form = layui.form;
         const layer = layui.layer;
         const $ = layui.jquery;
-        var loadIndex;
 
-        // 获取配置
+        /**
+         * @description 获取配置信息
+        */
         function getConfig () {
             $.ajax({
                 url: "/crm/api/v1/system/config",
@@ -101,11 +104,10 @@
                         $("input[name=single_enable]").prop("checked", data.message.enable_single);
                         $("input[name=watermark_enable]").prop("checked", data.message.enable_watermark);
                         form.render("checkbox", "system");  // 渲染开关按钮
-                        return false;
                     } else {
                         layer.msg(data.message, { icon: 2 });
-                        return false;
                     }
+                    return false;
                 },
                 error: function (err) {
                     let errMsg = err.responseJSON || JSON.parse(err.responseText);
@@ -152,6 +154,7 @@
 
         // 更新配置
         form.on("submit(update_config)", function () {
+            let loadIndex = "";
             $.ajax({
                 url: "/crm/api/v1/system/update",
                 type: "post",
@@ -174,11 +177,10 @@
                     if (data.code === 0) {
                         layer.msg("更新配置成功", { icon: 1 });
                         getConfig();
-                        return false;
                     } else {
                         layer.msg(data.message, { icon: 2 });
-                        return false;
                     }
+                    return false;
                 },
                 error: function (err) {
                     layer.close(loadIndex);
