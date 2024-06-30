@@ -24,7 +24,7 @@ def index():
     return render_template("index.html", is_admin=(g.username == "admin"))  # is_admin--是否是admin账号
     
 @app.route("/login", methods=methods.ALL)
-def login(errMsg):
+def login():
     '''
     登录页
     '''
@@ -40,10 +40,9 @@ def login(errMsg):
         if session.get("username") is not None:
             return redirect(url_for("index"))
         
-        if errMsg:
-            return render_template("login.html", errMsg=errMsg)
+        errMsg = request.args.get("errMsg", "null")  # 获取错误信息
 
-        return render_template("login.html")
+        return render_template("login.html", errMsg=errMsg)
     
     else:
         return jsonify({"code": -1, "message": "不支持的请求方法"}), 405
@@ -89,7 +88,7 @@ def entrance():
     return redirect(url_for("index"))
     
 @app.route("/crm/api/v1/captcha", methods=methods.ALL)
-@verify(allow_methods=["GET"], module_name="验证码", auth_login=False)
+@verify(allow_methods=["GET"], module_name="获取验证码", auth_login=False)
 def captcha():
     '''
     验证码功能

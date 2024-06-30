@@ -6,8 +6,11 @@
 @Version :  1.0
 @Desc    :  数据库模型模块
 '''
+import re
+import json
+import traceback
 from typing import Union
-from sqlalchemy import create_engine, Table, Column, Integer, String, DateTime, Text, Date, text
+from sqlalchemy import create_engine, Table, Column, Integer, String, DateTime, Date, text
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta, date
@@ -49,19 +52,31 @@ def init_cache():
         for item in white_ip:
             redisClient.setSet("crm:system:white_ip_list", item.ip)
     # 缓存资产表信息用于搜索
-    manage_list = db_session.query(Manage.name).all()
+    try:
+        manage_list = db_session.query(Manage.name, Manage.table_name).all()
+    finally:
+        db_session.close()
     if len(manage_list) > 0:
         for item in manage_list:
-            redisClient.setSet("crm:manage:table_name", item.name)
+            redisClient.setSet("crm:manage:table_name", item.name)  # 缓存资产表标题
+            try:
+                _h = db_session.query(Header).filter(Header.table_name == item.table_name).order_by(Header.order.asc()).all()
+                if _h:
+                    _h_dicts = [
+                        {c.name: getattr(u, c.name) for c in u.__table__.columns if c.name not in ["create_user", "create_time", "update_user", "update_time"]} for u in _h
+                    ]  # 转换为字典dict
+                    redisClient.setData(f"crm:header:{item.table_name}", json.dumps(_h_dicts))  # 缓存header
+            finally:
+                db_session.close()
     crmLogger.info("缓存初始化完成")
 
 def init_db():
     '''
     初始化数据库
     '''
-    crmLogger.info("正在初始化数据库")
-    Base.metadata.create_all(bind=engine)  # 创建所有表
-    crmLogger.info("数据库初始化完成")
+    # crmLogger.info("正在初始化数据库")
+    # Base.metadata.create_all(bind=engine)  # 手册启动创建所有表
+    # crmLogger.info("数据库初始化完成")
     init_cache()
 
 class User(Base):
@@ -89,7 +104,7 @@ class Log(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)  # 日志id
     ip = Column(String(20), nullable=False)                     # 操作用户的IP
     operate_type = Column(String(40), nullable=False)           # 操作类型
-    operate_content = Column(Text, nullable=False)              # 操作内容
+    operate_content = Column(String(255), nullable=False)       # 操作内容
     operate_user = Column(String(100), nullable=False)          # 操作用户
     operate_time = Column(DateTime, default=datetime.now)       # 操作时间
 
@@ -116,19 +131,21 @@ class Manage(Base):
     name = Column(String(255), unique=True, nullable=False)                   # 自定义资产表名称
     table_name = Column(String(20), unique=True, nullable=False)              # 资产表对应的数据库表名
     table_image = Column(String(20), default="crm")                           # 资产表背景图片
-    description = Column(Text)                                                # 资产表描述信息
+    description = Column(String(255))                                         # 资产表描述信息
     create_user = Column(String(100))                                         # 资产表创建者
     create_time = Column(DateTime, default=datetime.now)                      # 资产表创建时间
+    update_user = Column(String(100))                                         # 资产表更新者
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)  # 资产表更新时间
 
 class Echart(Base):
     '''图表配置表'''
     __tablename__ = "crm_echart"
     id = Column(Integer, primary_key=True, autoincrement=True)  # id
     name = Column(String(255), nullable=False)                  # 图表名称
-    type = Column(Integer, default=1)                           # 图表类型: 1-柱形图,2-折线图,3-饼图
+    type = Column(Integer, default=1)                           # 图表类型: 1-饼图,2-柱形图,3-折线图
     keyword = Column(String(100), nullable=False)               # 图表数据来源的字段
+    date_keyword = Column(String(100))                          # 图表数据的时间字段
     table_name = Column(String(20), nullable=False)             # 图表数据来源的资产表
-    config = Column(Text, nullable=False)                       # 图表的配置
 
 class File(Base):
     '''文件上传信息表'''
@@ -137,29 +154,33 @@ class File(Base):
     filename = Column(String(255), nullable=False)                            # 文件名
     filepath = Column(Integer, default=1)                                     # 文件路径: 1-excel_path,2-image_path,0-temp_path
     affix = Column(String(10), nullable=False)                                # 文件后缀
+    password = Column(String(20))                                             # 文件密码,如果存在的话
     upload_user = Column(String(100))                                         # 文件上传者
     upload_time = Column(DateTime, default=datetime.now)                      # 文件上传时间
 
 class Header(Base):
     '''资产表表头表'''
     __tablename__ = "crm_header"
-    id = Column(Integer, primary_key=True, unique=True, nullable=False)
-    type = Column(Integer, default=1)                     # 表头类型: 1-普通字符串,2-下拉列表,3-日期
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    type = Column(Integer, default=1)                     # 表头类型: 1-字符串, 2-下拉列表
     name = Column(String(255), nullable=False)            # 中文名称
     value = Column(String(255), nullable=False)           # 英文字段
-    value_type = Column(Integer, default=1)               # 值类型: 1-字符串,2-数字,3-日期,4-大文本
+    value_type = Column(Integer, default=1)               # 值类型: 1-字符串(默认255字符),2-定长字符串,3-大文本(超过255个字符),4-日期(yyyy-mm-dd),5-时间(yyyy-mm-dd hh:mm:ss)
     table_name = Column(String(20), nullable=False)       # 归属哪个资产表
     is_unique = Column(Integer, default=0)                # 是否唯一: 1-是,0-否
     is_desence = Column(Integer, default=0)               # 是否脱敏: 1-是,0-否
     must_input = Column(Integer, default=0)               # 是否必填: 1-是,0-否
+    length = Column(Integer, default=0)                   # 长度,如果value_type为2时,该字段才有意义
     order = Column(Integer, default=0)                    # 排序
     create_user = Column(String(100))                     # 创建者
     create_time = Column(DateTime, default=datetime.now)  # 创建时间
+    update_user = Column(String(100))                     # 更新者
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)  # 更新时间
 
 class Options(Base):
     '''下拉选项表'''
     __tablename__ = "crm_options"
-    id = Column(Integer, primary_key=True, unique=True, nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     option_name = Column(String(255), nullable=False)  # 选项名称
     option_value = Column(String(255), nullable=False) # 选项值
     header_value = Column(String(255), nullable=False) # 归属字段
@@ -169,7 +190,10 @@ class Task(Base):
     '''批量探测任务表'''
     __tablename__ = "crm_task"
     id = Column(String(40), primary_key=True, unique=True, nullable=False)  # 任务id
-    status = Column(Integer, default=0)                                     # 任务状态: 0-未开始,1-进行中,2-已完成,3-失败
+    name = Column(String(255), nullable=False)                              # 任务名称
+    keyword = Column(String(255), nullable=False)                           # 任务对应的资产表的IP字段
+    table_name = Column(String(20), nullable=False)                         # 任务对应的资产表
+    status = Column(Integer, default=0)                                     # 任务状态: 0-未开始, 1-进行中, 2-已完成, 3-失败
     create_user = Column(String(100))                                       # 任务创建者
     create_time = Column(DateTime, default=datetime.now)                    # 任务创建时间
 
@@ -179,48 +203,60 @@ class DetectResult(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     task_id = Column(String(40), nullable=False)                # 任务id
     ip = Column(String(20), nullable=False)                     # 探测的ip
-    status = Column(Integer, nullable=False)                    # 状态: 0-不在线,1-在线,2-未探测
-    create_time = Column(DateTime, default=datetime.now)        # 创建时间
+    status = Column(Integer, nullable=False)                    # 状态: 0-不在线, 1-在线, 2-未探测
     reason = Column(String(255))                                # 未探测原因
+    create_time = Column(DateTime, default=datetime.now)        # 创建时间
 
 class Notify(Base):
     '''到期提醒表'''
     __tablename__ = "crm_notify"
     id = Column(String(40), primary_key=True, unique=True, nullable=False)  # 任务id
     name = Column(String(255), nullable=False)                              # 任务名
-    table = Column(String(20))                                              # 表名
-    keyword = Column(String(20))                                            # 日期列名
-    status = Column(Integer, default=1)                                     # 状态: 1-启动,0-停止
+    keyword = Column(String(20), nullable=False)                            # 日期列名
+    table_name = Column(String(20), nullable=False)                         # 资产表表名
+    status = Column(Integer, default=1)                                     # 状态: 1-启动, 0-停止
     create_user = Column(String(100))                                       # 任务创建者
     create_time = Column(DateTime, default=datetime.now)                    # 任务创建时间
     update_user = Column(String(100))                                            # 更新者
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)  # 更新时间
 
 class Notice(Base):
-    ''''''
+    '''用户通知表'''
     __tablename__ = "crm_notice"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    message = Column(String(40), nullable=False)
-    notify_id = Column(String(40), nullable=False)
-    is_read = Column(Integer, default=0)  # 0-未读,1-已读
+    id = Column(Integer, primary_key=True, unique=True, nullable=False)
+    message = Column(String(40), nullable=False)          # 消息内容
+    notify_id = Column(String(40), nullable=False)        # 字段来源:crm_notify的id
+    is_read = Column(Integer, default=0)                  # 0-未读,1-已读
+    create_time = Column(DateTime, default=datetime.now)  # 创建时间
 
 class NotifyMessage(Base):
     '''到期提醒消息表'''
     __tablename__ = "crm_notify_message"
-    id = Column(String(40), primary_key=True, unique=True, nullable=False)  # 任务id
-    expire_table = Column(String(20), nullable=False)                       # 过期的资产表
-    expire_id = Column(Integer, nullable=False)                             # 过期资产id
-    receiver = Column(String(100))                                          # 过期提示消息接收者
-    create_time = Column(DateTime, default=datetime.now)
+    id = Column(String(40), primary_key=True, autoincrement=True)
+    expire_table = Column(String(20), nullable=False)    # 过期的资产表
+    expire_id = Column(Integer, nullable=False)          # 过期资产id
+    notify_id = Column(String(40), nullable=False)       # 
+    notice_id = Column(String(40), nullable=False)       #
 
 class History(Base):
     '''导入导出历史记录表'''
     __tablename__ = "crm_history"
     id = Column(Integer, primary_key=True, autoincrement=True)
     file_uuis = Column(String(40), nullable=False)  # 导入或导出的文件id
-    mode = Column(Integer, nullable=False)          # 1-导出,2-导入
-    create_user = Column(String(100))
-    create_time = Column(DateTime, default=datetime.now)
+    mode = Column(Integer, nullable=False)          # 1-导出, 2-导入
+    status = Column(Integer, default=0)             # 0-未完成, 1-已完成, 2-失败
+    create_user = Column(String(100))               # 创建者
+    create_time = Column(DateTime, default=datetime.now)  # 创建时间
+
+class MyHeader:
+    '''
+    将dict类型的header转换为类便于使用.访问
+    '''
+    def __init__(self, data):
+        self.__data = data
+    
+    def __getattr__(self, name):
+        return self.__data.get(name)
 
 def generateManageTable(table_name: str="", cols=[]) -> Union[Table, None]:
     '''
@@ -234,12 +270,20 @@ def generateManageTable(table_name: str="", cols=[]) -> Union[Table, None]:
     cols.append(Column('_create_time', DateTime, default=datetime.now))
     cols.append(Column('_update_user', String(100)))
     cols.append(Column('_update_time', DateTime, default=datetime.now, onupdate=datetime.now))
+
     dynamic_table = Table(table_name, Base.metadata, *cols, extend_existing=True)
+
     try:
+
         with engine.connect() as conn:
             dynamic_table.create(conn)  # 创建动态表格
+
     except:
+
+        crmLogger.error(f"生成新资产表{table_name}失败,原因: {traceback.format_exc()}")
+
         return None
+    
     return dynamic_table
 
 def initManageTable(table_name: str="") -> Table:
@@ -266,33 +310,74 @@ def addColumn(table_name: Table, col: Column) -> bool:
     :return:
     '''
     try:
+
         db_session.execute(table_name.append_column(col).alter())
+
         db_session.commit()
+
         return True
+    
     except:
+
         db_session.rollback()
-        crmLogger.error(f"添加字段失败")
+
+        crmLogger.error(f"资产表{table_name}添加字段失败,原因: {traceback.format_exc()}")
+
         return False
+    
     finally:
+
         db_session.close()
     
-def alterColumn(table_name: str, col_name: str, dist_type: str) -> bool:
+def alterColumn(table_name: str, col_name: str, dist_type: str, is_unique: bool = False, allow_null: bool = True) -> bool:
     '''
-    资产表修改字段属性
+    资产表修改已有字段属性
     :param table_name: 资产表名称
     :param col_name: 数据列名称
-    :param dist_type: 目标数据类型
+    :param dist_type: 目标数据类型 VARCHAR(n), TEXT, DATE, DATETIME
+    :param is_unique: 是否唯一,默认为False
+    :param allow_null: 是否允许为空,默认为True
     :return:
     '''
-    try:
-        alter_column_sql = text(f"ALTER TABLE {table_name} ALTER COLUMN {col_name} TYPE {dist_type}")
-        db_session.execute(alter_column_sql)
-        db_session.commit()
-        return True
-    except:
-        db_session.rollback()
+    varchar_pattern = re.compile(r'^VARCHAR\(\d+\)$', re.IGNORECASE)
+    text_pattern = re.compile(r'^TEXT$', re.IGNORECASE)
+    date_pattern = re.compile(r'^DATE$', re.IGNORECASE)
+    datetime_pattern = re.compile(r'^DATETIME$', re.IGNORECASE)
+
+    create_index = None
+
+    if not (varchar_pattern.match(dist_type) or text_pattern.match(dist_type) or date_pattern.match(dist_type) or datetime_pattern.match(dist_type)):
         return False
+
+    try:
+
+        alter_column_sql = f"ALTER TABLE {table_name} MODIFY COLUMN {col_name} {dist_type}"
+
+        if is_unique:
+            alter_column_sql += " UNIQUE"
+            create_index = f"CREATE UNIQUE INDEX {col_name}_index ON {table_name}({col_name})"
+        if not allow_null:
+            alter_column_sql += " NOT NULL"
+
+        db_session.execute(text(alter_column_sql))
+        
+        if create_index:
+            db_session.execute(text(create_index))
+
+        db_session.commit()
+
+        return True
+    
+    except:
+
+        db_session.rollback()
+
+        crmLogger.error(f"资产表{table_name}修改字段{col_name}属性失败,原因: {traceback.format_exc()}")
+
+        return False
+    
     finally:
+
         db_session.close()
 
 init_db()
