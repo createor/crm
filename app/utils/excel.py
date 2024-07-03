@@ -38,7 +38,7 @@ def createExcel(filepath: str, filename: str, sheet_name: str, header: dict, dat
     :param filepath: 文件存放目录
     :param filename: 文件名
     :param sheet_name: 工作簿名称
-    :param header: 表头 {"column_name": "A/B/C..."}
+    :param header: 表头 {"column_name": {"index": "A/B/C...", "must_input": True/False}}
     :param data: 数据 {"clumn_name": ["d1", "d2"...]}
     :param styles: 样式 {"column_name": {"type": 2, "options": "选项1,选项2..."}}"}
     :param is_template: 是否为模板
@@ -50,15 +50,13 @@ def createExcel(filepath: str, filename: str, sheet_name: str, header: dict, dat
         ws = wb.active
         ws.title = sheet_name  # 设置工作簿名称
         # 写入表头
-        for value, index in header.items():
-            if value.endswith("*"):
-                # 如果有星号则将星号标红表示必填选项
+        for name, v in header.items():
+            if v["must_input"]:  # 必填选项
                 red = InlineFont(color="FF0000")  # 设置字体颜色
-                temp_value = value.split("*")[0]
                 richText = TextBlock(red, "*")
-                ws[f"{index}1"] = CellRichText(temp_value + richText)
+                ws[f"{v["index"]}1"] = CellRichText(name + richText)
             else:
-                ws[f"{index}1"] = value
+                ws[f"{v["index"]}1"] = name
         # 写入数据
         if not is_template:
             for r in dataframe_to_rows(data, index=False, header=True):

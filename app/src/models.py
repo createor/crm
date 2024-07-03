@@ -40,34 +40,70 @@ def init_cache():
     初始化redis缓存
     '''
     crmLogger.info("正在初始化缓存")
+
     # 初始化系统配置
     redisClient.setData("crm:system:enable_white", db_session.query(Setting.value).filter(Setting.type == "enable_white").first().value)
     redisClient.setData("crm:system:enable_failed", db_session.query(Setting.value).filter(Setting.type == "enable_failed").first().value)
     redisClient.setData("crm:system:enable_single", db_session.query(Setting.value).filter(Setting.type == "enable_single").first().value)
     redisClient.setData("crm:system:enable_watermark", db_session.query(Setting.value).filter(Setting.type == "enable_watermark").first().value)
     redisClient.setData("crm:system:failed_count", db_session.query(Setting.value).filter(Setting.type == "failed_count").first().value)
+    
     # 初始化白名单ip
     white_ip = db_session.query(WhiteList.ip).all()
+
     if len(white_ip) > 0:
         for item in white_ip:
             redisClient.setSet("crm:system:white_ip_list", item.ip)
+
     # 缓存资产表信息用于搜索
     try:
-        manage_list = db_session.query(Manage.name, Manage.table_name).all()
+
+        manage_list = db_session.query(Manage.uuid, Manage.name, Manage.table_name).all()
+
     finally:
+
         db_session.close()
+    
     if len(manage_list) > 0:
+
         for item in manage_list:
+
+            redisClient.setSet("crm:manage:table_uuid", item.uuid)  # 缓存资产表uuid
+
             redisClient.setSet("crm:manage:table_name", item.name)  # 缓存资产表标题
+
             try:
+
                 _h = db_session.query(Header).filter(Header.table_name == item.table_name).order_by(Header.order.asc()).all()
-                if _h:
-                    _h_dicts = [
-                        {c.name: getattr(u, c.name) for c in u.__table__.columns if c.name not in ["create_user", "create_time", "update_user", "update_time"]} for u in _h
-                    ]  # 转换为字典dict
-                    redisClient.setData(f"crm:header:{item.table_name}", json.dumps(_h_dicts))  # 缓存header
+
             finally:
+
                 db_session.close()
+
+            if _h:
+
+                _h_dicts = [
+                    {c.name: getattr(u, c.name) for c in u.__table__.columns if c.name not in ["create_user", "create_time", "update_user", "update_time"]} for u in _h
+                ]  # 转换为字典dict
+
+                redisClient.setData(f"crm:header:{item.table_name}", json.dumps(_h_dicts))  # 缓存资产表的header
+
+            try:
+
+                _r = db_session.query(Echart).filter(Echart.table_name == item.table_name).order_by(Echart.id.asc()).all()
+
+            finally:
+
+                db_session.close()
+
+            if _r:
+
+                _r_dicts = [
+                    {c.name: getattr(u, c.name) for c in u.__table__.columns} for u in _r
+                ]
+
+                redisClient.setData(f"crm:echart:{item.table_name}", json.dumps(_r_dicts))  # 缓存资产表图表规则
+
     crmLogger.info("缓存初始化完成")
 
 def init_db():
@@ -329,14 +365,12 @@ def addColumn(table_name: Table, col: Column) -> bool:
 
         db_session.close()
     
-def alterColumn(table_name: str, col_name: str, dist_type: str, is_unique: bool = False, allow_null: bool = True) -> bool:
+def alterColumn(table_name: str, col_name: str, dist_type: str) -> bool:
     '''
     资产表修改已有字段属性
     :param table_name: 资产表名称
     :param col_name: 数据列名称
-    :param dist_type: 目标数据类型 VARCHAR(n), TEXT, DATE, DATETIME
-    :param is_unique: 是否唯一,默认为False
-    :param allow_null: 是否允许为空,默认为True
+    :param dist_type: 目标数据类型 VARCHAR(255), TEXT, DATE, DATETIME
     :return:
     '''
     varchar_pattern = re.compile(r'^VARCHAR\(\d+\)$', re.IGNORECASE)
@@ -352,12 +386,6 @@ def alterColumn(table_name: str, col_name: str, dist_type: str, is_unique: bool 
     try:
 
         alter_column_sql = f"ALTER TABLE {table_name} MODIFY COLUMN {col_name} {dist_type}"
-
-        if is_unique:
-            alter_column_sql += " UNIQUE"
-            create_index = f"CREATE UNIQUE INDEX {col_name}_index ON {table_name}({col_name})"
-        if not allow_null:
-            alter_column_sql += " NOT NULL"
 
         db_session.execute(text(alter_column_sql))
         

@@ -13,11 +13,12 @@ import json
 import traceback
 from flask import Blueprint, request, jsonify, g, Response, send_file
 from app.utils import UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, methods, crmLogger, readExcel, createExcel, getUuid, verify, redisClient, converWords, job, undesense
-from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, File, DetectResult, Notify, initManageTable, generateManageTable, addColumn, alterColumn, MyHeader
+from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, File, Notify, initManageTable, generateManageTable, addColumn, alterColumn, MyHeader
 from app.src.task import exportTableTask
-from sqlalchemy import or_, func, Column, String, Text, Date
+from sqlalchemy import or_, func, Column, String, Text, Date, DateTime
 from sqlalchemy.sql import insert
 from datetime import datetime, date
+from openpyxl.utils import get_column_letter
 
 manage = Blueprint("manage", __name__)
 
@@ -112,11 +113,14 @@ def queryTableTitle():
     title = args.get("k", None)  # 搜索关键字
 
     if title:  # 存在关键字搜索
+
         return jsonify({
             "code": 0,
-            "message": [item.decode("utf-8") for item in redisClient.getSetData("crm:manage:table_name") if title in item.decode("utf-8")]  # 从redis中查询
+            "message": [item for item in redisClient.getSetData("crm:manage:table_name") if title in list(map(lambda x: x.decode("utf-8"), item))]  # 从redis中查询
         }), 200
+    
     else:
+
         return jsonify({"code": 0, "message": []}), 200
 
 @manage.route("/header", methods=methods.ALL)
@@ -131,6 +135,9 @@ def getTableHeader():
 
     if not id:
         return jsonify({"code": -1, "message": "缺少id参数"}), 400
+    
+    if not redisClient.getSet("crm:manage:table_uuid", id):
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
     try:  # 查看表是否存在
 
@@ -143,54 +150,68 @@ def getTableHeader():
     if not table:
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
     
-    result = redisClient.getData(f"crm:header:{table.table_name}")
+    result = redisClient.getData(f"crm:header:{table.table_name}")  # 从redis中查询
 
     if result:
 
         result = [MyHeader(i) for i in json.loads(result)]
 
-    else:
+    else:  # 不存在,查询数据库
 
         try:  # 查询数据,按order升序
 
             result = db_session.query(Header).filter(Header.table_name == table.table_name).order_by(Header.order.asc()).all()
 
-            if result:
-                _h = [
-                    {c.name: getattr(u, c.name) for c in u.__table__.columns if c.name not in ["create_user", "create_time", "update_user", "update_time"]} for u in result
-                ]
-                redisClient.setHashData(f"crm:header:{table.table_name}", json.dumps(_h))  # 写入缓存
-
         finally:
 
             db_session.close()
+
+        if result:
+            _h = [
+                {c.name: getattr(u, c.name) for c in u.__table__.columns if c.name not in ["create_user", "create_time", "update_user", "update_time"]} for u in result
+            ]
+            redisClient.setHashData(f"crm:header:{table.table_name}", json.dumps(_h))  # 写入缓存
 
     if not result:  # 结果为空
         return jsonify({"code": 0, "message": []}), 200
 
     data = []
+
     for item in result:
+
         obj = {
             "field": item.value,                 # 值
             "title": item.name,                  # 标题
             "fieldTitle": item.name,             # 标题
             "type": item.type,                   # 类型
+            "value_type": item.value_type,       # 值类型
+            "length": item.length,               # 长度
+            "is_unique": bool(item.is_unique),   # 是否唯一
             "is_mark": bool(item.is_desence),    # 是否加密
             "must_input": bool(item.must_input)  # 是否必填
         }
+
         if item.type == 2:  # 如果是下拉框
 
             try:
-                options = db_session.query(Options).filter(Options.table_name == id, Options.header_value == item.value).all()
+
+                options = db_session.query(Options.option_name, Options.option_value).filter(Options.table_name == table.table_name, Options.header_value == item.value).all()
+            
             finally:
+
                 db_session.close()
 
             _obj = {}
+
             _templ = ""
+
             for opt in options:
+
                 _obj[opt.option_value] = opt.option_name
                 _templ += f"<option value='{opt.option_value}'>{opt.option_name}</option>"
+
             obj["option"] = _obj
+
             obj["templet"] = "<select><option value=''>请选择</option>" + _templ + "</select>"  # layui table的templet模板
         
         data.append(obj)
@@ -203,6 +224,9 @@ def queryTableByUuid(id):
     '''
     查找指定的资产表
     '''
+    if not redisClient.getSet("crm:manage:table_uuid", id):  # 如果不存在
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+
     try:
 
         table = db_session.query(Manage.table_name).filter(Manage.uuid == id).first()  # 根据id查找资产表
@@ -215,15 +239,17 @@ def queryTableByUuid(id):
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
     args = request.args                        # 获取请求参数
+
     page = int(args.get("page", default=1))    # 当前页码,默认第一页
     limit = int(args.get("limit", default=6))  # 每页显示数量,默认6条
 
-    columns = redisClient.getData(f"crm:header:{table.table_name}")
+    columns = redisClient.getData(f"crm:header:{table.table_name}")  # 从redis中查询
 
     if columns:
+
         columns = [MyHeader(i) for i in json.loads(columns)]
     
-    else:
+    else:  # 不存在,查询数据库
 
         try:
 
@@ -254,7 +280,13 @@ def queryTableByUuid(id):
         if count == 0:  # 如果没有搜索到结果,直接返回空列表
             return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
 
-        result = db_session.query(manageTable).filter((getattr(manageTable.c, key).like(f"%{value}%"))).order_by(manageTable.c._id.desc()).offset((page - 1) * limit).limit(limit).all()
+        try:
+
+            result = db_session.query(manageTable).filter((getattr(manageTable.c, key).like(f"%{value}%"))).order_by(manageTable.c._id.desc()).offset((page - 1) * limit).limit(limit).all()
+
+        finally:
+
+            db_session.close()
     
     else:
 
@@ -269,26 +301,35 @@ def queryTableByUuid(id):
         if count == 0:
             return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
 
-        result = db_session.query(manageTable).order_by(manageTable.c._id.desc()).offset((page - 1) * limit).limit(limit).all()
+        try:
+
+            result = db_session.query(manageTable).order_by(manageTable.c._id.desc()).offset((page - 1) * limit).limit(limit).all()
+
+        finally:
+
+            db_session.close()
 
     data = []
+
     for item in result:
+
         obj = {}
+
         obj["_id"] = item._id
+
         for col in columns:
+
             if bool(col.is_desence):  # 数据脱敏展示
+
                 obj[col.value] = undesense(getattr(item, col.value))
+
             else:
+
                 obj[col.value] = getattr(item, col.value)  # 获取对应属性值
+
         data.append(obj)
 
-    return jsonify({
-        "code": 0,
-        "message": {
-            "total": count,
-            "data": data
-        }
-    }), 200
+    return jsonify({"code": 0, "message": {"total": count, "data": data}}), 200
 
 @manage.route("/add", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="创建资产表", check_ip=True)
@@ -396,16 +437,27 @@ def addTableData():
         try:  # 批量插入数据
 
             with engine.begin() as conn:  # 开启事务
+
                 insert_data = temp_table.to_dict(orient="records")  # 转换成[{k1: v1, k2: v2...}]
+
                 for i in insert_data:
+
                     for c, v in column_header.items():
+
                         new_data = i.pop(c)  # c-中文字段名
+
                         if isinstance(new_data, datetime):  # 如果数据格式是时间,格式化为字符串
+
                             new_data = new_data.strftime("%Y-%m-%d %H:%M:%S")
+
                         elif isinstance(new_data, date):    # 如果数据格式是日期,格式化为字符串
+
                             new_data = new_data.strftime("%Y-%m-%d")
+
                         i.update({v["pinyin"]: new_data})   # 将中文k1更新为拼音
+
                 stmt = insert(manageTable)
+
                 conn.execute(stmt, insert_data)
 
         except:
@@ -456,6 +508,7 @@ def addTableData():
         db_session.close()
 
     redisClient.setSet("crm:manage:table_name", table_name)  # 将标题写入缓存
+    redisClient.setSet("crm:manage:table_uuid", table_uuid)  # 将表id写入缓存
      
     crmLogger.info(f"用户{g.username}创建资产表{table_name}成功")  # 日志文件记录
 
@@ -476,33 +529,33 @@ def downloadTableTemplate():
 
     if not id:
         return jsonify({"code": -1, "message": "缺少id参数"}), 400
+    
+    if not redisClient.getSet("crm:manage:table_uuid", id):
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
     try:
 
         table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == id).first()
 
     finally:
+
         db_session.close()
 
     if not table:  # 查询的表不存在
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
-    templ_file = redisClient.getData(f"crm:{id}:template")  # 如果redis有缓存,直接返回
+    templ_file = redisClient.getData(f"crm:{id}:template")  # 如果redis有缓存,直接返回模板文件id
 
-    if templ_file:
+    if templ_file:  # 缓存存在则直接返回
 
-        try:
-            file = db_session.query(File.filename, File.affix).filter(File.uuid == templ_file).first()
-        finally:
-            db_session.close()
-
-        return send_file(os.path.join(TEMP_DIR, f"{templ_file}.{file.affix}"), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, attachment_filename=f"{file.filename}")
+        return jsonify({"code": 0, "message": templ_file}), 200
    
     else:  # 缓存不存在则创建模板文件
 
         header = redisClient.getData(f"crm:header:{table.table_name}")
 
         if header:
+
             header = [MyHeader[i] for i in header]
 
         else:
@@ -512,28 +565,31 @@ def downloadTableTemplate():
                 header = db_session.query(Header.name, Header.type, Header.value, Header.value_type, Header.must_input, Header.order).filter(Header.table_name == table.table_name).order_by(Header.order.asc()).all()
             
             finally:
+
                 db_session.close()
 
         if not header:
             return jsonify({"code": -1, "message": "资产表暂无字段"}), 400
 
         table_header = {}
+
         table_styles = {}
 
         for h in header:
-
-            if h.must_input == 1:
-                table_header[f"{h.name}*"] = chr(h.order + 65)  # 转换成大写字母
-            else:
-                table_header[f"{h.name}"] = chr(h.order + 65)
+                
+            table_header[h.name] = { 
+                "index": get_column_letter(h.order + 1),  # 转换成大写字母
+                "must_input": h.must_input == 1
+            }
 
             if h.value_type == 2:  # 如果是下拉列表
 
                 try:
 
-                    opt = db_session.query(Options.option_name, Options.option_value).filter(Options.table_name == table.table_name, Options.header_value == h.value).all()
+                    opt = db_session.query(Options.option_name).filter(Options.table_name == table.table_name, Options.header_value == h.value).all()
                 
                 finally:
+
                     db_session.close()
 
                 table_styles[f"{h.name}"] = {
@@ -550,12 +606,14 @@ def downloadTableTemplate():
 
         try:  # 写入file表
 
-            db_session.add(File(uuid=fileUuid, filename=f"{table.name}导入模板.xlsx", affix="xlsx", filepath=0, upload_user="system"))
+            db_session.add(File(uuid=fileUuid, filename=f"{table.name}导入模板.xlsx", affix="xlsx", filepath=0))
             db_session.commit()
 
         except:
 
             db_session.rollback()
+
+            return jsonify({"code": -1, "message": "数据库异常"}), 500
 
         finally:
 
@@ -578,6 +636,12 @@ def importTableFromExcel():
 
     file_uuid = reqData["file_uuid"]    # 获取上传的文件uuid
     table_id = reqData["table_id"]      # 获取导入的资产表id
+
+    if not file_uuid or not table_id:  # 值为空情况
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
+    if not redisClient.getSet("crm:manage:table_uuid", table_id):  # 如果资产表不存在
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
     try:  # 查询资产表是否存在
 
@@ -611,9 +675,10 @@ def importTableFromExcel():
     if len(table_headers) == 0:  # 表头为空
         return jsonify({"code": -1, "message": "读取导入表格失败"}), 400
     
-    templ_header = redisClient.getData(f"crm:header:{table.table_name}")
+    templ_header = redisClient.getData(f"crm:header:{table.table_name}")  # 读取缓存
 
     if templ_header:
+
         templ_header = [MyHeader[i] for i in templ_header]
 
     else:
@@ -627,7 +692,7 @@ def importTableFromExcel():
             db_session.close()  # 关闭数据库连接
 
     # 读取文件的header和数据库中比对是否一致,不一致说明不是使用模板导入
-    if [h.name for h in templ_header].sort() != list(map(lambda x: x.rsplit("*", 1)[0] if x.endswitch("*") else x, table_headers)).sort():  # 排序后比较
+    if [h.name for h in templ_header].sort() != list(map(lambda x: x.rsplit("*", 1)[0] if x.endswitch("*") else x, table_headers)).sort():  # 去除*号后排序后比较
         return jsonify({"code": -1, "message": "导入失败,请使用模板导入"}), 400
 
     manageTable = initManageTable(table.table_name)  # 实例化已存在的资产表
@@ -638,7 +703,7 @@ def importTableFromExcel():
     for h in must_header:
 
         if temp_table[f"{h}*"].isnull().any():  # 判断是否有空值,带*表示必填
-            return jsonify({"code": -1, "message": f"导入失败,{h}字段在表格中存在空值"}), 400
+            return jsonify({"code": -1, "message": f"导入失败,{h}字段为必填项,存在空值"}), 400
 
     # 校验数据是否唯一,有重复导入
     unique_header = [h.name for h in templ_header if h.is_unique == 1]
@@ -646,9 +711,9 @@ def importTableFromExcel():
     for h in unique_header:
 
         if temp_table["h"].duplicated().any():  # 判断是否有重复数据
-            return jsonify({"code": -1, "message": f"导入失败,{h}字段在表格中有重复数据"}), 400
+            return jsonify({"code": -1, "message": f"导入失败,{h}字段为唯一项,有重复数据"}), 400
         
-        try:
+        try:  # 比对导入的表格数据与数据库中是否有重复
 
             col_data = db_session.query(getattr(manageTable.c, h.value)).all()
 
@@ -659,36 +724,65 @@ def importTableFromExcel():
         if temp_table[h].isin(col_data).any():  # 判断是否有重复数据
             return jsonify({"code": -1, "message": f"导入失败,{h}字段在数据库中有重复数据"}), 400
 
-    # 校验数据是否从下拉列表选项中值
-    _temp_opts = {}
     for h in templ_header:
 
-        if h.type == 2:
+        if h.type == 2:  # 校验数据是否从下拉列表选项中值
 
             try:
 
-                _opt = db_session.query(Options.option_name, Options.option_value).filter(Options.table_name == table.table_name, Options.header_value == h.value).all()
+                _opt = db_session.query(Options.option_name).filter(Options.table_name == table.table_name, Options.header_value == h.value).all()
             
             finally:
 
                 db_session.close()
 
             if not temp_table[h.name].isin([o.option_name for o in _opt]):
-                return jsonify({"code": -1, "message": f"导入失败,{h.name}字段在表格中存在非固定选项值"}), 400
-            
-            for o in _opt:
-                _temp_opts[o.option_name] = o.option_value
+                return jsonify({"code": -1, "message": f"导入失败,{h.name}字段存在非固定选项值"}), 400
 
-        if h.value_type == 2:  # 如果要求值是定长字符串
+        if h.value_type == 2:   # 校验数据中长度是否合法
+
+            # is_all_length = temp_table[h.name].str.len == h.length
+            # if not is_all_length.all():
 
             if len(temp_table[temp_table[h.name].str.len() != h.length]) > 0:
-                return jsonify({"code": -1, "message": f"导入失败,{h.name}字段在表格中存在不满足长度的值"}), 400
+                return jsonify({"code": -1, "message": f"导入失败,{h.name}字段存在不满足长度的值"}), 400
 
     insert_data = temp_table.to_dict(orient="records")
+
+    date_header = [h.name for h in templ_header if h.value_type in 4]
+
+    datetime_header = [h.name for h in templ_header if h.value_type == 5]
+
     for i in insert_data:
+
         for c in templ_header:
             new_data = i.pop(c.name)
-            # 如果是时间,判断是否是datetime类型,否则进行转换
+            if date_header or datetime_header:
+                if c.name in date_header:  # 如果是时间,判断是否是date类型,否则进行转换
+                    if isinstance(new_data, date):
+                        continue
+                    elif isinstance(new_data, datetime):
+                        new_data = date.fromordinal(new_data.toordinal())
+                    else:
+                        try:
+                            new_data = datetime.strptime(new_data, "%Y-%m-%d")
+                        except (ValueError, TypeError):
+                            pass
+                elif c.name in datetime_header:  # 如果是时间,判断是否是datetime类型,否则进行转换
+                    if isinstance(new_data, datetime):
+                        continue
+                    elif isinstance(new_data, date):
+                        new_data = datetime.fromordinal(new_data.toordinal())
+                    else:
+                        try:
+                            new_data = datetime.strptime(new_data, "%Y-%m-%d %H:%M:%S")
+                        except (ValueError, TypeError):
+                            pass
+                else:
+                    if isinstance(new_data, datetime):
+                        new_data = new_data.strftime("%Y-%m-%d %H:%M:%S")
+                    elif isinstance(new_data, date):
+                        new_data = new_data.strftime("%Y-%m-%d")
             i.update({c.value: new_data})
     
     try:
@@ -703,185 +797,496 @@ def importTableFromExcel():
 
     return jsonify({"code": 0, "message": "导入数据成功"}), 200
 
-@manage.route("/edit", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="修改资产表数据", check_ip=True)
-def editTableData():
+@manage.route("/add_or_edit", methods=methods.ALL)
+@verify(allow_methods=["POST"], module_name="修改或新增资产表数据", check_ip=True)
+def addOrEditTableData():
     '''
-    修改资产表数据
+    修改或新增资产表数据
     '''
     reqData = request.get_json()  # 获取请求数据
 
-    if "table_id" not in reqData or "id" not in reqData:  # 获取id失败
+    if "mode" not in reqData or "table_id" not in reqData:
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
-    
-    id = reqData["table_id"]
 
-    try:
-        table = db_session.query(Manage.table_name).filter(Manage.uuid == id).first()
-    finally:
-        db_session.close()
-    
-    if not table:  # 资产表不存在
+    mode = reqData["mode"]
+
+    table_id = reqData["table_id"]
+
+    if not mode or not table_id:
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+        
+    if not redisClient.getSet("crm:manage:table_id", table_id):
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
-
-    try:  # 从数据库中查询对应表的header信息
-        header = db_session.query(Header).filter(Header.table_name == table.table_name).all()
-    finally:
-        db_session.close()
-
-    must_exist_header = [h.value for h in header if h.must_input == 1]  # 必填字段
-
-    # 校验参数
-    if not all(key in reqData for key in must_exist_header):
-        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
-    
-    manageTable = initManageTable(table.table_name)  # 实例化已存在资产表
-
-    # 校验是否唯一的数值
-
-    # 校验是否从下拉列表中的值
-
-    try:
-        data = db_session.query(manageTable).filter(getattr(manageTable.c, id) == reqData["id"]).first()  # 根据行id筛选数据
-        if data:
-
-            # 更新信息
-            setattr(data, id, reqData["id"])
-            db_session.commit()
-    except:
-        db_session.rollback()
-        crmLogger.error(f"修改资产表数据失败")
-    finally:
-        db_session.close()
-
-    return jsonify({"code": 0, "message": "修改成功"}), 200
-
-@manage.route("/alter_column", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="修改列属性", check_ip=True)
-def alterTableColumn():
-    '''
-    修改资产表列信息
-    '''
-    reqData = request.get_json()
-
-    if not all(key in reqData for key in ["id", "name", "type", "options"]):   # 校验body参数
-        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
     
     try:
-        table = db_session.query(Manage.table_name).filter(Manage.uuid == reqData["id"]).first()
+
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_id).first()
+
     finally:
+
         db_session.close()
 
-    try:  # 先查询出对应header信息
-        curr_header = db_session.query(Header).filter(Header.uuid == reqData["id"]).first()
-    finally:
-        db_session.close()
+    if not table:
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+    
+    all_header = redisClient.getData(f"crm:header:{table.table_name}")  # 从redis中获取header
 
-    try:  # 如何列名修改则更新header表
-        curr_header.name = reqData["name"]
-        db_session.commit()
-    except:
-        db_session.rollback()
-        return jsonify({"code": -1, "message": "数据库异常"}), 500
-    finally:
-        db_session.close()
+    if all_header:
+        
+        all_header = [MyHeader[i] for i in all_header]
 
+    else:  # 如果header为空,则从数据库中获取
+
+        try:
+            
+            all_header = db_session.query(Header).filter(Header.table_name == table.table_name).all()
+
+        finally:
+
+            db_session.close()
+    
+    if not all_header:
+        return jsonify({"code": -1, "message": "资产表字段为空"}), 400
+    
+    if not all(key in reqData for key in [h.value for h in all_header]):  # 校验body参数
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
     manageTable = initManageTable(table.table_name)
 
-    # 如果将列设置为必填,查询此列是否存在空值
-    try:
-        is_exist_null = db_session.query(manageTable).filter(getattr(manageTable.c, reqData["id"]) == None).all()
-    finally:
-        db_session.close()
+    # 校验数据
+    for h in all_header:
 
-    if len(is_exist_null) > 0:  # 如果存在空值则不允许修改
-        return jsonify({"code": -1, "message": "存在空值,不允许修改"}), 400
-    
-    # 如果将列值设置为唯一,查询此列是否存在重复值
-    try:
-        is_exist_duplicate = db_session.query(getattr(manageTable.c, "xx"), func.count(getattr(manageTable.c, "xx")).label("count")).group_by(getattr(manageTable.c, "xx")).having(func.count(getattr(manageTable.c, "xx")) > 1).all()
-    finally:
-        db_session.close()
+        if h.must_input == 1 and reqData[h.value] == "":  # 校验必填项
 
-    if len(is_exist_duplicate) > 0:
-        return jsonify({"code": -1, "message": "存在重复值,不允许修改"}), 400
+            return jsonify({"code": -1, "message": f"{h.name}字段为必填项"}), 400
 
-    # 如果设置列值长度为固定长度,查询此列数据长度是否满足要求
-    try:
-        is_exist_unlength = db_session.query(func.count()).filter(func.length(getattr(manageTable.c, "xx")) != 13).scalar()
-    finally:
-        db_session.close()
+        if h.value_type == 2:  # 校验数据长度
 
-    if is_exist_unlength > 0:  # 如果存在不满足长度的值则不允许修改
-        return jsonify({"code": -1, "message": "存在不满足长度的值,不允许修改"}), 400
+            if reqData[h.value] == "":
 
-    # 校验列数据是否可以被转换为时间
-    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
-    datetime_pattern = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
+                return jsonify({"code": -1, "message": f"{h.name}字段长度应为{h.length}"}), 400
+            
+            elif reqData[h.value] != "" and len(reqData[h.value]) != h.length:
+                return jsonify({"code": -1, "message": f"{h.name}字段长度不符合要求"}), 400
 
-    # 首先查询此列中所有不为空的数据
-    try:
-        query_sql = f"SELECT {} FROM {} WHERE {} IS NOT NULL"
-        query_data = db_session.execute(query_sql).fetchall()
-    finally:
-        db_session.close()
+        if h.type == 2:  # 校验是否从选项中取值
+            
+            try:
 
-    for row in query_data:
-        if not(bool(date_pattern.match(row[0]) or bool(datetime_pattern.match(row[0])))):
-            return jsonify({"code": -1, "message": "存在时间格式错误,不允许修改"}), 400
+                _opt = db_session.query(Options.option_name).filter(Options.table_name == table.table_name, Options.header_value == h.value).all()
 
-    # 如果列属性修改则更新对应表列属性
-    # 固定长度
-    # f"VARCHAR({length})"
-    if not alterColumn(table.table_name, reqData["id"], reqData["type"]):
-        return jsonify({"code": -1, "message": "修改失败"}), 400
-    
-    # 如果修改列是从下拉列表取值
-    # 先判断是否存在列表
+            finally:
 
-    # 不存在则报错
+                db_session.close()
 
-    # 存在则判断数据是否取值与下拉列表中
+            if reqData[h.value] not in _opt:
+                return jsonify({"code": -1, "message": f"{h.name}字段值不在固定选项中"}), 400
+            
+        if h.is_unique == 1:  # 校验是否唯一
+            
+            if reqData[h.value] != "":
 
-    try:
-        not in [下拉列表]
-    finally:
-        db_session.close()
+                if mode == "add":
 
-    # 校验通过后更新值或者修改列属性
+                    try:
 
-    try:  # 如果type是下拉列表则更新option表
-        _opt = db_session.query(Options).filter(Options.header_uuid == curr_header.uuid).all()
-        if _opt:  # 如果有option则删除
-            db_session.delete(_opt)
+                        _data = db_session.query(manageTable).filter(getattr(manageTable.c, h.value) == reqData[h.value]).first()
+
+                        if _data:
+                            return jsonify({"code": -1, "message": f"{h.name}字段值重复"}), 400
+
+                    finally:
+                    
+                       db_session.close()
+
+                elif mode == "edit":
+
+                    if "id" not in reqData:
+                        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+
+                    try:
+
+                        _data = db_session.query(manageTable).filter(getattr(manageTable.c, h.value) == reqData[h.value], manageTable.c._id != reqData["id"]).first()
+
+                        if _data:
+                            return jsonify({"code": -1, "message": f"{h.name}字段值重复"}), 400
+                        
+                    finally:
+
+                        db_session.close()
+
+    if mode == "add":  # 插入数据
+
+        try:
+            
+            for i in all_header:
+                if hasattr(manageTable, i.value):
+                    setattr(manageTable, i.value, reqData[i.value])
+            
+            db_session.add(manageTable)
+
             db_session.commit()
+
+        except:
+
+            db_session.rollback()
+
+            return jsonify({"code": -1, "message": "数据库异常"}), 500
+
+        finally:
+
+            db_session.close()
+
+    elif mode == "edit":  # 编辑数据
+
+        try:
+
+            data = db_session.query(manageTable).filter(getattr(manageTable.c, "_id") == reqData["id"]).first()  # 根据行id筛选数据
+
+            if data:
+
+                # 更新信息
+                for i in all_header:
+                    if hasattr(data, i.value):
+                        setattr(data, i.value, reqData[i.value])
+
+                db_session.commit()
+
+        except:
+
+            db_session.rollback()
+
+            crmLogger.error(f"修改资产表{table.name}数据失败")
+
+            return jsonify({"code": -1, "message": "数据库异常"}), 500
+
+        finally:
+
+            db_session.close()
+
+    try:  # 写入log表
+
+        _method = "新增" if mode == "add" else "修改"
+
+        add_or_edit_log = Log(ip=g.ip_addr, operate_type=f"{_method}数据", operate_content=f"{_method}{table.name}数据", operate_user=g.user_name)
+        db_session.add(add_or_edit_log)
+        db_session.commit()
+    
     except:
+
         db_session.rollback()
-        return jsonify({"code": -1, "message": "数据库异常"}), 500
+
     finally:
+
         db_session.close()
-        
-    return jsonify({"code": 0, "message": "修改成功"}), 200
 
-@manage.route("/add_clumn", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="添加列", check_ip=True)
-def addTableColumn():
-    '''
-    添加资产表列
-    '''
-    reqData = request.get_json()
+    crmLogger.info(f"{g.username}用户{_method}{table.name}数据成功")
 
-    if not all(key in reqData for key in ["id", "name", "type", "options"]):   # 校验body参数
+    return jsonify({"code": 0, "message": f"{_method}数据成功"}), 200
+
+@manage.route("/add_or_alter_column", methods=methods.ALL)
+@verify(allow_methods=["POST"], module_name="添加或修改列", check_ip=True)
+def addOrAlterTableColumn():
+    '''
+    添加或修改资产表列信息
+    '''
+    reqData = request.get_json()  # 获取请求数据
+
+    # 校验body参数
+    if not all(key in reqData for key in ["mode", "table_uuid", "col_name", "col_alias", "type", "options", "must_input", "is_desence", "is_unique", "length"]):
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+
+    mode = reqData["mode"]              # 模式:add-新增,alter-修改
+    table_uuid = reqData["table_uuid"]  # 资产表uuid
+    col_name = reqData["col_name"]      # 列名
+    col_alias = reqData["col_alias"]    # 列别名
+    col_type = reqData["type"]          # 列类型: 1-字符串(VARCHAR(255)),2-固定长度字符串,3-大文本text(超过255个字符),4-日期(yyyy-mm-dd),5-时间(yyyy-mm-dd hh:mm:ss),6-下拉选项
+    options = reqData["options"]        # 如果列类型是6,此选项为选项列表
+    must_input = reqData["must_input"]  # 是否必填: 0-否,1-是
+    is_desence = reqData["is_desence"]  # 是否脱敏: 0-否,1-是
+    is_unique = reqData["is_unique"]    # 是否唯一: 0-否,1-是
+    length = reqData["length"]          # 如果列类型为2,此选项为长度
+
+    # 校验必填参数是否有值
+    if not all(mode, table_uuid, col_name, col_alias, type, must_input, is_desence, is_unique):
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
     
-    if not addColumn(reqData["id"], reqData["name"], reqData["type"], reqData["options"]):  # 添加列
-        return jsonify({"code": -1, "message": "添加失败"}), 400
+    if not redisClient.getSet("crm:manage:table_uuid", table_uuid):  # 查询表uuid是否存在
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
     
-    # 判断新增的列是否有重复
+    if col_type == 2 and length == "":
+        return jsonify({"code": -1, "message": "长度不能为空"}), 400
+    
+    if col_type == 6 and len(options) == 0:
+        return jsonify({"code": -1, "message": "下拉选项不能为空"}), 400
+    
+    try:  # 查询相应的资产表是否存在
 
-    # 不存在重复则创建列
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
+
+    finally:
+
+        db_session.close()
+
+    if not table:  # 如果不存在资产表
+        return jsonify({"code": -1, "message": "资产表uuid不存在"}), 400
     
-    return jsonify({"code": 0, "message": "添加成功"}), 200
+    if mode == "add":
+
+        try:  # 判断要新增的列是否有重复
+
+            is_exist_col = db_session.query(Header).filter(Header.table_name == table.table_name, or_(Header.name == col_name, Header.value == col_alias)).first()
+
+        finally:
+
+            db_session.close()
+
+        if is_exist_col:  # 如果已经存在新增的列名或列别名
+            return jsonify({"code": -1, "message": "该列已存在,请勿重复创建"}), 400
+        
+        if col_type == 1 or col_type == 2 or col_type == 6:
+            add_col_type = String(255)
+        elif col_type == 3:
+            add_col_type = Text()
+        elif col_type == 4:
+            add_col_type = Date()
+        elif col_type == 5:
+            add_col_type = DateTime()
+
+        # 不存在重复则创建新列
+        if not addColumn(table.table_name, Column(col_alias, add_col_type)):  # 添加列
+            return jsonify({"code": -1, "message": "添加列失败"}), 400
+        
+        try:  # 查询当前order
+
+            curr_order = db_session.query(func.max(Header.order)).filter(Header.table_name == table.table_name).scalar()
+
+        finally:
+
+            db_session.close()
+        
+        try:  # 写入header表
+
+            _value_type = col_type
+            if col_type == 6:
+                _col_type = 2
+                _value_type = 1
+            else:
+                _col_type = 1
+
+            new_header = Header(type=_col_type, name=col_name, value=col_alias, value_type=_value_type, is_unique=is_unique, is_desence=is_desence, must_input=must_input, length=length, order=(curr_order + 1), create_user=g.username)
+            db_session.add(new_header)
+            db_session.commit()
+
+        except:
+
+            db_session.rollback()
+
+            return jsonify({"code": -1, "message": "数据库异常"}), 500
+
+        finally:
+
+            db_session.close()
+
+        if col_type == 6:  # 如果是下拉列表,则需要写入下拉列表数据
+
+            try:
+
+                new_options = [Options(options_name=o.name, options_value=o.value, header_value=col_alias, table_name=table.table_name) for o in options]
+                db_session.add_all(new_options)
+                db_session.commit()
+
+            except:
+
+                db_session.rollback()
+
+                return jsonify({"code": -1, "message": "数据库异常"}), 500
+
+            finally:
+
+                db_session.close()
+        
+        redisClient.delData(f"crm:header:{table.table_name}")  # 从redis中删除缓存
+        
+    elif mode == "alter":
+
+        try:  # 先查询出当前header信息
+
+            curr_header = db_session.query(Header).filter(Header.table_name == table.table_name, Header.value == col_alias).first()
+
+        finally:
+
+            db_session.close()
+
+        if not curr_header:
+            return jsonify({"code": -1, "message": "要修改的列不存在"}), 400
+
+        manageTable = initManageTable(table.table_name)   # 实例化已存在的资产表
+
+        if curr_header.must_input != must_input and must_input == 1:
+
+            try:  # 如果将列设置为必填,查询此列是否存在空值
+
+                is_exist_null = db_session.query(manageTable).filter(getattr(manageTable.c, col_alias) == None).all()
+
+            finally:
+
+                db_session.close()
+
+            if len(is_exist_null) > 0:  # 如果存在空值则不允许修改
+                return jsonify({"code": -1, "message": "该列存在空值,不允许修改"}), 400
+
+        if curr_header.is_unique != is_unique and is_unique == 1:
+
+            try:  # 如果将列值设置为唯一,查询此列是否存在重复值
+
+                is_exist_duplicate = db_session.query(getattr(manageTable.c, col_alias), func.count(getattr(manageTable.c, col_alias)).label("count")).group_by(getattr(manageTable.c, col_alias)).having(func.count(getattr(manageTable.c, col_alias)) > 1).all()
+
+            finally:
+
+                db_session.close()
+
+            if len(is_exist_duplicate) > 0:
+                return jsonify({"code": -1, "message": "该列存在重复值,不允许修改"}), 400
+
+        if curr_header.value_type != col_type and col_type == 2:
+
+            try:  # 如果设置列值长度为固定长度,查询此列数据长度是否满足要求
+
+                is_exist_unlength = db_session.query(func.count()).filter(func.length(getattr(manageTable.c, col_alias)) != length).scalar()
+
+            finally:
+
+                db_session.close()
+
+            if is_exist_unlength > 0:  # 如果存在不满足长度的值则不允许修改
+                return jsonify({"code": -1, "message": "存在不满足长度的值,不允许修改"}), 400
+            
+        try:  # 首先查询此列中所有不为空的数据
+
+            query_not_null_sql = f"SELECT {col_alias} FROM {table.table_name} WHERE {col_alias} IS NOT NULL"
+            query_not_null_data = db_session.execute(query_not_null_sql).fetchall()
+
+        finally:
+
+            db_session.close()
+            
+        if curr_header.value_type != col_type and col_type == 4:  # 校验列数据是否可以被转换为时间
+
+            date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+            for row in query_not_null_data:
+                if not bool(date_pattern.match(row[0])):
+                    return jsonify({"code": -1, "message": "存在日期格式错误,不允许修改"}), 400
+
+        if curr_header.value_type != col_type and col_type == 5:
+        
+            datetime_pattern = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
+
+            for row in query_not_null_data:
+                if not bool(datetime_pattern.match(row[0])):
+                    return jsonify({"code": -1, "message": "存在时间格式错误,不允许修改"}), 400
+                
+        if curr_header.value_type != col_type and col_type == 6:  # 如果修改列是从下拉列表取值
+
+            new_option_name = [o.name for o in options]
+
+            try: # 存在则判断数据是否取值与下拉列表中
+
+                is_all_in_options = db_session.query(getattr(Manage.c, col_alias)).filter(getattr(Manage.c, col_alias).notin_(new_option_name)).first()
+            
+            finally:
+
+                db_session.close()
+
+            if is_all_in_options:
+                return jsonify({"code": -1, "message": "存在部分数据不在下拉列表中,不允许修改"}), 400
+
+            try:  # 如果type是下拉列表则更新option表
+
+                _opt = db_session.query(Options).filter(Options.header_value == col_alias, Options.table_name == table.table_name).all()
+
+                if _opt:  # 如果有option则删除
+
+                    db_session.delete(_opt)
+
+                    db_session.commit()
+
+            except:
+
+                db_session.rollback()
+
+                return jsonify({"code": -1, "message": "数据库异常"}), 500
+            
+            finally:
+
+                db_session.close()
+
+            try:  # 重新添加选项值
+
+                db_session.add_all()
+                db_session.commit()
+
+            except:
+
+                db_session.rollback()
+
+            finally:
+
+                db_session.close()
+
+        # 校验通过后更新值或者修改列属性
+        if curr_header.type == 2 and col_type == 6:
+            pass
+        elif curr_header.value_type != col_type:
+            if col_type in [1, 2]:
+                new_col_type = "VARCHAR(255)"
+            elif col_type == 3:
+                new_col_type = "TEXT"
+            elif col_type == 4:
+                new_col_type = "DATE"
+            elif col_type == 5:
+                new_col_type = "DATETIME"
+
+        is_succ = alterColumn(table.table_name, col_alias, new_col_type)
+
+        if not is_succ:  # 如果修改列失败则报错
+            return jsonify({"code": -1, "message": "修改列失败"}), 400
+
+        try:  # 最后更新Header表中列的信息
+
+            curr_header.name = col_name
+            curr_header.must_input = int(must_input)
+
+            db_session.commit()
+
+        except:
+
+            db_session.rollback()
+
+            return jsonify({"code": -1, "message": "数据库异常"}), 500
+
+        finally:
+
+            db_session.close()
+
+    try:  # 写入log表
+
+        pass
+
+    except:
+
+        db_session.rollback()
+
+    finally:
+
+        db_session.close()
+    
+    _method = "新增" if mode == "add" else "修改"
+    
+    crmLogger.info("列成功")
+
+    return jsonify({"code": 0, "message": f"{_method}列成功"}), 200
 
 @manage.route("/ping", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="ping探测", check_ip=True)
@@ -1078,61 +1483,115 @@ def setEchartRule():
 
         args = request.args        # 获取请求参数
 
-        id = args.get("id", None)  # 获取表id
+        table_uuid = args.get("id", None)  # 获取表id
         
-        if not id:
+        if not table_uuid:
             return jsonify({"code": -1, "message": "缺少id参数"}), 400
         
+        if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
+            return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        
         try:  # 查询资产表表是否存在
-            table = db_session.query(Manage.table_name).filter(Manage.uuid == id).first()
+
+            table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
+
         finally:
+
             db_session.close()
 
         if not table:  # 资产表不存在
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        
+        rules = redisClient.getData(f"crm:echart:{table.table_name}")
 
-        try:  # 查询规则,升序
-            rules = db_session.query(Echart).filter(Echart.table_name == id).order_by(Echart.id.asc()).all()
-        finally:
-            db_session.close()
+        if rules:
+
+            rules = [MyHeader[i] for i in rules]
+
+        else:
+
+            try:  # 查询规则,升序
+
+                rules = db_session.query(Echart).filter(Echart.table_name == table.table_name).order_by(Echart.id.asc()).all()
+
+            finally:
+
+                db_session.close()
+
+            if rules:
+
+                _r = [
+                    {c.name: getattr(u, c.name) for c in u.__table__.columns} for u in rules
+                ]
+
+                redisClient.setData(f"crm:echart:{table.table_name}", json.dumps(_r))
 
         if not rules:  # 查无规则
             return jsonify({"code": 0, "message": []}), 200
 
         return jsonify({
             "code": 0,
-            "message": [{"id": rule.id, "type": rule.type, "keyword": rule.keyword} for rule in rules]
+            "message": [{"id": rule.id, "name": rule.name, "type": rule.type, "keyword": rule.keyword, "date_keyword": rule.date_keyword} for rule in rules]
         }), 200
 
     elif request.method == "POST":  # 创建图表规则
 
         reqData = request.get_json()  # 获取请求数据
 
-        if not all(key in reqData for key in ["id", "task_id", "name", "operate"]):  # 校验body参数
+        if not all(key in reqData for key in ["table_uuid", "rules"]):  # 校验body参数
             return jsonify({"code": -1, "message": "请求参数不完整"}), 400
 
-        name = reqData["name"]  # 名称
-        table_name = reqData["table_name"]  # 表名
-        keyword = reqData["keyword"]  # 关键字
-        type = reqData["type"]  # 图表类型
-        config = reqData["config"]  # 图表配置
+        table_uuid = reqData["table_uuid"]  # 资产表的uuid
+        rules = reqData["rules"]            # 资产表的图表规则组
+
+        if not table_uuid or len(rules) == 0:
+            return jsonify({"code": -1, "message": "请求参数不完整"}), 400
         
-        try:  # 先删除规则
-            db_session.query(Echart).filter(Echart.table_name == reqData["id"]).delete()
-            db_session.commit()
-        except:
-            db_session.rollback()
-            return jsonify({"code": -1, "message": "数据库异常"}), 500
+        if not redisClient.getSet("crm:manage:table_uuid", table_uuid):  # 资产表不存在
+            return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        
+        try:
+
+            table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
+
         finally:
+
+            db_session.close()
+
+        if not table:
+            return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        
+        try:  # 先删除所有规则
+
+            db_session.query(Echart).filter(Echart.table_name == table.table_name).delete()
+            db_session.commit()
+
+        except:
+
+            db_session.rollback()
+
+            return jsonify({"code": -1, "message": "数据库异常"}), 500
+        
+        finally:
+
             db_session.close()
 
         try:  # 再创建规则
-            db_session.add_all()
+
+            new_rules = [Echart(table_name=table.table_name, name=r["name"], type=r["type"], keyword=r["keyword"], date_keyword=r["date_keyword"]) for r in rules]
+
+            db_session.add_all(new_rules)
+
             db_session.commit()
+
         except:
+
             db_session.rollback()
+
             return jsonify({"code": -1, "message": "数据库异常"}), 500
+        
         finally:
+
             db_session.close()
 
         return jsonify({"code": 0, "message": "创建成功"}), 200
