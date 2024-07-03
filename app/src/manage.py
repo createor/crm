@@ -7,6 +7,7 @@
 @Desc    :  资产管理模块
 '''
 import os
+import re
 import time
 import json
 import traceback
@@ -785,11 +786,69 @@ def alterTableColumn():
     finally:
         db_session.close()
 
+    manageTable = initManageTable(table.table_name)
+
+    # 如果将列设置为必填,查询此列是否存在空值
+    try:
+        is_exist_null = db_session.query(manageTable).filter(getattr(manageTable.c, reqData["id"]) == None).all()
+    finally:
+        db_session.close()
+
+    if len(is_exist_null) > 0:  # 如果存在空值则不允许修改
+        return jsonify({"code": -1, "message": "存在空值,不允许修改"}), 400
+    
+    # 如果将列值设置为唯一,查询此列是否存在重复值
+    try:
+        is_exist_duplicate = db_session.query(getattr(manageTable.c, "xx"), func.count(getattr(manageTable.c, "xx")).label("count")).group_by(getattr(manageTable.c, "xx")).having(func.count(getattr(manageTable.c, "xx")) > 1).all()
+    finally:
+        db_session.close()
+
+    if len(is_exist_duplicate) > 0:
+        return jsonify({"code": -1, "message": "存在重复值,不允许修改"}), 400
+
+    # 如果设置列值长度为固定长度,查询此列数据长度是否满足要求
+    try:
+        is_exist_unlength = db_session.query(func.count()).filter(func.length(getattr(manageTable.c, "xx")) != 13).scalar()
+    finally:
+        db_session.close()
+
+    if is_exist_unlength > 0:  # 如果存在不满足长度的值则不允许修改
+        return jsonify({"code": -1, "message": "存在不满足长度的值,不允许修改"}), 400
+
+    # 校验列数据是否可以被转换为时间
+    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    datetime_pattern = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
+
+    # 首先查询此列中所有不为空的数据
+    try:
+        query_sql = f"SELECT {} FROM {} WHERE {} IS NOT NULL"
+        query_data = db_session.execute(query_sql).fetchall()
+    finally:
+        db_session.close()
+
+    for row in query_data:
+        if not(bool(date_pattern.match(row[0]) or bool(datetime_pattern.match(row[0])))):
+            return jsonify({"code": -1, "message": "存在时间格式错误,不允许修改"}), 400
+
     # 如果列属性修改则更新对应表列属性
     # 固定长度
     # f"VARCHAR({length})"
     if not alterColumn(table.table_name, reqData["id"], reqData["type"]):
         return jsonify({"code": -1, "message": "修改失败"}), 400
+    
+    # 如果修改列是从下拉列表取值
+    # 先判断是否存在列表
+
+    # 不存在则报错
+
+    # 存在则判断数据是否取值与下拉列表中
+
+    try:
+        not in [下拉列表]
+    finally:
+        db_session.close()
+
+    # 校验通过后更新值或者修改列属性
 
     try:  # 如果type是下拉列表则更新option表
         _opt = db_session.query(Options).filter(Options.header_uuid == curr_header.uuid).all()
@@ -817,6 +876,10 @@ def addTableColumn():
     
     if not addColumn(reqData["id"], reqData["name"], reqData["type"], reqData["options"]):  # 添加列
         return jsonify({"code": -1, "message": "添加失败"}), 400
+    
+    # 判断新增的列是否有重复
+
+    # 不存在重复则创建列
     
     return jsonify({"code": 0, "message": "添加成功"}), 200
 
