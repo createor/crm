@@ -32,6 +32,7 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
 
             # 直接访问
             ip_addr = request.remote_addr or "127.0.0.1" # 用户IP地址
+
             g.ip_addr = ip_addr
 
             if bool(int(redisClient.getData("crm:system:enable_white"))):  # 判断是否开启IP白名单以及用户是否在白名单中
@@ -45,6 +46,7 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
                     if auth_login:  # 校验是否要求用户登陆
 
                         username = session.get("username")  # 从session获取用户名
+
                         if username is None:
                             return redirect(url_for("login", errMsg=""))  # 未登录或者登录过期返回登录界面
                         
@@ -55,7 +57,7 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
                             if username not in allow_admin:
                                 return jsonify({"code": -1, "message": "无权限访问,你不是管理员"}), 403
                             
-                        if bool(int(redisClient.getData("crm:system:enable_single"))) and check_ip:  # 单点登陆校验IP
+                        if check_ip and bool(int(redisClient.getData("crm:system:enable_single"))):  # 判断是否需要校验IP以及是否开启单点登陆
 
                             if ip_addr != redisClient.getData(f"crm:{username}:ip"):  # 访问IP和redis中记录不一致
                                 return redirect(url_for("login", errMsg="账号已在其他地方登陆"))
