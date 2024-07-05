@@ -96,6 +96,7 @@ var delWhiteIp = function (id, ip) {
                 if (res.code === 0) {
                     layer.close(index);
                     layer.msg("删除成功", { icon: 1 });
+                    // 剔除被删除的数据
                 } else {
                     layer.msg("删除失败:" + res.message, {icon: 2});
                 }
@@ -107,6 +108,8 @@ var delWhiteIp = function (id, ip) {
                 return false;
             }
         });
+    }, function (index) {
+        layer.close(index);
     });
 }
 
@@ -158,7 +161,7 @@ var showWhiteIp = function () {
                     { field: "ip", title:"IP", width: 200 },
                     { field: "desc", title: "备注" },
                     { field: "operate", title: "操作", templet: function(d) {
-                        return `<button type="button" class="layui-btn layui-btn-sm layui-btn-danger" onclick="delWhiteIp(${d.id}, ${d.ip})">删除</button>`;
+                        return `<button type="button" class="layui-btn layui-btn-sm layui-btn-danger" onclick="delWhiteIp(${d.id}, '${d.ip}')">删除</button>`;
                     } }
                 ]]
             });

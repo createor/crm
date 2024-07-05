@@ -120,7 +120,8 @@ var addNewTable = function () {
             upload.render({
                 elem: "#uploadExcel",
                 url: "/crm/api/v1/upload",
-                acceptMime: "application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                accet: "file",
+                acceptMime: "application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 exts: "xlsx|xls",
                 choose: function (obj) {
                     obj.preview(function(_,file) {
@@ -130,11 +131,11 @@ var addNewTable = function () {
                 before: function () {
                     layerIndex = layer.load();
                 },
-                done: function (data) {
+                done: function (res) {
                     layer.close(layerIndex);
-                    if (data.code === 0) {
+                    if (res.code === 0) {
                         // 写入filename
-                        $("input[name='filename']").val(data.message);
+                        $("input[name='filename']").val(res.message);
                         $("#upload-preview span").text(uploadFilename);
                         $("#upload-preview").removeClass("layui-hide");
                         layer.msg("上传成功", {icon: 1});
@@ -326,7 +327,7 @@ var addNewRule = function (tableId) {
                         <div class="layui-tab-content">
                             <div class="layui-tab-item layui-show">
                                 <div class="layui-form-item">
-                                    <div class="layui-input-inline" style="width:100%;">
+                                    <div class="layui-input-inline echart_options" style="width:100%;">
                                         <fieldset class="layui-elem-field" style="width:180px;float:left;margin: 0 10px 0 10px;">
                                             <legend>选择图表类型</legend>
                                             <div class="layui-field-box">
@@ -352,7 +353,7 @@ var addNewRule = function (tableId) {
                             </div>
                             <div class="layui-tab-item">
                                 <div class="layui-form-item">
-                                    <div class="layui-input-inline" style="width:100%;">
+                                    <div class="layui-input-inline echart_options" style="width:100%;">
                                         <fieldset class="layui-elem-field" style="width:180px;float:left;margin: 0 10px 0 10px;">
                                             <legend>选择图表类型</legend>
                                             <div class="layui-field-box">
@@ -378,7 +379,7 @@ var addNewRule = function (tableId) {
                             </div>
                             <div class="layui-tab-item">
                                 <div class="layui-form-item">
-                                    <div class="layui-input-inline" style="width:100%;">
+                                    <div class="layui-input-inline echart_options" style="width:100%;">
                                         <fieldset class="layui-elem-field" style="width:180px;float:left;margin: 0 10px 0 10px;">
                                             <legend>选择图表类型</legend>
                                             <div class="layui-field-box">
@@ -448,10 +449,11 @@ var addNewRule = function (tableId) {
 var delColData = function (tableId, data) {
     let table_id = tableId || localStorage.getItem("tableUid");
     layer.confirm(`是否删除本页已选中的${data.length}条数据`, {
+        title: "删除数据",
         btn: ["确定", "取消"],
         function () {
             if (data.length > 0) {
-                let id_array = [];
+                let id_array = [];  // 要删除数据的id数组
                 data.forEach((item) => {
                     id_array.push(item._id);
                 });
@@ -463,16 +465,20 @@ var delColData = function (tableId, data) {
                         "table_uuid": table_id,
                         "data": id_array
                     }),
+                    beforeSend: function () {
+                        layer.load(0);
+                    },
                     success: function (res) {
                         layer.closeAll();
                         if (res.code === 0) {
                             layer.msg("删除成功", {icon: 1});
                         } else {
-                            layer.msg("删除失败", {icon: 2});
+                            layer.msg("删除失败: " + res.message, {icon: 2});
                         }
                         return false;
                     },
                     error: function (err) {
+                        layer.closeAll();
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
                         layer.msg(errMsg.message, {icon: 2});
                         return false;
@@ -489,17 +495,21 @@ var delColData = function (tableId, data) {
 /**
  * @description 录入或者编辑数据
  * @param {String} tableId 表uuid
+ * @param {Object} colData 列数据
  */
-var addOrEditData = function (tableId, data) {
+var addOrEditData = function (tableId, colData) {
     let table_id = tableId || localStorage.getItem("tableUid");
     let header =JSON.parse(localStorage.getItem("header"))[table_id] || "";
+    let formData = colData;
+    let date_array = [];
+    let time_array = [];
     if (header) {
         let form_item_templ = "";
         header.forEach((item) => {
             if (item.col_type === 2) { // 设置下列列表
                 form_item_templ += `<div class="layui-form-item">
                                         <label class="layui-form-label">${item.title}</label>
-                                        <div class="layui-input-block">
+                                        <div class="layui-input-block" style="width: 250px">
                                             <select name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""}>
                                                 <option value="">请选择</option>
                                                 ${Object.keys(item.option).map((key) => {
@@ -512,66 +522,90 @@ var addOrEditData = function (tableId, data) {
                 if (item.value_type === 3) {  // 设置选择日期
                     form_item_templ += `<div class="layui-form-item">
                                             <label class="layui-form-label">${item.title}</label>
-                                            <div class="layui-input-block">
+                                            <div class="layui-input-block" style="width: 250px">
+                                                <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} id="date_${item.field}" placeholder="yyyy-MM-dd" autocomplete="off" class="layui-input">
                                             </div>
                                         </div>`;
+                    date_array.push(item.field);
                 } else if (item.value_type === 4) {  // 设置选择时间
                     form_item_templ += `<div class="layui-form-item">
                                             <label class="layui-form-label">${item.title}</label>
-                                            <div class="layui-input-block">
-                                                <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} placeholder="yyyy-MM-dd HH:mm:ss" autocomplete="off" class="layui-input">
+                                            <div class="layui-input-block" style="width: 250px">
+                                                <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} id="time_${item.field}" placeholder="yyyy-MM-dd HH:mm:ss" autocomplete="off" class="layui-input">
                                             </div>
                                         </div>`;
+                    time_array.push(item.field);
                 } else {
                     form_item_templ += `<div class="layui-form-item">
-                                        <label class="layui-form-label">${item.title}</label>
-                                        <div class="layui-input-block">
-                                            <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} autocomplete="off" class="layui-input"></input>
+                                            <label class="layui-form-label">${item.title}</label>
+                                            <div class="layui-input-block" style="width: 250px">
+                                                <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} autocomplete="off" class="layui-input"></input>
+                                            </div>
                                         </div>`;
                 }
             }
         });
         layer.open({
             type: 1,
-            title: "新增数据",
-            area: ["500px", "300px"],
+            title: "数据操作",
+            area: ["500px", "auto"],
+            maxHeight: 680,
             shade: 0.6,
             shadeClose: false,
             move: false,
             resize: false,
             maxmin: false,
-            content: `<div>
-                        <form class="layui-form">
+            content: `<div style="max-height: 680px;overflow-y: auto;padding-top: 5px;">
+                        <form class="layui-form" lay-filter="tableData">
                             ${form_item_templ}
                             <div class="layui-form-item">
-                                <button class="layui-btn" lay-submit lay-filter="add">新增数据</button>
+                                <button type="button" class="layui-btn" lay-submit lay-filter="add" style="margin-left: 200px;">${formData ? "修改" : "新增"}数据</button>
                             </div>
                         </form>
                       </div>`,
             success: function () {
-                laydate.render({ // 渲染日期
-                    elem: ".layui-input-block",
+                // 脱敏数据要展示全
+                form.render();   // 渲染表格
+                date_array.forEach((item) => {
+                    laydate.render({ // 渲染日期
+                        elem: `#date_${item}`
+                    });
                 });
-                laydate.render({ // 渲染时间
-                    elem: ".layui-input-block",
-                    type: "datetime"
+                time_array.forEach((item) => {
+                    laydate.render({ // 渲染时间
+                        elem: `#time_${item}`,
+                        type: "datetime"
+                    });
                 });
-                form.render();  // 渲染表格
+                if (formData) {  // 填充表单
+                    form.val("tableData", formData);
+                }
                 form.on("submit(add)", (data) => {
                     let field = data.field;
                     $.ajax({
                         url: `/crm/api/v1/manage/add_or_edit`,
                         type: "POST",
                         contentType: "application/json",
-                        data: JSON.stringify({
-                            "mode": "add",
-                            "table_id": table_id,
-                            "": field
-                        }),
+                        data: JSON.stringify(Object.assign({}, {
+                            "mode": formData ? "edit" : "add",
+                            "table_id": table_id  
+                        }, field)),
+                        beforeSend: function () {
+                            layer.load(2);
+                        },
                         success: function (res) {
+                            layer.closeAll();
+                            if (res.code === 0) {
+                                layer.msg("成功", {icon: 1});
+                            } else {
+                                layer.msg("失败: " + res.message, {icon: 2});
+                            }
                             return false;
                         },
                         error: function (err) {
+                            layer.closeAll();
+                            let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                            layer.msg(errMsg.message, {icon: 2});
                             return false;
                         }
                     })
@@ -692,7 +726,7 @@ var addOrAlterCol = function (tableId) {
                     }
                 });
             });
-            form.on("submit(addNewCol)", function (){
+            form.on("submit(addNewCol)", function (data){
                 let field = data.field;
                 // 获取select下列列表元素
                 let option = [];
@@ -742,62 +776,83 @@ var addOrAlterCol = function (tableId) {
  * @param {String} tableId 表uuid
  */ 
 var mulitDetect = function (tableId) {
-    $.ajax({
-        url: `/crm/api/v1/manage/${tableId}/head?type=1`,
-        type: "get",
-        success: function (data) {
-            if (data.code === 0) {
-                if (data.message.length === 0) {
-                    layer.msg("未找到相关字段", {icon: 3});
-                    return false;
-                } else {
-                    let option_template = "";
-                    layer.open({
-                        type: 1,
-                        title: "Ping探测任务",
-                        area: ["500px", "300px"],
-                        content: `<div>
-                                    <form class="layui-form">
+    let table_id = tableId || localStorage.getItem("tableUid");
+    let header =JSON.parse(localStorage.getItem("header"))[table_id] || "";
+    let option_template = "";
+    header.forEach((item) => {
+        if (item.type !== 2 && item.col_type !== 4 && item.col_type !== 5) {
+            option_template += `<option value="${item.field}">${item.title}</option>`;
+        }
+    });
+    layer.open({
+        type: 1,
+        title: "Ping探测任务",
+        area: ["500px", "300px"],
+        shade: 0.6,
+        shadeClose: false,
+        move: false,
+        resize: false,
+        maxmin: false,
+        content: `<div>
+                    <div class="layui-tab" layui-tab-card lay-filter="pingTask">
+                        <ul class="layui-tab-title">
+                            <li class="layui-this">创建任务</li>
+                            <li>历史任务</li>
+                        </ul>
+                        <div>
+                            <div class="layui-tab-content">
+                                <div class="layui-tab-item layui-show" id="showTask">
+                                    <form class="layui-form" id="showTaskForm">
                                         <div class="layui-form-item">
                                             <label class="layui-form-label">IP列</label>
                                             <div class="layui-input-inline">
-                                                <select name="ip_col" lay-verify="required">
+                                                <select name="ip_col" id="ip_col" lay-verify="required">
                                                     <option value="">请选择IP列</option>
                                                     ${option_template}
                                                 </select>
                                             </div>
                                         </div>
                                         <div class="layui-form-item">
-                                            <button class="layui-btn" lay-submit lay-filter="createTask">创建任务</button>
+                                            <button type="button" class="layui-btn" lay-submit lay-filter="createTask" style="margin-left: 200px;margin-top: 30px;">创建任务</button>
                                         </div>
                                     </form>
-                                  </div>`,
-                        success: function () {
-                            form.render();
-                            if (!$().val()) {
-                                layer.msg("请选择IP列", { icon: 2 });
-                                return false;
-                            }
-                            form.on("submit(createTask)", function() {
-
-                                return false;
-                            });
-                        }
-                    });
+                                </div>
+                                <div class="layui-tab-item" id="showHistory">
+                                    <table class="layui-table" id="historyTable" lay-filter="historyTable"></table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                  </div>`,
+        success: function () {
+            element.on("tab(pingTask)", (data) => {
+                if (data.index === 0) {
+                    $("#showHistory").hide();
+                    $("#showTask").show();
+                    $("#showTaskForm").show();
+                } else {
+                    $("#showTaskForm").hide();
+                    $("#showTask").hide();
+                    $("#showHistory").show();
+                    table();
                 }
-            }
-        },
-        error: function (err) {
-            let errMsg = err.responseJSON || JSON.parse(err.responseText);
-            layer.msg(errMsg.message, {icon: 2});
-            return false;
+            });
+            form.render();
+            form.on("submit(createTask)", function(){
+                if (!$("#ip_col").val()) {
+                    layer.msg("请选择IP列", { icon: 2 });
+                    return false;
+                }
+                console.log($("#ip_col").val());
+                return false;
+            });
         }
     });
 }
 
 /**
  * @description 新建到期通知
- * @param {*} tableId 表uuid
+ * @param {String} tableId 表uuid
  */
 var createNotify = function (tableId) {
     let id = tableId || localStorage.getItem("tableUid");
@@ -850,4 +905,54 @@ var createNotify = function (tableId) {
         layer.msg("未存在时间列,请新增或修改列", { icon: 2 });
         return false;
     }
+}
+
+
+/**
+ * @description 显示历史记录
+ * @param {String} tableId
+ */
+var showHistory = function (tableId) {
+    let table_id = tableId || localStorage.getItem("tableUid");
+    layer.open({
+        type: 1,
+        area: ["500px", "300px"],
+        title: "显示详情",
+        shade: 0.6,
+        shadeClose: false,
+        resize: false,
+        move: false,
+        maxmin: false,
+        content: `<div>
+                    <div class="layui-tab" layui-tab-card lay-filter="history">
+                        <ul class="layui-tab-title">
+                            <li class="layui-this">导入记录</li>
+                            <li>导出记录</li>
+                        </ul>
+                        <div>
+                            <div class="layui-tab-content">
+                                <div class="layui-tab-item layui-show">
+                                    <table class="layui-table" id="importTable" lay-filter="importTable"></table>
+                                </div>
+                                <div class="layui-tab-item">
+                                    <table class="layui-table" id="exportTable" lay-filter="exportTable"></table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                  </div>`,
+        success: function () {
+            element.on("tab(history)", (data) => {
+                if (data.index === 0) {
+                    $("#showHistory").hide();
+                    $("#showTask").show();
+                    table.reload({});
+                } else {
+                    $("#showTask").hide();
+                    $("#showHistory").show();
+                    table.reload({});
+                }
+            });
+        } 
+    });
 }

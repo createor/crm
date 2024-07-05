@@ -57,6 +57,11 @@
         /* 设置滚动条样式 */
         display: none;
     }
+
+    .layui-table-tool-panel::-webkit-scrollbar {
+        /* 设置滚动条样式 */
+        display: none;
+    }
 </style>
 
 <body>
@@ -101,9 +106,15 @@
             </div>
             <div class="showEchart">
                 <!-- 图表展示设置,自定义图表展示规则,三个 -->
-                <div class="echart" id="chart0"></div>
-                <div class="echart" id="chart1"></div>
-                <div class="echart" id="chart2"></div>
+                <div class="echart" id="chart0">
+                    <img src="/crm/api/v1/images/nodata" alt="暂无数据" style="width: 80%;height: 100%;">
+                </div>
+                <div class="echart" id="chart1">
+                    <img src="/crm/api/v1/images/nodata" alt="暂无数据" style="width: 80%;height: 100%;">
+                </div>
+                <div class="echart" id="chart2">
+                    <img src="/crm/api/v1/images/nodata" alt="暂无数据" style="width: 80%;height: 100%;">
+                </div>
             </div>
             <!-- 展示具体资产表 -->
             <div>
@@ -158,9 +169,9 @@
             localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
 
             let header = "";        // 表格的header
-            if (localStorage.getItem("header")) {
-                header = JSON.parse(localStorage.getItem("header"))[tableUid] || "";
-            }
+            // if (localStorage.getItem("header")) {
+            //     header = JSON.parse(localStorage.getItem("header"))[tableUid] || "";
+            // }
 
             if (!header) {    // 如果本地没有则请求获取
                 $.ajax({
@@ -241,8 +252,8 @@
                     "filter",
                     { title: "批量探测", layEvent: "LAYTABLE_PROBE", icon: "layui-icon-wifi" },
                     { title: "到期提醒", layEvent: "LAYTABLE_NOTICE", icon: "layui-icon-notice" },
-                    { title: "新增字段", layEvent: "LAYTABLE_TIPS", icon: "layui-icon-edit" },
-                    { title: "导出", layEvent: "LAYTABLE_EXPORT", icon: "layui-icon-export" },
+                    { title: "编辑|新增字段", layEvent: "LAYTABLE_TIPS", icon: "layui-icon-edit" },
+                    { title: "导出表格", layEvent: "LAYTABLE_EXPORT", icon: "layui-icon-export" },
                     { title: "导入导出详情", layEvent: "LAYTABLE_DETAIL", icon: "layui-icon-time" }
                 ],
                 done: function () {
@@ -341,16 +352,16 @@
             let checkStatus = table.checkStatus(id);
             switch (obj.event) {
                 case "add":   // 录入数据
-                    window.parent.addNewData(tableUid);
+                    window.parent.addOrEditData(tableUid, null);
                     break;
                 case "edit":  // 行编辑
                     if (checkStatus.data.length > 1) {
                         layer.msg("不支持批量编辑", { icon: 2 });
                         return false;
                     }
-                    window.parent.editColData(tableUid, checkStatus.data[0]);
+                    window.parent.addOrEditData(tableUid, checkStatus.data[0]);
                     break;
-                case "del":  // 删除数据
+                case "del":              // 删除数据
                     window.parent.delColData(tableUid, checkStatus.data);
                     break;
                 case "LAYTABLE_PROBE":   // 批量ping
@@ -366,12 +377,11 @@
                     // 判断当前是否有筛选
                     $.ajax({
                         url: `/crm/api/v1/manage/export?id=${tableUid}`,
-                        type: "get",
-                        success: function (data) {
-                            // 返回文件id、文件名
-                            if (data.code === 0) {
+                        type: "GET",
+                        success: function (res) {
+                            if (res.code === 0) {
                                 let target = document.createElement("a");
-                                target.href = `/crm/api/v1/file/${data.message.id}`;
+                                target.href = `/crm/api/v1/file/${res.message.id}`;
                                 target.download = data.message.filename;
                                 document.body.appendChild(target);
                                 target.click();
@@ -386,6 +396,9 @@
                             return false;
                         }
                     });
+                    break;
+                case "LAYTABLE_DETAIL":  // 查询历史记录
+                    window.parent.showHistory(tableUid);
                     break;
             }
         });

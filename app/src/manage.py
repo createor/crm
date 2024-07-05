@@ -112,7 +112,7 @@ def queryTableTitle():
 
         return jsonify({
             "code": 0,
-            "message": [item for item in redisClient.getSetData("crm:manage:table_name") if title in list(map(lambda x: x.decode("utf-8"), item))]  # 从redis中查询
+            "message": [item for item in list(map(lambda x: x.decode("utf-8"), redisClient.getSetData("crm:manage:table_name"))) if title in item]  # 从redis中查询
         }), 200
     
     else:
@@ -276,7 +276,7 @@ def queryTableByUuid(id):
 
         try:
 
-            result = db_session.query(manageTable).filter((getattr(manageTable.c, key).like(f"%{value}%"))).order_by(manageTable.c._id.desc()).offset((page - 1) * limit).limit(limit).all()
+            result = db_session.query(manageTable).filter((getattr(manageTable.c, key).like(f"%{value}%"))).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
 
         finally:
 
@@ -297,7 +297,7 @@ def queryTableByUuid(id):
 
         try:
 
-            result = db_session.query(manageTable).order_by(manageTable.c._id.desc()).offset((page - 1) * limit).limit(limit).all()
+            result = db_session.query(manageTable).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
 
         finally:
 
@@ -1036,6 +1036,58 @@ def addOrEditTableData():
 
     return jsonify({"code": 0, "message": f"{_method}数据成功"}), 200
 
+@manage.route("/delete", methods=methods.ALL)
+@verify(allow_methods=["POST"], module_name="删除资产表数据", check_ip=True)
+def deleteTableData():
+    '''删除资产表数据'''
+    reqData = request.get_json()
+
+    if not all(key in reqData for key in ["table_uuid", "data"]):  # 校验body参数
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
+    table_uuid = reqData["table_uuid"]
+    delData = reqData["data"]
+
+    if not table_uuid or not delData:  # 校验参数是否有值
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
+    if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+    
+    try:
+
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
+
+    finally:
+
+        db_session.close()
+
+    if not table:
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+    
+    manageTable = initManageTable(table.table_name)
+
+    try:
+
+        db_session.query(manageTable).filter(getattr(manageTable.c, "_id").in_(delData)).delete(synchronize_session=False)
+        db_session.commit()
+
+    except:
+
+        db_session.rollback()
+
+        crmLogger.error(f"删除{table.table_name}表发生异常: {traceback.format_exc()}")
+
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+
+    finally:
+
+        db_session.close()
+
+    crmLogger.info(f"{g.username}用户删除{table.name}数据成功")
+
+    return jsonify({"code": 0, "message": "删除成功"}), 200
+
 @manage.route("/add_or_alter_column", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="添加或修改列", check_ip=True)
 def addOrAlterTableColumn():
@@ -1081,7 +1133,7 @@ def addOrAlterTableColumn():
         db_session.close()
 
     if not table:  # 如果不存在资产表
-        return jsonify({"code": -1, "message": "资产表uuid不存在"}), 400
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
     
     if mode == "add":
 
@@ -1096,17 +1148,17 @@ def addOrAlterTableColumn():
         if is_exist_col:  # 如果已经存在新增的列名或列别名
             return jsonify({"code": -1, "message": "该列已存在,请勿重复创建"}), 400
         
-        if col_type == 1 or col_type == 2 or col_type == 6:
-            add_col_type = String(255)
-        elif col_type == 3:
-            add_col_type = Text()
-        elif col_type == 4:
-            add_col_type = Date()
-        elif col_type == 5:
-            add_col_type = DateTime()
+        add_col_type = "VARCHAR(255)"
+        if int(col_type) == 3:
+            add_col_type = "TEXT"
+        elif int(col_type) == 4:
+            add_col_type = "DATE"
+        elif int(col_type) == 5:
+            add_col_type = "DATETIME"
 
         # 不存在重复则创建新列
-        if not addColumn(table.table_name, Column(col_alias, add_col_type)):  # 添加列
+
+        if not addColumn(table.table_name, col_alias, add_col_type):  # 添加列
             return jsonify({"code": -1, "message": "添加列失败"}), 400
         
         try:  # 查询当前order
@@ -1119,20 +1171,21 @@ def addOrAlterTableColumn():
         
         try:  # 写入header表
 
-            _value_type = col_type
-            if col_type == 6:
+            _col_type = 1
+            _value_type = int(col_type)
+            if int(col_type) == 6:
                 _col_type = 2
                 _value_type = 1
-            else:
-                _col_type = 1
-
-            new_header = Header(type=_col_type, name=col_name, value=col_alias, value_type=_value_type, is_unique=is_unique, is_desence=is_desence, must_input=must_input, length=length, order=(curr_order + 1), create_user=g.username)
+                
+            new_header = Header(type=_col_type, name=col_name, value=col_alias, value_type=_value_type, table_name=table.table_name, is_unique=int(is_unique), is_desence=int(is_desence), must_input=int(must_input), length=int(length), order=(curr_order + 1), create_user=g.username)
             db_session.add(new_header)
             db_session.commit()
 
         except:
 
             db_session.rollback()
+
+            crmLogger.error(f"写入header表发生异常: {traceback.format_exc()}")
 
             return jsonify({"code": -1, "message": "数据库异常"}), 500
 

@@ -340,16 +340,19 @@ def initManageTable(table_name: str="") -> Table:
                  autoload=True, 
                  autoload_with=engine)
 
-def addColumn(table_name: Table, col: Column) -> bool:
+def addColumn(table_name: str, col_name: str, col_type: str) -> bool:
     '''
     资产表添加新字段
     :param table_name: 资产表名称
-    :param col: 新数据列
+    :param col_name: 数据列名
+    :param col_type: 数据类型
     :return:
     '''
     try:
 
-        db_session.execute(table_name.append_column(col).alter())
+        add_col_sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
+
+        db_session.execute(text(add_col_sql))
 
         db_session.commit()
 
