@@ -9,6 +9,7 @@
     <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
     <script type="text/javascript" src="{{ url_for('static', filename='js/echarts.min.js') }}"></script>
 </head>
+
 <style>
     .cloud-card-component .layui-row .ew-datagrid-item {
         width: 25%;
@@ -51,27 +52,36 @@
         margin-top: 9px;
         height: 32px;
     }
+
+    .layui-anim-upbit::-webkit-scrollbar {
+        /* 设置滚动条样式 */
+        display: none;
+    }
 </style>
 
 <body>
     <div>
         <div id="showAllManage">
-            <form action="" class="layui-form layui-form-pane">
+            <form class="layui-form layui-form-pane">
                 <div class="layui-form-item">
                     <div class="layui-inline">
+                        <!-- 标题输入栏 -->
                         <div class="layui-input-group">
                             <div class="layui-input-split layui-input-prefix"> 标 题 </div>
                             <input type="text" name="tableName" id="tableName" placeholder="" class="layui-input"
                                 autocomplete="off">
                         </div>
+                        <!-- 展示关键字 -->
                         <div id="showkeyword"
                             style="display: none;position: absolute;width: 195px;height: auto;margin-left: 53px;z-index: 9999;background-color: white;border: 1px solid rgb(238, 238, 238);">
                         </div>
                     </div>
                     <div class="layui-inline">
+                        <!-- 搜索按钮 -->
                         <button type="button" class="layui-btn layui-btn-primary" lay-submit lay-filter="search">
                             <i class="layui-icon">&#xe615;</i> 搜 索
                         </button>
+                        <!-- 新建资产表按钮 -->
                         <button type="button" class="layui-btn" lay-submit lay-filter="addTable"
                             style="margin-left: 250px;">
                             <i class="layui-icon"></i>新建资产表
@@ -95,46 +105,28 @@
                 <div class="echart" id="chart1"></div>
                 <div class="echart" id="chart2"></div>
             </div>
+            <!-- 展示具体资产表 -->
             <div>
                 <table class="layui-hide" id="manage" lay-filter="manage"></table>
             </div>
         </div>
     </div>
 </body>
-<!-- 表格头部工具栏 -->
-<script type="text/html" id="toolBar">
-  <div class="layui-clear-space">
-    <div style="display: inline-block; margin-right: 10px;">
-        <a class="layui-btn layui-btn-sm" lay-event="add">录入数据</a>
-        <a class="layui-btn layui-btn-sm" style="margin-left: -3px;" id="dropdownBtn"><i class="layui-icon layui-icon-down layui-font-12"></i></a>
-    </div>
-    <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="edit" id="edit">编辑选中的数据</a>
-    <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="del" id="del">删除选中的数据</a>
-    <div style="width: 400px;display: inline-block; height: 20px;margin-left: 15px;">
-        <div class="layui-input-group">
-            <div class="layui-input-split layui-input-prefix" style="width: 120px;padding: 0;height: 30px;" id="prefix">
-                <select name="utype" id="utype"></select>
-            </div>
-            <input type="text" placeholder="搜索相关内容" name="keywords" class="layui-input" style="height: 32px;">
-            <div class="layui-input-split layui-input-suffix" style="cursor: pointer;width: 30px;height: 30px;">
-                <i class="layui-icon layui-icon-search"></i>
-            </div>
-        </div>
-    </div>
-  </div>
-</script>
+
 <script type="text/javascript">
     layui.config({
         base: "{{ url_for('static', filename='layui/ext/') }}"
     }).extend({
-        cardTable: 'cardTable/cardTable'
-    }).use(["layer", "cardTable", "jquery", "table", "form", "dropdown"], function () {
+        cardTable: "cardTable/cardTable"
+    }).use(["layer", "cardTable", "jquery", "table", "form", "dropdown", "upload"], function () {
         const form = layui.form;
         const layer = layui.layer;
         const table = layui.table;
         const $ = layui.jquery;
         const dropdown = layui.dropdown;
         const cardTable = layui.cardTable;
+        const upload = layui.upload;
+
         var tableUid = "";   // 资产表id
         var isEdit = false;  // 是否在编辑状态,如果是当用户尝试关闭或刷新页面时,提示他们有可能未保存的更改
 
@@ -159,59 +151,82 @@
         });
 
         currentTable.on("row(manageTable)", function (obj) {
+            $("#showAllManage").hide(); // 隐藏资产表列表
+            $("#showManage").show();    // 显示具体资产表表格
+
             tableUid = obj.value.id;    // 表格的id
-            localStorage.setItem("tableUid", tableUid);
-            let header = "";  // 表格的header
+            localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
+
+            let header = "";        // 表格的header
             if (localStorage.getItem("header")) {
                 header = JSON.parse(localStorage.getItem("header"))[tableUid] || "";
             }
-            if (!header) {
+
+            if (!header) {    // 如果本地没有则请求获取
                 $.ajax({
                     url: `/crm/api/v1/manage/header?id=${tableUid}`,
-                    type: "get",
-                    success: function (data) {
-                        if (data.code === 0) {
-                            let option_templ = "";
-                            data.message.forEach((item) => {
-                                option_templ += `<option value="${item.field}">${item.title}</option>`;
-                            });
-                            $("#utype").html(option_templ);
-                            header = data.message;
-                            // 本地存储
+                    type: "GET",
+                    success: function (res) {
+                        if (res.code === 0) {
+                            header = res.message;
+                            // 本地存储header信息
                             let obj = new Object();
                             obj[tableUid] = header;
                             localStorage.setItem("header", JSON.stringify(obj));
-                        } else { }
+                        } else {
+                            layer.msg(res.message, { icon: 2 });
+                        }
                         return false;
                     },
-                    error: function () {
+                    error: function (err) {
+                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                        layer.msg(errMsg.message, { icon: 2 });
                         return false;
                     }
                 });
             }
-            $("#showAllManage").hide(); // 隐藏资产表列表
-            $("#showManage").show();    // 显示具体资产表表格
-            showCharts();               // 展示图表
+
+            let option_templ = "";  // 选项模板
+            header.forEach((item) => {
+                option_templ += `<option value="${item.field}">${item.title}</option>`;
+            });
+
+            // 加载资产表数据
             table.render({
                 elem: "#manage",
-                url: "/crm/api/v1/manage/" + tableUid,
-                toolbar: '#toolBar',
+                id: "manage",
+                url: `/crm/api/v1/manage/${tableUid}`,
+                toolbar: `<div class="layui-clear-space">
+                            <div style="display: inline-block; margin-right: 10px;">
+                                <a class="layui-btn layui-btn-sm" lay-event="add">录入数据</a>
+                                <a class="layui-btn layui-btn-sm" style="margin-left: -3px;" id="dropdownBtn"><i class="layui-icon layui-icon-down layui-font-12"></i></a>
+                            </div>
+                            <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="edit" id="edit">编辑选中的数据</a>
+                            <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="del" id="del">删除选中的数据</a>
+                            <div style="width: 400px;display: inline-block; height: 20px;margin-left: 15px;">
+                                <div class="layui-input-group">
+                                    <div class="layui-input-split layui-input-prefix" style="width: 120px;padding: 0;height: 30px;" id="prefix">
+                                        <select name="utype" id="utype">
+                                        ${option_templ}    
+                                        </select>
+                                    </div>
+                                    <input type="text" placeholder="搜索相关内容" name="keywords" class="layui-input" style="height: 32px;">
+                                    <div class="layui-input-split layui-input-suffix" style="cursor: pointer;width: 30px;height: 30px;" id="searchData">
+                                        <i class="layui-icon layui-icon-search"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`,
                 cellMinWidth: 80,
-                defaultToolbar: [
-                    { title: "批量探测", layEvent: "LAYTABLE_PROBE", icon: "layui-icon-wifi" },
-                    { title: "到期提醒", layEvent: "LAYTABLE_NOTICE", icon: "layui-icon-notice" },
-                    { title: "新增字段", layEvent: "LAYTABLE_TIPS", icon: "layui-icon-edit" },
-                    "filter",
-                    { title: "导出", layEvent: "LAYTABLE_EXPORT", icon: "layui-icon-export" }
-                ],
+                loading: true,
                 height: "full-185",
                 page: {
                     layout: ["limit", "count", "prev", "page", "next", "skip"],
                     curr: 1,
                     groups: 5
                 },
-                limit: 6,
-                limits: [6],
+                limit: 8,
+                limits: [8],
                 totalRow: true,
                 parseData: function (result) {
                     return {
@@ -222,33 +237,52 @@
                     }
                 },
                 cols: [[{ checkbox: true, fixed: true }].concat(header)],
+                defaultToolbar: [
+                    "filter",
+                    { title: "批量探测", layEvent: "LAYTABLE_PROBE", icon: "layui-icon-wifi" },
+                    { title: "到期提醒", layEvent: "LAYTABLE_NOTICE", icon: "layui-icon-notice" },
+                    { title: "新增字段", layEvent: "LAYTABLE_TIPS", icon: "layui-icon-edit" },
+                    { title: "导出", layEvent: "LAYTABLE_EXPORT", icon: "layui-icon-export" },
+                    { title: "导入导出详情", layEvent: "LAYTABLE_DETAIL", icon: "layui-icon-time" }
+                ],
                 done: function () {
+                    // 搜索
+                    $("#searchData").on("click", () => {
+                        let u = $("#utype").val();
+                        let k = $("input[name='keywords']").val();
+                        if (k.length > 0) {
+                            table.reload("manage", {
+                                where: {
+                                    "key": u,
+                                    "value": k
+                                }
+                            });
+                        }
+                    });
                     // 下拉按钮选项
                     dropdown.render({
                         elem: "#dropdownBtn",
                         content: `<div style="width: 117.7px;">
-                                  <button type="button" class="layui-btn layui-btn-primary layui-border layui-btn-sm" id="downTempl">下载资产录入模板</button>
-                                  <button type="button" class="layui-btn layui-btn-sm" style="margin-left: 0px;" id="importDataByExcel">导入资产录入模板</button>
+                                    <button type="button" class="layui-btn layui-btn-primary layui-border layui-btn-sm" id="downTempl">下载资产录入模板</button>
+                                    <button type="button" class="layui-btn layui-btn-sm" style="margin-left: 0px;" id="importDataByExcel">导入资产录入模板</button>
                                   </div>`,
                         ready: function () {
-                            // 下载模板
+                            // 下载模板导入文件
                             $("#downTempl").on("click", function () {
                                 $.ajax({
                                     url: `/crm/api/v1/manage/template?id=${tableUid}`,
-                                    type: "get",
-                                    success: function (data, _, xhr) {
-                                        let disposition = xhr.getResponseHeader("Content-Disposition");
-                                        let filenameUTF8Regex = /filename\*\=UTF-8''(.*)/;
-                                        let utf8Matches = filenameUTF8Regex.exec(disposition);
-                                        let filename = utf8Matches ? decodeURIComponent(utf8Matches[1]) : "资产录入模板.xlsx";
-                                        let blob = new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-                                        let target = document.createElement("a");
-                                        let url = window.URL.createObjectURL(blob);
-                                        target.href = url;
-                                        target.download = filename;
-                                        document.body.appendChild(target);
-                                        target.click();
-                                        window.URL.revokeObjectURL(url);
+                                    type: "GET",
+                                    success: function (res) {
+                                        if (res.code == 0) {
+                                            let target = document.createElement("a");
+                                            target.href = `/crm/api/v1/file/${res.message.fileuuid}`;
+                                            target.download = res.message.filename;
+                                            document.body.appendChild(target);
+                                            target.click();
+                                            document.body.removeChild(target);
+                                        } else {
+                                            layer.msg(res.message, { icon: 2 });
+                                        }
                                         return false;
                                     },
                                     error: function (err) {
@@ -259,12 +293,32 @@
                                 });
                             });
                             // 导入模板数据
-                            $("#importDataByExcel").on("click", function () {
+                            upload.render({
+                                elem: "#importDataByExcel",
+                                url: "/crm/api/v1/upload",
+                                accept: "file",
+                                acceptMime: "application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                exts: "xls|xlsx",
+                                done: function (res) {
+                                    if (res.code == 0) {
+                                        // 显示导入进度
+                                    } else {
+                                        layer.msg("失败: " + res.message, { icon: 2 });
+                                    }
+                                    return false;
+                                },
+                                error: function () {
+                                    layer.msg("表格导入数据失败", { icon: 2 });
+                                    return false;
+                                }
                             });
                         }
                     });
                 }
             });
+
+            showCharts();           // 展示图表
+
             return false;
         });
 
@@ -272,7 +326,7 @@
         table.on("checkbox(manage)", function (obj) {
             let id = obj.config.id;
             let checkStatus = table.checkStatus(id);
-            if (checkStatus.data.length > 0) {
+            if (checkStatus.data.length > 0) {  // 选中数据则展示编辑和删除按钮
                 $("#del").removeClass("layui-btn-disabled");
                 $("#edit").removeClass("layui-btn-disabled");
             } else {
@@ -296,14 +350,17 @@
                     }
                     window.parent.editColData(tableUid, checkStatus.data[0]);
                     break;
+                case "del":  // 删除数据
+                    window.parent.delColData(tableUid, checkStatus.data);
+                    break;
                 case "LAYTABLE_PROBE":   // 批量ping
                     window.parent.mulitDetect(tableUid);
                     break;
                 case "LAYTABLE_NOTICE":  // 新建通知
                     window.parent.createNotify(tableUid);
                     break;
-                case "LAYTABLE_TIPS":    // 新增列
-                    window.parent.addNewCol(tableUid);
+                case "LAYTABLE_TIPS":    // 新增或修改列属性
+                    window.parent.addOrAlterCol(tableUid);
                     break;
                 case "LAYTABLE_EXPORT":  // 导出表格
                     // 判断当前是否有筛选
@@ -362,12 +419,12 @@
             if (value) {
                 $.ajax({
                     url: `/crm/api/v1/manage/title?k=${value}`,
-                    type: "get",
-                    success: function (data) {
-                        if (data.code === 0) {
-                            if (data.message.length > 0) {
+                    type: "GET",
+                    success: function (res) {
+                        if (res.code === 0) {
+                            if (res.message.length > 0) {
                                 let keyword_templ = "";
-                                data.message.forEach((item) => {
+                                res.message.forEach((item) => {
                                     keyword_templ += `<div style="padding: 10px;cursor: pointer;">${item}</div>`;
                                 });
                                 $("#showkeyword").html(keyword_templ);

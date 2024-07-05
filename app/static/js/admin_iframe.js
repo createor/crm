@@ -1,19 +1,20 @@
 // admin_iframe.js
 // iframe调用父页面方法
 
-// crm_user module
-
+// system模块
 /**
  * @description 添加白名单IP 
 */
 var addNewWhiteIp = function () {
     let currIndex = layer.open({
         type: 1,
-        title: '添加白名单IP',
+        title: "添加白名单IP",
+        shade: 0.8,
         shadeClose: false,
         move: false,
-        shade: 0.8,
-        area: ['300px', '220px'],
+        resize: false,
+        maxmin: false,
+        area: ["300px", "220px"],
         content: `<div class="layui-form" style="padding: 10px 0 0 0;">
                     <div class="layui-form-item">
                         <label class="layui-form-label" style="width: 40px;">IP</label>
@@ -46,21 +47,20 @@ var addNewWhiteIp = function () {
                 let field = data.field;
                 $.ajax({
                     url: "/crm/api/v1/system/add_white_list",
-                    type: "post",
+                    type: "POST",
                     contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
                         ip: field.ip,
                         description: field.remark
                     }),
-                    success: function (data) {
-                        if (data.code === 0) {
+                    success: function (res) {
+                        if (res.code === 0) {
                             layer.close(currIndex);
                             layer.msg("添加IP成功", {icon: 1});
-                            return false;
                         } else {
-                            layer.msg("添加IP失败:" + data.message, {icon: 2});
-                            return false;
+                            layer.msg("添加IP失败: " + res.message, {icon: 2});  
                         }
+                        return false;
                     },
                     error: function (err) {
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
@@ -81,25 +81,25 @@ var addNewWhiteIp = function () {
 */
 var delWhiteIp = function (id, ip) {
     layer.confirm("确定删除该IP吗?", {
+        title: "删除IP",
         btn: ["确定", "取消"]
     }, function (index) {
         $.ajax({
             url: "/crm/api/v1/system/delete_white_list",
-            type: "post",
+            type: "POST",
             contentType: "application/json;charset=utf-8",
             data: JSON.stringify({
                 id: id,
                 ip: ip
             }),
-            success: function (data) {
-                if (data.code === 0) {
-                    layer.msg("删除成功", { icon: 1 });
+            success: function (res) {
+                if (res.code === 0) {
                     layer.close(index);
-                    return false;
+                    layer.msg("删除成功", { icon: 1 });
                 } else {
-                    layer.msg("删除失败:" + data.message, {icon: 2});
-                    return false;
-                } 
+                    layer.msg("删除失败:" + res.message, {icon: 2});
+                }
+                return false;
             },
             error: function (err) {
                 let errMsg = err.responseJSON || JSON.parse(err.responseText);
@@ -117,12 +117,13 @@ var showWhiteIp = function () {
     // 新建白名单
     layer.open({
         type: 1,
-        area: ['500px', '310px'],
+        area: ["500px", "310px"],
         title: "白名单IP",
         shade: 0.6,
         shadeClose: false,
         maxmin: false,
         move: false,
+        resize: false,
         anim: 0,
         content: `<div>
                     <div style="margin: 5px 0 5px 10px;">
@@ -148,7 +149,7 @@ var showWhiteIp = function () {
                     return {
                         "code": res.code,
                         "msg": res.code === 0 ? "" : res.message,
-                        "count": res.message.count,
+                        "count": res.message.total,
                         "data": res.message.data
                     }
                 },
@@ -161,8 +162,8 @@ var showWhiteIp = function () {
                     } }
                 ]]
             });
-            // 搜索事件
             form.render();
+            // 搜索事件
             form.on("input-affix(ip)", function (data) {
                 let elem = data.elem;
                 let value = elem.value; 
@@ -174,6 +175,15 @@ var showWhiteIp = function () {
             });
         }
     });
+}
+
+// user模块
+/**
+ * @description 重载用户数据
+*/
+function reloadUserData() {
+    let win = window.frames["crm_user"];
+    win.contentWindow.reloadData();  // 调用iframe内方法
 }
 
 /**
@@ -188,6 +198,7 @@ var addNewUser = function () {
         shadeClose: false,
         maxmin: false,
         move: false,
+        resize: false,
         anim: 0,
         content: `<div style="width: 300px;padding-top: 10px;">
                     <form class="layui-form" lay-filter="editUser">
@@ -224,7 +235,7 @@ var addNewUser = function () {
                             </div>
                         </div>
                         <div class="layui-form-item" style="margin-left: 140px; margin-top: 40px;">
-                            <div class="layui-btn-container" style="width:200px;">
+                            <div class="layui-btn-container" style="width: 200px;">
                                 <button type="button" class="layui-btn" style="margin-right: 50px;" lay-submit lay-filter="create">创建</button>
                                 <button type="button" class="layui-btn layui-btn-primary layui-border" lay-submit lay-filter="cancel">取消</button>
                             </div>
@@ -267,7 +278,7 @@ var addNewUser = function () {
                 }
                 $.ajax({
                     url: "/crm/api/v1/user/add",
-                    type: "post",
+                    type: "POST",
                     contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
                         username: field.username,
@@ -276,17 +287,15 @@ var addNewUser = function () {
                         company: field.company,
                         expire_time: field.type === "2" ? $("#expire-time").val() : ""
                     }),
-                    success: function(data) {
-                        if (data.code === 0) {
+                    success: function(res) {
+                        if (res.code === 0) {
                             layer.closeAll();
                             layer.msg("创建成功", {icon: 1});
-                            // 重载用户表格
-                            reloadUserData();
-                            return false;
+                            reloadUserData();  // 重载用户表格
                         } else {
-                            layer.msg(data.message, {icon: 2});
-                            return false;
+                            layer.msg("创建失败: " + res.message, {icon: 2});
                        }
+                       return false;
                     },
                     error: function(err) {
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
@@ -317,6 +326,7 @@ var showUserEdit = function (userData) {
         shadeClose: false,
         maxmin: false,
         move: false,
+        resize: false,
         anim: 0,
         content: `<div style="width:300px;padding-top:10px;">
                     <form class="layui-form" lay-filter="editUser">
@@ -373,7 +383,7 @@ var showUserEdit = function (userData) {
                 let field = data.field;
                 $.ajax({
                     url: "/crm/api/v1/user/edit",
-                    type: "post",
+                    type: "POST",
                     contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
                         uid: userData.id,
@@ -383,17 +393,15 @@ var showUserEdit = function (userData) {
                         company: field.company,
                         expire_time: field.type === "2" ? $("#expire-time").val() : ""
                     }),
-                    success: function (data) {
-                        if (data.code === 0) {
+                    success: function (res) {
+                        if (res.code === 0) {
                             layer.closeAll();
                             layer.msg("更新成功", {icon: 1});
-                            // 重载用户表格
-                            reloadUserData();
-                            return false;
+                            reloadUserData();  // 重载用户表格
                         } else {
-                            layer.msg("更新失败:" + data.message, {icon: 2});
-                            return false;
+                            layer.msg("更新失败:" + res.message, {icon: 2});
                         }
+                        return false;
                     },
                     error: function(err) {
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
@@ -408,37 +416,29 @@ var showUserEdit = function (userData) {
 }
 
 /**
- * @description 重载用户数据
-*/
-function reloadUserData() {
-    let win = window.frames["crm_user"];
-    win.contentWindow.reloadData();
-}
-
-/**
  * @description 删除用户
  * @param {object} data 用户数据
 */
 var showUserDel = function (data) {
     layer.confirm("是否删除用户?", {
-        title: "删除",
-        btn: ["确定", "取消"]
+            title: "删除",
+            btn: ["确定", "取消"]
         }, function () {
             // 删除用户
             $.ajax({
                 url: "/crm/api/v1/user/del",
-                type: "post",
+                type: "POST",
                 contentType: "application/json;charset=utf-8",
                 data: JSON.stringify({
                     "uid": data.id,
                     "username": data.username
                 }),
-                success: function (data) {
-                    if (data.code === 0) {
+                success: function (res) {
+                    if (res.code === 0) {
                         layer.msg("删除成功", {icon: 1});
                         reloadUserData();
                     } else {
-                        layer.msg("删除失败:" + data.message, {icon: 2});
+                        layer.msg("删除失败: " + res.message, {icon: 2});
                     }
                     return false;
                 },
@@ -450,10 +450,9 @@ var showUserDel = function (data) {
             });
         },
         function () {
-            // 关闭窗口
-            layer.closeAll();
+            layer.closeAll();  // 关闭窗口
         }
-    );  // 弹窗确认
+    );
 }
 
 /**
@@ -462,24 +461,24 @@ var showUserDel = function (data) {
 */
 var showUserLock = function (data) {
     layer.confirm("是否锁定用户?", {
-        title: "锁定",
-        btn: ["确定", "取消"]
+            title: "锁定",
+            btn: ["确定", "取消"]
         }, function () {
             // 锁定用户
             $.ajax({
                 url: "/crm/api/v1/user/lock",
-                type: "post",
+                type: "POST",
                 contentType: "application/json;charset=utf-8",
                 data: JSON.stringify({
                     "uid": data.id,
                     "username": data.username
                 }),
-                success: function (data) {
-                    if (data.code === 0) {
+                success: function (res) {
+                    if (res.code === 0) {
                         layer.msg("已锁定", {icon: 1});
                         reloadUserData();
                     } else {
-                        layer.msg("锁定失败:" + data.message, {icon: 2});
+                        layer.msg("锁定失败: " + res.message, {icon: 2});
                     }
                     return false;
                 },
@@ -493,7 +492,7 @@ var showUserLock = function (data) {
         function () {
             layer.closeAll();
         }
-    );  //弹窗确认
+    );
 }
 
 /**
@@ -502,24 +501,24 @@ var showUserLock = function (data) {
 */
 var showUserUnlock = function (data) {
     layer.confirm("是否解锁用户?", {
-        title: "解锁",
-        btn: ["确定", "取消"]
+            title: "解锁",
+            btn: ["确定", "取消"]
         }, function () {
             // 解锁用户
             $.ajax({
                 url: "/crm/api/v1/user/unlock",
-                type: "post",
+                type: "POST",
                 contentType: "application/json;charset=utf-8",
                 data: JSON.stringify({
                     "uid": data.id,
                     "username": data.username
                 }),
-                success: function (data) {
-                    if (data.code === 0) {
+                success: function (res) {
+                    if (res.code === 0) {
                         layer.msg("解锁成功", {icon: 1});
                         reloadUserData();
                     } else {
-                        layer.msg("解锁失败:" + data.message, {icon: 2});
+                        layer.msg("解锁失败: " + res.message, {icon: 2});
                     }
                     return false;
                 },
@@ -542,23 +541,23 @@ var showUserUnlock = function (data) {
 */
 var showUserReset = function (data) {
     layer.confirm("是否重置密码?", {
-        title: "重置密码",
-        btn: ["确定", "取消"]
+            title: "重置密码",
+            btn: ["确定", "取消"]
         }, function () {
             // 重置用户密码
             $.ajax({
                 url: "/crm/api/v1/user/reset",
-                type: "post",
+                type: "POST",
                 contentType: "application/json;charset=utf-8",
                 data: JSON.stringify({
                     "uid": data.id,
                     "username": data.username
                 }),
-                success: function (data) {
-                    if (data.code === 0) {
+                success: function (res) {
+                    if (res.code === 0) {
                         layer.msg("重置成功", {icon: 1});
                     } else {
-                        layer.msg("重置失败:" + data.message, {icon: 2});
+                        layer.msg("重置失败: " + res.message, {icon: 2});
                     }
                     return false;
                 },

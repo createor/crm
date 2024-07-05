@@ -94,19 +94,19 @@
             let event = obj.event;
             let data = obj.data;
             switch (event) {
-                case "edit":  // 编辑用户
+                case "edit":    // 编辑用户
                     window.parent.showUserEdit(data);
                     break;
-                case "del":  // 删除用户
+                case "del":     // 删除用户
                     window.parent.showUserDel(data);
                     break;
-                case "lock":  // 锁定用户
+                case "lock":    // 锁定用户
                     window.parent.showUserLock(data);
                     break;
                 case "unlock":  // 解锁用户
                     window.parent.showUserUnlock(data);
                     break;
-                case "reset":  // 重置密码
+                case "reset":   // 重置密码
                     window.parent.showUserReset(data);
                     break;
             }

@@ -15,7 +15,7 @@ from app.utils.logger import crmLogger
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.styles import Protection
+# from openpyxl.styles import Protection
 from openpyxl.cell.text import InlineFont
 from openpyxl.cell.rich_text import TextBlock, CellRichText
 
@@ -54,9 +54,10 @@ def createExcel(filepath: str, filename: str, sheet_name: str, header: dict, dat
             if v["must_input"]:  # 必填选项
                 red = InlineFont(color="FF0000")  # 设置字体颜色
                 richText = TextBlock(red, "*")
-                ws[f"{v["index"]}1"] = CellRichText(name + richText)
+                ws[f"{v['index']}1"] = CellRichText([name, richText])
             else:
-                ws[f"{v["index"]}1"] = name
+                ws[f"{v['index']}1"] = name
+            ws.column_dimensions[v["index"]].width = len(name) + 2  # 设置列宽度
         # 写入数据
         if not is_template:
             for r in dataframe_to_rows(data, index=False, header=True):
@@ -70,9 +71,9 @@ def createExcel(filepath: str, filename: str, sheet_name: str, header: dict, dat
         # 给表格添加密码
         if passwd:
             ws.protection.password = passwd
-        # 保护工作表
-        ws.protection.sheet = True
-        ws.protection.options = Protection(locked=True)
+        # 保护工作表不被修改
+        # ws.protection.sheet = True
+        # ws.protection.options = Protection(locked=True)
         # 保存文件
         wb.save(os.path.join(filepath, f"{filename}.xlsx"))
         return True

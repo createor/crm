@@ -13,7 +13,7 @@ import json
 import traceback
 from flask import Blueprint, request, jsonify, g, Response, send_file
 from app.utils import UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, methods, crmLogger, readExcel, createExcel, getUuid, verify, redisClient, converWords, job, undesense
-from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, File, Notify, initManageTable, generateManageTable, addColumn, alterColumn, MyHeader
+from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, File, Notify, History, initManageTable, generateManageTable, addColumn, alterColumn, MyHeader
 from app.src.task import exportTableTask
 from sqlalchemy import or_, func, Column, String, Text, Date, DateTime
 from sqlalchemy.sql import insert
@@ -25,9 +25,7 @@ manage = Blueprint("manage", __name__)
 @manage.route("/query", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="查询资产表", check_ip=True)
 def queryTable():
-    '''
-    查询所有资产表
-    '''
+    '''查询所有资产表'''
     args = request.args                        # 获取请求参数
 
     title = args.get("title", None)            # 资产表标题
@@ -92,7 +90,7 @@ def queryTable():
         
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}查询了资产表,title={title},page={page},limit={limit}")  # 写入日志文件
+    crmLogger.info(f"用户{g.username}成功查询了资产表,title={title},page={page},limit={limit}")  # 写入日志文件
 
     return jsonify({
         "code": 0,
@@ -105,9 +103,7 @@ def queryTable():
 @manage.route("/title", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="查询资产表标题", check_ip=True)
 def queryTableTitle():
-    '''
-    查询所有资产表标题
-    '''
+    '''查询所有资产表标题'''
     args = request.args          # 获取请求参数
 
     title = args.get("k", None)  # 搜索关键字
@@ -126,22 +122,20 @@ def queryTableTitle():
 @manage.route("/header", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="查询资产表字段", check_ip=True)
 def getTableHeader():
-    '''
-    获取表格的头部字段
-    '''
+    '''获取表格的头部字段'''
     args = request.args        # 获取请求参数
 
-    id = args.get("id", None)  # 表格的uuid
+    table_uuid = args.get("id", None)  # 表格的uuid
 
-    if not id:
+    if not table_uuid:
         return jsonify({"code": -1, "message": "缺少id参数"}), 400
     
-    if not redisClient.getSet("crm:manage:table_uuid", id):
+    if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
     try:  # 查看表是否存在
 
-        table = db_session.query(Manage).filter(Manage.uuid == id).first()
+        table = db_session.query(Manage).filter(Manage.uuid == table_uuid).first()
 
     finally:
 
@@ -183,9 +177,9 @@ def getTableHeader():
             "field": item.value,                 # 值
             "title": item.name,                  # 标题
             "fieldTitle": item.name,             # 标题
-            "type": item.type,                   # 类型
+            "col_type": item.type,               # 列类型:1-字符串,2-下列列表
             "value_type": item.value_type,       # 值类型
-            "length": item.length,               # 长度
+            "length": item.length,               # 值长度
             "is_unique": bool(item.is_unique),   # 是否唯一
             "is_mark": bool(item.is_desence),    # 是否加密
             "must_input": bool(item.must_input)  # 是否必填
@@ -525,17 +519,17 @@ def downloadTableTemplate():
     '''
     args = request.args        # 获取请求参数
 
-    id = args.get("id", None)  # 获取表uuid
+    table_uuid = args.get("id", None)  # 获取表uuid
 
-    if not id:
+    if not table_uuid:
         return jsonify({"code": -1, "message": "缺少id参数"}), 400
     
-    if not redisClient.getSet("crm:manage:table_uuid", id):
+    if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
     try:
 
-        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == id).first()
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
 
     finally:
 
@@ -548,7 +542,15 @@ def downloadTableTemplate():
 
     if templ_file:  # 缓存存在则直接返回
 
-        return jsonify({"code": 0, "message": templ_file}), 200
+        try:
+
+            file = db_session.query(File.filename).filter(File.uuid == templ_file).first()
+
+        finally:
+
+            db_session.close()
+
+        return jsonify({"code": 0, "message": {"filename": file.filename, "fileuuid": templ_file}}), 200
    
     else:  # 缓存不存在则创建模板文件
 
@@ -556,7 +558,7 @@ def downloadTableTemplate():
 
         if header:
 
-            header = [MyHeader[i] for i in header]
+            header = [MyHeader(i) for i in json.loads(header)]
 
         else:
 
@@ -621,7 +623,7 @@ def downloadTableTemplate():
 
         crmLogger.info(f"生成资产表<{table.name}>导入模板文件完成")
 
-        return jsonify({"code": 0, "message": fileUuid}), 200
+        return jsonify({"code": 0, "message": {"filename": f"{table.name}导入模板.xlsx", "fileuuid": fileUuid}}), 200
 
 @manage.route("/import", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="导入资产表数据", check_ip=True)
@@ -637,7 +639,7 @@ def importTableFromExcel():
     file_uuid = reqData["file_uuid"]    # 获取上传的文件uuid
     table_id = reqData["table_id"]      # 获取导入的资产表id
 
-    if not file_uuid or not table_id:  # 值为空情况
+    if not file_uuid or not table_id:  # 必填参数值为空情况
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
     
     if not redisClient.getSet("crm:manage:table_uuid", table_id):  # 如果资产表不存在
@@ -665,21 +667,71 @@ def importTableFromExcel():
     if not file:  # 文件不存在
         return jsonify({"code": -1, "message": "导入的文件不存在"}), 400
     
+    try:  # 写入记录表
+
+        import_history = History(file_uuid=file_uuid, mode=2, status=0, table_name=table.table_name, create_user=g.username)
+        db_session.add(import_history)
+        db_session.commit()
+
+    except:
+
+        db_session.rollback()
+
+        crmLogger.error(f"写入history表发生异常: {traceback.format_exc()}")
+
+    finally:
+
+        db_session.close()
+
     temp_table = readExcel(os.path.join(UPLOAD_EXCEL_DIR, f"{file_uuid}.{file.affix}"))  # 读取表格
 
     if temp_table is None:  # 读取表格失败
+
+        try:
+
+            db_session.query(History).filter(History.file_uuid == file_uuid, History.table_name == table.table_name).update({"status": 3})
+            db_session.commit()
+
+        except:
+
+            db_session.rollback()
+
+            crmLogger.error(f"写入history表发生异常: {traceback.format_exc()}")
+
+        finally:
+
+            db_session.close()
+
         return jsonify({"code": -1, "message": "读取导入表格失败"}), 400
 
     table_headers = temp_table.columns.tolist()  # 获取表头字段
 
     if len(table_headers) == 0:  # 表头为空
+
+        try:
+
+            db_session.query(History).filter(History.file_uuid == file_uuid, History.table_name == table.table_name).update({"status": 3})
+            db_session.commit()
+
+        except:
+
+            db_session.rollback()
+
+            crmLogger.error(f"写入history表发生异常: {traceback.format_exc()}")
+
+        finally:
+
+            db_session.close()
+
+        crmLogger.error(f"用户{g.username}导入资产表{table.table_name}表格失败: 读取表格表头为空")
+
         return jsonify({"code": -1, "message": "读取导入表格失败"}), 400
     
     templ_header = redisClient.getData(f"crm:header:{table.table_name}")  # 读取缓存
 
     if templ_header:
 
-        templ_header = [MyHeader[i] for i in templ_header]
+        templ_header = [MyHeader(i) for i in json.loads(templ_header)]
 
     else:
     
@@ -833,7 +885,7 @@ def addOrEditTableData():
 
     if all_header:
         
-        all_header = [MyHeader[i] for i in all_header]
+        all_header = [MyHeader(i) for i in json.loads(all_header)]
 
     else:  # 如果header为空,则从数据库中获取
 
@@ -1008,7 +1060,7 @@ def addOrAlterTableColumn():
     length = reqData["length"]          # 如果列类型为2,此选项为长度
 
     # 校验必填参数是否有值
-    if not all(mode, table_uuid, col_name, col_alias, type, must_input, is_desence, is_unique):
+    if not all([mode, table_uuid, col_name, col_alias, type, must_input, is_desence, is_unique]):
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
     
     if not redisClient.getSet("crm:manage:table_uuid", table_uuid):  # 查询表uuid是否存在
@@ -1257,6 +1309,7 @@ def addOrAlterTableColumn():
 
             curr_header.name = col_name
             curr_header.must_input = int(must_input)
+            curr_header.update_user = g.username
 
             db_session.commit()
 
@@ -1506,7 +1559,7 @@ def setEchartRule():
 
         if rules:
 
-            rules = [MyHeader[i] for i in rules]
+            rules = [MyHeader(i) for i in json.loads(rules)]
 
         else:
 

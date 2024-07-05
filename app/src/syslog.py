@@ -6,7 +6,7 @@
 @Version :  1.0
 @Desc    :  操作日志模块
 '''
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, g, jsonify
 from app.src.models import db_session, Log
 from app.utils import methods, crmLogger, verify
 from sqlalchemy import and_
@@ -22,17 +22,17 @@ def queryLog():
 
     page = int(args.get("page", default=1))       # 页码,默认1
     limit = int(args.get("limit", default=10))    # 每页数量,默认10
-    operate_user = args.get("user", None)         # 用户名
+    operate_user = args.get("user", None)         # 用户名,user=user1,user2,user3...
     operate_start = args.get("start", None)       # 开始时间
     operate_end = args.get("end", datetime.now().replace(hour=23, minute=59, second=59, microsecond=0))      # 结束时间
 
     query_condition = []  # 查询条件
 
-    if operate_user is not None:  # 筛选用户不为空
+    if operate_user:      # 筛选用户不为空
 
         query_condition.append(Log.operate_user.in_(operate_user.split(",")))
 
-    if operate_start is not None: # 筛选时间不为空
+    if operate_start:     # 筛选时间不为空
 
         query_condition.append(Log.operate_time >= datetime.strptime(operate_start, "%Y-%m-%dT%H:%M:%S"))
         query_condition.append(Log.operate_time <= datetime.strptime(operate_end, "%Y-%m-%dT%H:%M:%S"))
@@ -59,7 +59,7 @@ def queryLog():
             db_session.close()
         
 
-    else:
+    else:  # 不存在筛选条件
 
         try:
 

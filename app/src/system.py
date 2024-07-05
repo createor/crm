@@ -18,7 +18,7 @@ system = Blueprint("system", __name__)
 @verify(allow_methods=["GET"], module_name="查询系统配置", is_admin=True, check_ip=True)
 def getConfig():
     '''读取系统配置'''
-    try: # 写入log表
+    try:  # 写入log表
 
         query_log = Log(ip=g.ip_addr, operate_type="查询系统配置", operate_content="查询系统配置", operate_user=g.username)
         db_session.add(query_log)
@@ -28,13 +28,13 @@ def getConfig():
 
         db_session.rollback()  # 发生异常事务回滚
 
-        crmLogger.error(f"写入log发生表异常: {traceback.format_exc()}")
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
 
     finally:
 
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}查询系统配置")  # 写入日志文件
+    crmLogger.info(f"用户{g.username}成功查询系统配置")  # 写入日志文件
 
     return jsonify({
         "code": 0,
@@ -62,7 +62,7 @@ def updateConfig():
     failed_count = reqData["failed_count"]
     enable_watermark = reqData["enable_watermark"]
 
-    if not all([enable_failed, enable_white, enable_single, failed_count, enable_watermark]):
+    if not all([enable_failed, enable_white, enable_single, failed_count, enable_watermark]):  # 校验参数是否有值
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
 
     if int(failed_count) < 1 or int(failed_count) > 10:  # 检测失败次数
@@ -105,6 +105,7 @@ def updateConfig():
     except:
 
         db_session.rollback()  # 发生异常事务回滚
+
         crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
 
     finally:
@@ -142,7 +143,7 @@ def getWhiteList():
             
         try:
 
-            result = db_session.query(WhiteList).filter(WhiteList.ip.like(f"%{ip}%")).order_by(WhiteList.id.asc()).offset((page - 1) * limit).limit(limit).all()
+            result = db_session.query(WhiteList).filter(WhiteList.ip.like(f"%{ip}%")).order_by(WhiteList.id.desc()).offset((page - 1) * limit).limit(limit).all()
         
         finally:
 
@@ -179,7 +180,7 @@ def getWhiteList():
         
         try:
             
-            result = db_session.query(WhiteList).order_by(WhiteList.id.asc()).offset((page - 1) * limit).limit(limit).all()
+            result = db_session.query(WhiteList).order_by(WhiteList.id.desc()).offset((page - 1) * limit).limit(limit).all()
 
         finally:
 
@@ -223,7 +224,7 @@ def addWhiteList():
     white_ip = reqData["ip"]
     description = reqData["description"]
 
-    if white_ip:
+    if not white_ip:
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
 
     # 使用正则判断是否是IP

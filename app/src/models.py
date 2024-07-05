@@ -278,9 +278,11 @@ class History(Base):
     '''导入导出历史记录表'''
     __tablename__ = "crm_history"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    file_uuis = Column(String(40), nullable=False)  # 导入或导出的文件id
+    file_uuid = Column(String(40))                  # 导入或导出的文件uuid
+    err_file = Column(String(40))                   # 导入文件错误说明文件uuid
     mode = Column(Integer, nullable=False)          # 1-导出, 2-导入
-    status = Column(Integer, default=0)             # 0-未完成, 1-已完成, 2-失败
+    status = Column(Integer, default=0)             # 0-排队中, 1-在执行, 2-执行成功, 3-执行失败
+    table_name = Column(String(20), nullable=False) # 导入导出的资产表别名
     create_user = Column(String(100))               # 创建者
     create_time = Column(DateTime, default=datetime.now)  # 创建时间
 

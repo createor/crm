@@ -87,22 +87,21 @@
          * @description 筛选用户
         */
         function filterUser () {
-            let checkData = tree.getChecked("filter");
+            let checkData = tree.getChecked("filter");  // 获取选中的数据
             if (checkData.length === 0 || checkData[0].children.length === 0) {
                 layer.msg("请选择用户", { icon: 2 });
                 return false;
             }
-            let userList = [];
+            let userList = [];  // 用户列表
             checkData[0].children.forEach(item => {
                 userList.push(item.field);
             });
-            // 使用localstorage存储选择信息
-            localStorage.setItem("filter", JSON.stringify(userList));
+            localStorage.setItem("filter", JSON.stringify(userList));  // 使用localstorage存储筛选信息
             // 判断日期是否存在
             if ($("input[name=start_time]").val() && $("input[name=end_time]").val()) {
-                table.reloadData("mylog", {
+                table.reloadData("mylog", {  // 重载表格
                     where: {
-                        user: userList.toString(),
+                        user: userList.toString(),  // 数组转字符串
                         start: $("input[name=start_time]").val(),
                         end: $("input[name=end_time]").val()
                     }
@@ -126,12 +125,12 @@
                 // 获取用户列表
                 $.ajax({
                     url: "/crm/api/v1/user/list",
-                    type: "get",
-                    success: function (data) {
-                        if (data.code === 0) {
+                    type: "GET",
+                    success: function (res) {
+                        if (res.code === 0) {
                             let hasChecked = JSON.parse(localStorage.getItem("filter")) || [];
                             let tempDiv = [];
-                            data.message.forEach((item) => {
+                            res.message.forEach((item) => {
                                 tempDiv.push({
                                     title: item.name ? item.name : item.username,
                                     id: item.id,
