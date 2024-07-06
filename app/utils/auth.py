@@ -48,7 +48,7 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
                         username = session.get("username")  # 从session获取用户名
 
                         if username is None:
-                            return redirect(url_for("login", errMsg=""))  # 未登录或者登录过期返回登录界面
+                            return redirect(url_for("login", errMsg="null"))  # 未登录或者登录过期返回登录界面
                         
                         g.username = username
 

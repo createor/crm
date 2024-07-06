@@ -24,8 +24,8 @@ def index():
 @app.route("/login", methods=methods.ALL)
 def login():
     '''登录页'''
-    # ip_addr = request.headers.get("X-Forwarded-For") or "127.0.0.1"
-    ip_addr = request.remote_addr or "127.0.0.1"  # 获取用户访问IP
+    ip_addr = request.headers.get("X-Forwarded-For") or "127.0.0.1"
+    # ip_addr = request.remote_addr or "127.0.0.1"  # 获取用户访问IP
 
     if bool(int(redisClient.getData("crm:system:enable_white"))):  # 判断是否开启白名单机制
 

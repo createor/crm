@@ -1710,14 +1710,17 @@ def getEchart():
     '''
     args = request.args        # 获取请求参数
 
-    id = args.get("id", None)  # 获取表id
+    table_uuid = args.get("id", None)  # 获取表id
 
-    if not id:  # 参数不存在
+    if not table_uuid:  # 参数不存在
         return jsonify({"code": -1, "message": "缺少id参数"}), 400
     
     try:  # 查询表是否存在
-        table = db_session.query(Manage.table_name).filter(Manage.uuid == id).first()
+
+        table = db_session.query(Manage.table_name).filter(Manage.uuid == table_uuid).first()
+    
     finally:
+
         db_session.close()
 
     if not table:
@@ -1728,8 +1731,11 @@ def getEchart():
     # 缓存不存在
     
     try:  # 查询规则
-        rules = db_session.query(Echart).filter(Echart.table_name == id).order_by(Echart.id.asc()).all()
+
+        rules = db_session.query(Echart).filter(Echart.table_name == table.table_name).order_by(Echart.id.asc()).all()
+        
     finally:
+
         db_session.close()
 
     if not rules:

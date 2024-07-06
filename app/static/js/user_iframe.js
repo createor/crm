@@ -263,177 +263,150 @@ var addNewTable = function () {
 }
 
 /**
- * @description 获取图表配置
- * @param type 图表类型
- * @param title 图表标题
- * @param data 图表数据
- */ 
-function getConfig (type, title, data) {
-    // 默认配置
-    let base_option = {
-        title: { text: title },
-        tooltip: { trigger: "axis" },
-        legend: { data: data.legend },
-        toolbox: { feature: { saveAsImage: {} } },  // 保存图片
-        xAxis: {
-            type: "category",
-            boundaryGap: false,
-            data: data.xAxis,
-        },  // x轴
-        yAxis: {
-            type: "value",
-        }, // y轴
-        series: data.series
-    };
-    switch(type) {
-        // 饼图
-        case "1":
-            option = {};
-            break;
-        // 折线图
-        case "2":
-            break;
-        // 柱形图
-        case "3":
-            base_option.title.left = "center";
-            base_option.tooltip.trigger = "item";
-            break;
-    }
-    return base_option;
-}
-
-/**
  * @description 新增图表规则
  * @param {String} tableId 表uuid
  */
 var addNewRule = function (tableId) {
-    let id = tableId || localStorage.getItem("tableUid");
-    let header = JSON.parse(localStorage.getItem("header"))[id];
-    let option_template = "";
-    header.forEach(item => {
+    let table_id = tableId || localStorage.getItem("tableUid");
+    let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
+    let option_template = "";  // 字段选项模板
+    let date_template = "";    // 时间选项模板
+    header.forEach((item) => {
         option_template += `<option value="${item.field}">${item.title}</option>`;
+        if (item.value_type === 5 || item.value_type === 6) {
+            date_template += `<option value="${item.field}">${item.title}</option>`;
+        }
+    });
+    let tab_template = "";     // tab页模板
+    let number = new Array(0, 1, 2);
+    number.forEach((item) => {
+        tab_template += `<div class="layui-tab-item${item === 0 ? " layui-show" : ""}"}>
+                            <div class="layui-form-item">
+                                <label class="layui-form-label">规则名称</label>
+                                <div class="layui-input-inline">
+                                    <input type="text" name="rule_${item}_name" placeholder="请输入规则名称" autocomplete="off" class="layui-input">
+                                </div>
+                            </div>
+                            <div style="margin-left: 10px;margin-bottom: 5px;"><span style="color: red;">*</span>仅当图表类型为折线图时时间字段为必选值</div>
+                            <div class="layui-form-item">
+                                <div class="layui-input-inline echart_options" style="width:100%;">
+                                    <fieldset class="layui-elem-field" style="width:140px;float:left;margin: 0 10px 0 10px;">
+                                        <legend>图表类型</legend>
+                                        <div class="layui-field-box">
+                                            <select name="rule_${item}_type">
+                                                <option value="">请选择</option>
+                                                <option value="1">饼图</option>
+                                                <option value="2">柱形图</option>
+                                                <option value="3">折线图</option>
+                                            </select>
+                                        </div>
+                                    </fieldset>
+                                    <fieldset class="layui-elem-field" style="width:160px;float:left;margin: 0 10px 0 10px;">
+                                        <legend>数据来源</legend>
+                                        <div class="layui-field-box">
+                                            <select name="rule_${item}_value">
+                                                <option value="">请选择</option>
+                                                ${option_template}
+                                            </select>
+                                        </div>
+                                    </fieldset>
+                                    <fieldset class="layui-elem-field" style="width:160px;">
+                                        <legend>时间字段</legend>
+                                        <div class="layui-field-box">
+                                            <select name="rule_${item}_date">
+                                                <option value="">请选择</option>
+                                                ${date_template}
+                                            </select>
+                                        </div>
+                                    </fieldset>
+                                </div>
+                            </div>
+                        </div>`
     });
     layer.open({
         type: 1,
-        title: "自定义规则",
-        area: ["500px", "400px"],
-        content: `<div class="layui-tab" layui-tab-card lay-filter="ruleTab">
+        title: "自定义图表规则",
+        area: ["540px", "420px"],
+        shade: 0.6,
+        shadeClose: false,
+        resize: false,
+        move: false,
+        maxmin: false,
+        content: `<div class="layui-tab layui-tab-card" lay-filter="ruleTab" style="border-bottom-style: none;box-shadow: none;">
                     <ul class="layui-tab-title">
                         <li class="layui-this">规则1</li>
                         <li>规则2</li>
                         <li>规则3</li>
                     </ul>
-                    <div class="layui-form">
+                    <div class="layui-form" lay-filter="ruleForm">
                         <div class="layui-tab-content">
-                            <div class="layui-tab-item layui-show">
-                                <div class="layui-form-item">
-                                    <div class="layui-input-inline echart_options" style="width:100%;">
-                                        <fieldset class="layui-elem-field" style="width:180px;float:left;margin: 0 10px 0 10px;">
-                                            <legend>选择图表类型</legend>
-                                            <div class="layui-field-box">
-                                                <select name=""rule_1_type>
-                                                    <option value="">请选择</option>
-                                                    <option value="1">柱形图</option>
-                                                    <option value="2">折线图</option>
-                                                    <option value="3">饼图</option>
-                                                </select>
-                                            </div>
-                                        </fieldset>
-                                        <fieldset class="layui-elem-field" style="width:180px;">
-                                            <legend>选择数据来源</legend>
-                                            <div class="layui-field-box">
-                                                <select name="rule_1_value">
-                                                    <option value="">请选择</option>
-                                                    ${option_template}
-                                                </select>
-                                            </div>
-                                        </fieldset>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="layui-tab-item">
-                                <div class="layui-form-item">
-                                    <div class="layui-input-inline echart_options" style="width:100%;">
-                                        <fieldset class="layui-elem-field" style="width:180px;float:left;margin: 0 10px 0 10px;">
-                                            <legend>选择图表类型</legend>
-                                            <div class="layui-field-box">
-                                                <select name=""rule_2_type>
-                                                    <option value="">请选择</option>
-                                                    <option value="1">柱形图</option>
-                                                    <option value="2">折线图</option>
-                                                    <option value="3">饼图</option>
-                                                </select>
-                                            </div>
-                                        </fieldset>
-                                        <fieldset class="layui-elem-field" style="width:180px;">
-                                            <legend>选择数据来源</legend>
-                                            <div class="layui-field-box">
-                                                <select name="rule_2_value">
-                                                    <option value="">请选择</option>
-                                                    ${option_template}
-                                                </select>
-                                            </div>
-                                        </fieldset>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="layui-tab-item">
-                                <div class="layui-form-item">
-                                    <div class="layui-input-inline echart_options" style="width:100%;">
-                                        <fieldset class="layui-elem-field" style="width:180px;float:left;margin: 0 10px 0 10px;">
-                                            <legend>选择图表类型</legend>
-                                            <div class="layui-field-box">
-                                                <select name=""rule_3_type>
-                                                    <option value="">请选择</option>
-                                                    <option value="1">柱形图</option>
-                                                    <option value="2">折线图</option>
-                                                    <option value="3">饼图</option>
-                                                </select>
-                                            </div>
-                                        </fieldset>
-                                        <fieldset class="layui-elem-field" style="width:180px;">
-                                            <legend>选择数据来源</legend>
-                                            <div class="layui-field-box">
-                                                <select name="rule_3_value">
-                                                    <option value="">请选择</option>
-                                                    ${option_template}
-                                                </select>
-                                            </div>
-                                        </fieldset>
-                                    </div>
-                                </div>
-                            </div>  
-                        </div>
-                        <div style="position: absolute;left: 200px;bottom: 40px;">
-                            <button type="button" class="layui-btn" lay-submit lay-filter="updateChart">更新</button>
+                            ${tab_template}
+                            <div style="position: absolute;left: 240px;bottom: 40px;">
+                                <button type="button" class="layui-btn" lay-submit lay-filter="updateChart">更新</button>
+                            </div>    
                         </div>
                     </div>
                 </div>`,
         success: function () {
-            form.render();
-            // tab切换
+            // 渲染tab
+            element.render("tab", "ruleTab");
+            // tab切换事件
             element.on("tab(ruleTab)", function(data) {
                 $(".layui-tab-content .layui-tab-item").each(function(){
                     $(this).removeClass("layui-show");
                 });
                 $(".layui-tab-content .layui-tab-item").eq(data.index).addClass("layui-show");
             });
-            form.on("submit(updateChart)", function(data) {
-                // 获取表格id
-                let field = data.field;
-                $.ajax({
-                    url: "/crm/api/v1/manage/",
-                    type: "post",
-                    data: JSON.stringify({
-                        "id": tableId
-                    }),
-                    success: function (data) {
-                        if (data.code === 0) {
-                            layer.msg("更新成功", {icon: 1});
-                            layer.closeAll();
+            form.render();  // 渲染表单
+            $.ajax({
+                url: `/crm/api/v1/manage/rule?id=${table_id}`,
+                type: "GET",
+                success: function (res) {
+                    if (res.code === 0) {
+                        let has_options = res.message;
+                        if (has_options.length > 0) {
+                            let hasValue = new Object();
+                            has_options.forEach((item, index) => {
+                                hasValue[`rule_${index}_name`] = item.name;
+                                hasValue[`rule_${index}_type`] = item.type;
+                                hasValue[`rule_${index}_value`] = item.keyword;
+                            });
+                            form.val("ruleForm", hasValue);     // 存在规则则赋值表单
+                            form.render("select", "ruleForm");  // 渲染表单的select元素
                         }
+                    }
+                    return false;
+                },
+                error: function (err) {
+                    console.log(err);
+                    return false;
+                }
+            });
+            form.on("submit(updateChart)", function(data) {
+                let field = data.field;  // 获取字段值
+                // 校验
+                $.ajax({
+                    url: "/crm/api/v1/manage/rule",
+                    type: "POST",
+                    data: JSON.stringify({
+                        "table_uuid": tableId,
+                        "rules": number.map((item) => {return {"name": field[`rule_${item}_name`], "type": field[`rule_${item}_type`], "keyword": field[`rule_${item}_value`], "date_keyword": field[`rule_${item}_date`]}})
+                    }),
+                    success: function (res) {
+                        if (res.code === 0) {
+                            layer.closeAll();
+                            layer.msg("更新成功", {icon: 1});
+                            // 刷新图表
+                        } else {
+                            layer.msg("更新失败: " + res.message, {icon: 2});
+                        }
+                        return false;
                     },
-                    error: function () {}
+                    error: function (err) {
+                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                        layer.msg("更新失败: " + errMsg.message, {icon: 2});
+                        return false;
+                    }
                 })
                 return false;
             });
@@ -449,9 +422,9 @@ var addNewRule = function (tableId) {
 var delColData = function (tableId, data) {
     let table_id = tableId || localStorage.getItem("tableUid");
     layer.confirm(`是否删除本页已选中的${data.length}条数据`, {
-        title: "删除数据",
-        btn: ["确定", "取消"],
-        function () {
+            title: "删除数据",
+            btn: ["确定", "取消"]
+        }, function () {
             if (data.length > 0) {
                 let id_array = [];  // 要删除数据的id数组
                 data.forEach((item) => {
@@ -489,7 +462,7 @@ var delColData = function (tableId, data) {
         function () {
             layer.closeAll();
         }
-    });
+    );
 }
 
 /**
@@ -499,17 +472,17 @@ var delColData = function (tableId, data) {
  */
 var addOrEditData = function (tableId, colData) {
     let table_id = tableId || localStorage.getItem("tableUid");
-    let header =JSON.parse(localStorage.getItem("header"))[table_id] || "";
+    let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
     let formData = colData;
     let date_array = [];
     let time_array = [];
     if (header) {
         let form_item_templ = "";
         header.forEach((item) => {
-            if (item.col_type === 2) { // 设置下列列表
+            if (item.col_type === 2) {      // 设置下列列表
                 form_item_templ += `<div class="layui-form-item">
                                         <label class="layui-form-label">${item.title}</label>
-                                        <div class="layui-input-block" style="width: 250px">
+                                        <div class="layui-input-block" style="width: 250px;">
                                             <select name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""}>
                                                 <option value="">请选择</option>
                                                 ${Object.keys(item.option).map((key) => {
@@ -522,7 +495,7 @@ var addOrEditData = function (tableId, colData) {
                 if (item.value_type === 3) {  // 设置选择日期
                     form_item_templ += `<div class="layui-form-item">
                                             <label class="layui-form-label">${item.title}</label>
-                                            <div class="layui-input-block" style="width: 250px">
+                                            <div class="layui-input-block" style="width: 250px;">
                                                 <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} id="date_${item.field}" placeholder="yyyy-MM-dd" autocomplete="off" class="layui-input">
                                             </div>
                                         </div>`;
@@ -530,7 +503,7 @@ var addOrEditData = function (tableId, colData) {
                 } else if (item.value_type === 4) {  // 设置选择时间
                     form_item_templ += `<div class="layui-form-item">
                                             <label class="layui-form-label">${item.title}</label>
-                                            <div class="layui-input-block" style="width: 250px">
+                                            <div class="layui-input-block" style="width: 250px;">
                                                 <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} id="time_${item.field}" placeholder="yyyy-MM-dd HH:mm:ss" autocomplete="off" class="layui-input">
                                             </div>
                                         </div>`;
@@ -538,7 +511,7 @@ var addOrEditData = function (tableId, colData) {
                 } else {
                     form_item_templ += `<div class="layui-form-item">
                                             <label class="layui-form-label">${item.title}</label>
-                                            <div class="layui-input-block" style="width: 250px">
+                                            <div class="layui-input-block" style="width: 250px;">
                                                 <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} autocomplete="off" class="layui-input"></input>
                                             </div>
                                         </div>`;
@@ -683,18 +656,18 @@ var addOrAlterCol = function (tableId) {
                     </form>
                   </div>`,
         success: function () {
-            form.render();
+            form.render(null, "column");
             $("#addNewOption").on("click", function() {
                 layer.open({
                     type: 1,
                     title: "新增下拉选项",
+                    area: ["320px", "240px"],
                     shade: 0.8,
                     shadeClose: false,
                     resize: false,
                     move: false,
                     maxmin: false,
-                    area: ["320px", "240px"],
-                    content: `<div class="layui-form" style="padding: 10px 0 0 0;">
+                    content: `<div class="layui-form" style="padding: 10px 0 0 0;" lay-filter="option">
                                 <div class="layui-form-item">
                                     <label class="layui-form-label" style="width: 70px;">选项名</label>
                                     <div class="layui-input-inline">
@@ -712,7 +685,7 @@ var addOrAlterCol = function (tableId) {
                                 </div>
                               </div>`,
                     success: function (_, index) {
-                        form.render();
+                        form.render(null, "option");
                         form.on("submit(add)", function (data) {
                             let field = data.field;
                             // 判断是否和已有的重复
@@ -737,7 +710,7 @@ var addOrAlterCol = function (tableId) {
                 });
                 $.ajax({
                     url: "/crm/api/v1/manage/add_or_alter_column",
-                    type: "post",
+                    type: "POST",
                     contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
                         "mode": "add",
@@ -802,7 +775,7 @@ var mulitDetect = function (tableId) {
                         <div>
                             <div class="layui-tab-content">
                                 <div class="layui-tab-item layui-show" id="showTask">
-                                    <form class="layui-form" id="showTaskForm">
+                                    <form class="layui-form" id="showTaskForm" lay-filter="taskForm">
                                         <div class="layui-form-item">
                                             <label class="layui-form-label">IP列</label>
                                             <div class="layui-input-inline">
@@ -818,7 +791,7 @@ var mulitDetect = function (tableId) {
                                     </form>
                                 </div>
                                 <div class="layui-tab-item" id="showHistory">
-                                    <table class="layui-table" id="historyTable" lay-filter="historyTable"></table>
+                                    <table class="layui-hide" id="historyTask" lay-filter="historyTask"></table>
                                 </div>
                             </div>
                         </div>
@@ -837,7 +810,7 @@ var mulitDetect = function (tableId) {
                     table();
                 }
             });
-            form.render();
+            form.render(null, "taskForm");
             form.on("submit(createTask)", function(){
                 if (!$("#ip_col").val()) {
                     layer.msg("请选择IP列", { icon: 2 });
@@ -845,6 +818,41 @@ var mulitDetect = function (tableId) {
                 }
                 console.log($("#ip_col").val());
                 return false;
+            });
+            table.render({
+                elem: "historyTask",
+                id: "historyTask",
+                url: "/crm/api/v1/manage/",
+                page: true,
+                limit: 5,
+                limits: [5],
+                text: {none: "暂无数据,请先创建任务"},
+                defaultToolbar:[{title: "刷新", layEvent: "LAYTABLE_REFRESH", icon: "layui-icon-refresh"}],
+                parseData: (res) => {
+                    return {
+                        "code": res.code,
+                        "msg": res.code === 0 ? "" : res.message,
+                        "count": res.message.total,
+                        "data": res.message.data
+                    };
+                },
+                cols:[[
+                    {fidle: "id", title: "任务ID", hide: true},
+                    {field: "name", title: "任务名称", width: 200},
+                    {field: "create_time", title: "创建时间", width: 200},
+                    {field: "status", title: "状态", width: 200, templet: (d) => {
+
+                    }},
+                    {field: "result", title: "结果", width: 200, templet: (d) => {
+                        
+                    }}
+                ]],
+                done: () => {
+                    table.on("tool(historyTask)", (obj) => {
+                        console.log(obj);
+                        table.reloadData("");
+                    });
+                }
             });
         }
     });
@@ -932,25 +940,48 @@ var showHistory = function (tableId) {
                         <div>
                             <div class="layui-tab-content">
                                 <div class="layui-tab-item layui-show">
-                                    <table class="layui-table" id="importTable" lay-filter="importTable"></table>
-                                </div>
-                                <div class="layui-tab-item">
-                                    <table class="layui-table" id="exportTable" lay-filter="exportTable"></table>
+                                    <table class="layui-hide" id="historyTable" lay-filter="historyTable"></table>
                                 </div>
                             </div>
                         </div>
                     </div>
                   </div>`,
         success: function () {
+            table.render({
+                elem: "#historyTable",
+                id: "historyTable",
+                url: `/crm/api/v1/manage/history?type=1&id=${table_id}`,
+                page: true,
+                cols: [[
+                    { field: "id", title: "ID", hide: true },
+                    { field: "file", title: "文件", width: 120, templet: (d) => {
+                        if (!d.file) {
+                            return "";
+                        }
+                        return `<a href="/crm/api/v1/file/${d.file.fileuuid}">${d.file.filename}</a>`;
+                    } },
+                    { field: "create_user", title: "创建者", width: 120 },
+                    { field: "create_time", title: "创建时间", width:120},
+                    { field: "status", title: "状态", width: 120, templet: (d) => {
+                        if (d.status === 1) return `"成功"`;
+                        if (d.status === 0) return `"失败"`;
+                        if (d.status === 2) return `"待执行"`;
+                        if (d.status === 2) return `"执行中"`;
+                    } },
+                    { field: "error", title: "错误", width: 120, templet: (d) => {
+                        return `<a href="/crm/api/v1/file/${d.error}">点此下载错误文件</a>`;
+                    } }
+                ]]
+            });
             element.on("tab(history)", (data) => {
                 if (data.index === 0) {
-                    $("#showHistory").hide();
-                    $("#showTask").show();
-                    table.reload({});
+                    table.reload("historyTable", {
+                        url: `/crm/api/v1/manage/history?type=1&id=${table_id}`
+                    }); 
                 } else {
-                    $("#showTask").hide();
-                    $("#showHistory").show();
-                    table.reload({});
+                    table.reload("historyTable", {
+                        url: `/crm/api/v1/manage/history?type=2&id=${table_id}`
+                    }); 
                 }
             });
         } 

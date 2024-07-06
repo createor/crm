@@ -101,7 +101,7 @@
             <!-- 新建图表规则 -->
             <div>
                 <a href="javascript:;" class="layui-icon layui-icon-addition"
-                    style="border: 1px solid black;padding: 2px;border-radius: 50%;margin-top: 5px;position: absolute;right: 20px;z-index: 9999;"
+                    style="border: 1px solid black;padding: 2px;border-radius: 50%;margin-top: 65px;position: absolute;right: 20px;z-index: 9999;"
                     id="newRule"></a>
             </div>
             <div class="showEchart">
@@ -490,15 +490,20 @@
             // 请求图表配置
             $.ajax({
                 url: `/crm/api/v1/manage/echart?id=${tableUid}`,
-                type: "get",
-                success: function (data) {
-                    if (data.code === 0) {
-                        data.message.forEach((item, index) => {
+                type: "GET",
+                success: function (res) {
+                    if (res.code === 0) {
+                        res.message.forEach((item, index) => {
+                            $(`#chart${index}`).empty();  // 清除图片
                             let chartDom = document.getElementById(`chart${index}`);
                             let myChart = echarts.init(chartDom);
                             myChart.setOption(item);
                         });
                     }
+                },
+                error: function (err) {
+                    console.log(err);
+                    return false;
                 }
             })
         }

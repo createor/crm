@@ -107,69 +107,69 @@
         const form = layui.form;
         const layer = layui.layer;
         const $ = layui.jquery;
-        const errMsg = {{ errMsg }};  // 错误信息
+        const errMsg = `{{ errMsg }}`;  // 错误信息
 
-		/**
-		* @description 获取验证码
-		*/
-		function getCaptcha () {
-			$.ajax({
-				url: "/crm/api/v1/captcha",
-				type: "get",
-				success: function (data) {
-					$("#captcha_img").attr("src", "data:image/png;base64," + data.message);  // 绘制验证码图片,base64编码格式
-					return false;
-				},
-				error: function () {
-					return false;
-				}
-			});
-		}
+        /**
+        * @description 获取验证码
+        */
+        function getCaptcha () {
+            $.ajax({
+                url: "/crm/api/v1/captcha",
+                type: "get",
+                success: function (data) {
+                    $("#captcha_img").attr("src", "data:image/png;base64," + data.message);  // 绘制验证码图片,base64编码格式
+                    return false;
+                },
+                error: function () {
+                    return false;
+                }
+            });
+        }
 
-		getCaptcha();  // 初始化加载验证码
-	
-		// 点击验证码图片切换验证码
-		$("#captcha_img").on("click", () => { getCaptcha(); });
-	
-		// 点击登录事件
-		form.on("submit(login)", function (data) {
-			let reqArgs = data.field;  // 获取表单字段
-			if (reqArgs.captcha.length !== 4) {
-				layer.msg("验证码长度为4位", { icon: 2 });
-				return false;
-			}
-			$.ajax({
-				url: "/crm/api/v1/user/login",
-				type: "post",
-				contentType: "application/json;charset=UTF-8",
-				data: JSON.stringify({
-					"username": reqArgs.username,
-					"password": CryptoJS.MD5(reqArgs.password).toString(),  // MD5加密密码
-					"captcha": reqArgs.captcha
-				}),
-				success: function (data) {
-					if (data.code === 0) {
-						window.location.href = "/index";  // 跳转到首页
-					} else {
-						getCaptcha(); // 刷新验证码
-						layer.msg(data.message, { icon: 2 });
-					}
-					return false;
-				},
-				error: function (err) {
-					let errMsg = err.responseJSON || JSON.parse(err.responseText);
-					layer.msg(errMsg.message, { icon: 2 });
-					getCaptcha(); // 刷新验证码
-					return false;
-				}
-			});
-			return false;
-		});
-	
-		if (errMsg !== null && errMsg.length > 0) {
-			layer.msg(errMsg, { icon: 2 });  // 弹窗显示错误信息
-			return false;
-		}
+        getCaptcha();  // 初始化加载验证码
+
+        // 点击验证码图片切换验证码
+        $("#captcha_img").on("click", () => { getCaptcha(); });
+
+        // 点击登录事件
+        form.on("submit(login)", function (data) {
+            let reqArgs = data.field;  // 获取表单字段
+            if (reqArgs.captcha.length !== 4) {
+                layer.msg("验证码长度为4位", { icon: 2 });
+                return false;
+            }
+            $.ajax({
+                url: "/crm/api/v1/user/login",
+                type: "post",
+                contentType: "application/json;charset=UTF-8",
+                data: JSON.stringify({
+                    "username": reqArgs.username,
+                    "password": CryptoJS.MD5(reqArgs.password).toString(),  // MD5加密密码
+                    "captcha": reqArgs.captcha
+                }),
+                success: function (data) {
+                    if (data.code === 0) {
+                        window.location.href = "/index";  // 跳转到首页
+                    } else {
+                        getCaptcha(); // 刷新验证码
+                        layer.msg(data.message, { icon: 2 });
+                    }
+                    return false;
+                },
+                error: function (err) {
+                    let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                    layer.msg(errMsg.message, { icon: 2 });
+                    getCaptcha(); // 刷新验证码
+                    return false;
+                }
+            });
+            return false;
+        });
+
+        if (errMsg && errMsg !== "null" && errMsg.length > 0) {
+            layer.msg(errMsg, { icon: 2 });  // 弹窗显示错误信息
+            return false;
+        }
     });
 </script>
 
