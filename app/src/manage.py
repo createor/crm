@@ -13,7 +13,7 @@ import json
 import traceback
 from flask import Blueprint, request, jsonify, g, Response, send_file
 from app.utils import UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, methods, crmLogger, readExcel, createExcel, getUuid, verify, redisClient, converWords, job, undesense
-from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, File, Notify, History, initManageTable, generateManageTable, addColumn, alterColumn, MyHeader
+from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, DetectResult, File, Notify, History, initManageTable, generateManageTable, addColumn, alterColumn, MyHeader
 from app.src.task import exportTableTask
 from sqlalchemy import or_, func, Column, String, Text, Date, DateTime
 from sqlalchemy.sql import insert
@@ -1395,24 +1395,181 @@ def addOrAlterTableColumn():
     return jsonify({"code": 0, "message": f"{_method}列成功"}), 200
 
 @manage.route("/ping", methods=methods.ALL)
-@verify(allow_methods=["POST"], module_name="ping探测", check_ip=True)
+@verify(allow_methods=["GET", "POST"], module_name="ping探测任务", check_ip=True)
 def multDetectHost():
-    '''
-    多线程ping探测    
-    '''
-    userData = request.get_json()  # 用户的请求body数据
-    column = userData["column"]  # 用户选择的IP列名
-    # 生成任务uuid
-    task_id = getUuid()
-    # 创建任务,存入redis
-    redisClient.lpush("ping_task_queue", task_id)
-    # 插入数据库
-    task_data = Task(uuid=task_id, status=0, create_user=g.username)
-    db_session.add(task_data)
-    db_session.commit()
-    # 查询任务队列最右边是不是此任务,如果是则执行,执行完成后删除最右边
-    
-    return jsonify({"code": 0, "message": "xx"}), 200
+    '''多线程ping探测'''
+    if request.method == "GET":    # 获取所有任务
+
+        args = request.args        # 获取请求参数
+
+        table_uuid = args.get("id", None)  # 资产表id
+        task_uuid = args.get("task", None) # 任务的uuid
+        page = int(args.get("page", 1))    # 页码
+        limit = int(args.get("limit", 5))  # 每页数量
+
+        if not table_uuid:
+            return jsonify({"code": -1, "message": "缺少id参数"}), 400
+        
+        if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
+            return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        
+        if table_uuid:  # 查询任务详情
+
+            try:
+
+                is_exist_task = db_session.query(Task).filter(Task.id == task_uuid, Task.create_user == g.username).first()
+
+            finally:
+
+                db_session.close()
+
+            if not is_exist_task:
+                return jsonify({"code": -1, "message": "任务不存在"}), 400
+            
+            pie_echart = redisClient.getData(f"crm:ping:echart:{task_uuid}")
+
+            if pie_echart:
+
+                pie_echart = json.loads(pie_echart)
+
+            else:
+            
+                try:
+
+                    task_echart = db_session.query(DetectResult.status, func.count(1)).filter(DetectResult.task_id == task_uuid).group_by(DetectResult.status).all()
+
+                finally:
+
+                    db_session.close()
+
+                pie_echart = [{"name": i[0], "value": i[1]} for i in task_echart]
+                redisClient.setData(f"crm:ping:echart:{task_uuid}", json.dumps(pie_echart))  # 写入缓存
+
+            try:
+
+                count = db_session.query(DetectResult).filter(DetectResult.task_id == task_uuid).count()
+
+            finally:
+
+                db_session.close()
+
+            if count == 0:
+                return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
+            
+            try:
+
+                task_result = db_session.query(DetectResult).filter(DetectResult.task_id == task_uuid).order_by(DetectResult.id.asc()).offset((page - 1) * limit).limit(limit).all()
+
+            finally:
+
+                db_session.close()
+
+            return jsonify({
+                "code": 0, 
+                "message": {
+                    "total": count,
+                    "data": [{"id": t.id, "ip": t.ip, "status": t.status, "reason": t.reason} for t in task_result],
+                    "echart": pie_echart  # 饼图显示情况
+                }
+            }), 200
+
+
+        else:
+
+            try:
+
+                table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
+
+            finally:
+
+                db_session.close()
+
+            if not table:
+                return jsonify({"code": -1, "message": "资产表不存在"}), 400
+
+            try:
+
+                count = db_session.query(Task).filter(Task.table_name == table.table_name, Task.create_user == g.username).count()
+
+            finally:
+
+                db_session.close()
+
+            if count == 0:
+                return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
+
+            try:
+
+                task_list = db_session.query(Task).filter(Task.table_name == table.table_name, Task.create_user == g.username).order_by(Task.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+
+            finally:
+
+                db_session.close()
+
+            return jsonify({
+                "code": 0, 
+                "message": {
+                    "total": count,
+                    "data": [{"id": t.id, "name": t.name, "create_time": t.create_time, "status": t.status} for t in task_list]
+                }
+            }), 200
+
+    elif request.method == "POST":  # 创建任务
+
+        reqData = request.get_json()  # 用户的请求body数据
+
+        if not all(key in reqData for key in ["id", "name", "column"]):
+            return jsonify({"code": -1, "message": "缺少参数"}), 400
+
+        table_uuid = reqData["id"]
+        task_name = reqData["name"] 
+        date_column = reqData["column"]  # 用户选择的IP列名
+
+        if not table_uuid or not task_name or not date_column:
+            return jsonify({"code": -1, "message": "缺少参数"}), 400
+
+        task_id = getUuid()  # 生成任务uuid
+
+        # 创建任务,存入redis
+        redisClient.lpush("ping_task_queue", task_id)
+
+        try:   # 插入数据库
+
+            task_data = Task(uuid=task_id, name=task_name, keyword=date_column, table_name=table.table_name, status=0, create_user=g.username)
+            db_session.add(task_data)
+            db_session.commit()
+
+        except:
+
+            db_session.rollback()
+
+            crmLogger.error(f"写入task表发生异常: {traceback.format_exc()}")
+
+            return jsonify({"code": -1, "message": "数据库异常"}), 500
+
+        finally:
+
+            db_session.close()
+
+        try:
+
+            add_task_log = Log(ip=g.ip_addr, operate_type="创建Ping任务", operate_content=f"创建了ping任务,任务id: {task_id}", operate_user=g.username)
+            db_session.add(add_task_log)
+            db_session.commit()
+
+        except:
+
+            db_session.rollback()
+
+            crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+
+        finally:
+
+            db_session.close()
+
+        crmLogger.info(f"用户{g.username}成功创建ping任务,任务id: {task_id}")
+
+        return jsonify({"code": 0, "message": task_id}), 200
 
 @manage.route("/notify", methods=methods.ALL)
 @verify(allow_methods=["GET", "POST"], module_name="到期通知", check_ip=True)
@@ -1421,55 +1578,84 @@ def notifyExpireData():
     到期通知
     '''
     if request.method == "GET":    # 获取所有通知
+
         args = request.args        # 获取请求参数
-        id = args.get("id", None)  # 资产表id
+
+        table_uuid = args.get("id", None)  # 资产表id
         page = int(args.get("page", 1))    # 页码
         limit = int(args.get("limit", 5))  # 每页数量
+
+        if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
+            return jsonify({"code": -1, "message": "资产表不存在"}), 400
+
         try:
-            table = db_session.query(Manage).filter(Manage.uuid == id).first()
+
+            table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
+
         finally:
+
             db_session.close()
+
         if not table:
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        
         try:
+
             count = db_session.query(Notify).filter(Notify.table == table.table_name, Notify.create_user == g.username).count()
-            if count == 0:
-                return jsonify({
-                    "code": 0,
-                    "message": []
-                }), 200
-            data = db_session.query(Notify).filter(Notify.table == table.table_name, Notify.create_user == g.username).order_by(Notify.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+        
         finally:
+
             db_session.close()
+
+        if count == 0:
+            return jsonify({"code": 0, "message": {"total": 0, "data":[]}}), 200
+        
+        try:
+
+            data = db_session.query(Notify).filter(Notify.table == table.table_name, Notify.create_user == g.username).order_by(Notify.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+        
+        finally:
+
+            db_session.close()
+
         return jsonify({
             "code": 0,
             "message": {
-                "count": count,
+                "total": count,
                 "data": [{"id": i.id, "name": i.name, "status": i.status, "create_time": i.create_time} for i in data]
             }
         }), 200
+    
     elif request.method == "POST":
 
         reqData = request.get_json()   # 获取请求数据
-        # 校验参数
-        if not all(key in reqData for key in ["id", "task_id", "name", "operate"]):
+
+        if not all(key in reqData for key in ["id", "task_id", "name", "operate"]):  # 校验参数
             return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+        
         id = reqData["id"]              # 资产表id
         task_id = reqData["task_id"]    # 任务id
         name = reqData["name"]          # 任务名
         operate = reqData["operate"]    # 任务操作
+
         try:
+
             table = db_session.query(Manage).filter(Manage.uuid == id).first()
+
         finally:
+
             db_session.close()
+
         if not table:
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        
         try:
             # 查询是否已经存在通知
             if task_id:
                 is_exist_notify = db_session.query(Notify).filter(Notify.id == task_id, Notify.status == 1,).first()
             else:
                 is_exist_notify = db_session.query(Notify).filter(Notify.table == table.table_name, Notify.status == 1, Notify.create_user == g.username).first()
+            
             if operate == "add":  # 新建通知
                 if is_exist_notify:
                     return jsonify({"code": -1, "message": "该资产表已经存在通知"}), 400
@@ -1518,7 +1704,8 @@ def notifyExpireData():
                 else:
                     return jsonify({"code": 0, "message": "已停止通知"}), 200
         finally:
-            db_session.close()  
+
+            db_session.close()
 
 @manage.route("/export", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="导出资产表", check_ip=True)

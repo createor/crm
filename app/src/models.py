@@ -216,7 +216,7 @@ class Header(Base):
 class Options(Base):
     '''下拉选项表'''
     __tablename__ = "crm_options"
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)  # 自增id
     option_name = Column(String(255), nullable=False)  # 选项名称
     option_value = Column(String(255), nullable=False) # 选项值
     header_value = Column(String(255), nullable=False) # 归属字段
@@ -236,8 +236,8 @@ class Task(Base):
 class DetectResult(Base):
     '''批量探测任务结果表'''
     __tablename__ = "crm_detect_result"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    task_id = Column(String(40), nullable=False)                # 任务id
+    id = Column(Integer, primary_key=True, autoincrement=True)  # 自增id
+    task_id = Column(String(40), nullable=False)                # 任务id,来源于task的id字段
     ip = Column(String(20), nullable=False)                     # 探测的ip
     status = Column(Integer, nullable=False)                    # 状态: 0-不在线, 1-在线, 2-未探测
     reason = Column(String(255))                                # 未探测原因
@@ -246,24 +246,24 @@ class DetectResult(Base):
 class Notify(Base):
     '''到期提醒表'''
     __tablename__ = "crm_notify"
-    id = Column(String(40), primary_key=True, unique=True, nullable=False)  # 任务id
-    name = Column(String(255), nullable=False)                              # 任务名
-    keyword = Column(String(20), nullable=False)                            # 日期列名
-    table_name = Column(String(20), nullable=False)                         # 资产表表名
-    status = Column(Integer, default=1)                                     # 状态: 1-启动, 0-停止
-    create_user = Column(String(100))                                       # 任务创建者
-    create_time = Column(DateTime, default=datetime.now)                    # 任务创建时间
+    id = Column(String(40), primary_key=True, unique=True, nullable=False)       # 任务id
+    name = Column(String(255), nullable=False)                                   # 任务名
+    keyword = Column(String(20), nullable=False)                                 # 日期列名
+    table_name = Column(String(20), nullable=False)                              # 资产表表名
+    status = Column(Integer, default=1)                                          # 状态: 1-启动, 0-停止
+    create_user = Column(String(100))                                            # 任务创建者
+    create_time = Column(DateTime, default=datetime.now)                         # 任务创建时间
     update_user = Column(String(100))                                            # 更新者
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)  # 更新时间
 
 class Notice(Base):
     '''用户通知表'''
     __tablename__ = "crm_notice"
-    id = Column(Integer, primary_key=True, unique=True, nullable=False)
-    message = Column(String(40), nullable=False)          # 消息内容
-    notify_id = Column(String(40), nullable=False)        # 字段来源:crm_notify的id
-    is_read = Column(Integer, default=0)                  # 0-未读,1-已读
-    create_time = Column(DateTime, default=datetime.now)  # 创建时间
+    id = Column(Integer, primary_key=True, unique=True, nullable=False) # 消息的uuid
+    message = Column(String(40), nullable=False)                        # 消息内容
+    notify_id = Column(String(40), nullable=False)                      # 字段来源:crm_notify的id
+    is_read = Column(Integer, default=0)                                # 0-未读,1-已读
+    create_time = Column(DateTime, default=datetime.now)                # 创建时间
 
 class NotifyMessage(Base):
     '''到期提醒消息表'''
@@ -271,19 +271,19 @@ class NotifyMessage(Base):
     id = Column(String(40), primary_key=True, autoincrement=True)
     expire_table = Column(String(20), nullable=False)    # 过期的资产表
     expire_id = Column(Integer, nullable=False)          # 过期资产id
-    notify_id = Column(String(40), nullable=False)       # 
-    notice_id = Column(String(40), nullable=False)       #
+    notify_id = Column(String(40), nullable=False)       # crm_notify的id
+    notice_id = Column(String(40), nullable=False)       # crm_notice的id
 
 class History(Base):
     '''导入导出历史记录表'''
     __tablename__ = "crm_history"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    file_uuid = Column(String(40))                  # 导入或导出的文件uuid
-    err_file = Column(String(40))                   # 导入文件错误说明文件uuid
-    mode = Column(Integer, nullable=False)          # 1-导出, 2-导入
-    status = Column(Integer, default=0)             # 0-排队中, 1-在执行, 2-执行成功, 3-执行失败
-    table_name = Column(String(20), nullable=False) # 导入导出的资产表别名
-    create_user = Column(String(100))               # 创建者
+    file_uuid = Column(String(40))                        # 导入或导出的文件uuid
+    err_file = Column(String(40))                         # 导入文件错误说明文件uuid
+    mode = Column(Integer, nullable=False)                # 1-导出, 2-导入
+    status = Column(Integer, default=0)                   # 0-排队中, 1-在执行, 2-执行成功, 3-执行失败
+    table_name = Column(String(20), nullable=False)       # 导入导出的资产表别名
+    create_user = Column(String(100))                     # 创建者
     create_time = Column(DateTime, default=datetime.now)  # 创建时间
 
 class MyHeader:

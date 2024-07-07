@@ -9,7 +9,7 @@
 import hashlib
 import traceback
 from flask import Blueprint, request, g, session, jsonify, redirect
-from app.src.models import db_session, User, Log
+from app.src.models import db_session, User, Log, Notice
 from app.utils import DEFAULT_PASSWORD, crmLogger, redisClient, methods, verify
 from app.utils.config import formatDate
 from datetime import date, timedelta, datetime
@@ -835,29 +835,89 @@ def modifyUser():
 @verify(allow_methods=["GET"], module_name="用户通知信息", check_ip=True)
 def getMail():
     '''获取通知'''
-    # try:
 
-    #     email = db_session.query().filter().all()
+    args = request.args
 
-    # finally:
+    msg_id = args.get("id", None)
+    page = int(args.get("page", 1))
+    limit = int(args.get("limit", 5))
 
-    #     db_session.close()
+    if msg_id:  # 查看通知详细
 
-    return jsonify({
-        "code": 0,
-        "message": {
-            "total": 2,
-            "data": {
-                "today": {
-                    "title": "通知",
-                    "detail": "测试"
-                },
-                "history": [
-                    {
-                        "title": "通知1",
-                        "detail": "测试1"
-                    }
-                ]
-            }
-        }
-    }), 200
+        pass
+
+    else:       # 查询通知
+
+        try:
+
+            count = db_session.query(Notice).filter(Notice.is_read == 0).count()
+
+        finally:
+
+            db_session.close()
+
+        if count == 0:  # 如果没有通知
+
+            return jsonify({"code": 0, "message": {"total": 0, "data": {"today": {}, "history": []}}}), 200
+
+        try:
+
+            email = db_session.query(Notice).filter(Notice.is_read == 0).order_by(Notice.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+
+        finally:
+
+            db_session.close()
+
+        todayMsg = [{"title": "{}到期提醒".format(e.create_time.strftime("%Y%m%d")), "detail": e.message} for e in email if e.create_time.date() == date.today()]
+
+        historyMsg = [{"title": "{}到期提醒".format(e.create_time.strftime("%Y%m%d")), "detail": e.message} for e in email if e.create_time.date() < date.today()]
+
+        return jsonify({"code": 0,"message": {"total": count, "data": {"today": todayMsg, "history": historyMsg}}}), 200
+
+@user.route("/mail/read", methods=methods.ALL)
+@verify(allow_methods=["GET"], module_name="信息标为已读", check_ip=True)
+def readMail():
+    '''信息标为已读'''
+    args = request.args
+
+    msg_id = args.get("id", None)
+
+    if not msg_id:  # 校验参数
+        return jsonify({"code": -1, "message": "缺少id参数"}), 400
+    
+    try:
+
+        db_session.query(Notice).filter(Notice.id == msg_id).update({"is_read": 1})
+        db_session.commit()
+
+    except:
+
+        db_session.rollback()
+
+        crmLogger.error(f"更新notice表发生异常: {traceback.format_exc()}")
+
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+
+    finally:
+
+        db_session.close()
+
+    try:
+
+        update_log = Log(ip=g.ip_addr, operate_type="通知已读", operate_content=f"将通知{msg_id}标为已读", operate_user=g.username)
+        db_session.add(update_log)
+        db_session.commit()
+    
+    except:
+
+        db_session.rollback()
+
+        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+
+    finally:
+
+        db_session.close()
+
+    crmLogger.info(f"用户{g.username}将通知{msg_id}标为已读")
+
+    return jsonify({"code": 0, "message": "已标为已读"}), 200

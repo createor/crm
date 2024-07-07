@@ -109,16 +109,18 @@
         text-align: center;
     }
 
+    /* 设置下拉条样式 */
     #showTask .layui-anim-upbit {
         height: 106px;
     }
 
+    /* 设置滚动条样式 */
     .echart_options .layui-anim-upbit {
         height: 120px;
     }
 
+    /* 设置滚动条样式 */
     .layui-anim-upbit::-webkit-scrollbar {
-        /* 设置滚动条样式 */
         display: none;
     }
 </style>
@@ -233,7 +235,7 @@
         base: "{{ url_for('static', filename='layui/ext/') }}"
     }).extend({
         stepprogress: 'stepprogress/stepprogress'
-    }).use(["jquery", "element", "dropdown", "form", "layer", "table", "upload", "stepprogress", "util", "laydate"], function () {
+    }).use(["jquery", "element", "dropdown", "form", "layer", "table", "upload", "stepprogress", "util", "laydate", "laypage"], function () {
         const element = layui.element;
         const form = layui.form;
         const layer = layui.layer;
@@ -242,6 +244,7 @@
         const upload = layui.upload;
         const util = layui.util;
         const laydate = layui.laydate;
+        const laypage = layui.laypage;
 
         window.table = table;
         window.element = element;
@@ -274,7 +277,7 @@
                 resize: false,
                 anim: 0,
                 content: `<div style="width: 320px;padding: 15px 0px 0px 50px;">
-                            <form class="layui-form">
+                            <form class="layui-form" lay-filter="setPwdForm">
                                 <div class="layui-form-item">
                                     <label class="layui-form-label" style="text-align: left;">旧密码</label>
                                     <div class="layui-input-block">
@@ -307,30 +310,29 @@
                             }
                         }
                     });
-                    form.render();  // 表单渲染
+                    form.render(null, "setPwdForm");  // 表单渲染
                     form.on("submit(changePwd)", function (data) {
                         let field = data.field;  // 获取表单字段
-                        let currIndex = "";
+                        let currIndex = "";      // loading层的索引
                         if (field.new_password === field.old_password) {
                             layer.msg("新旧密码不能设置一样", { icon: 5 });
                             return false;
                         }
                         $.ajax({
                             url: "/crm/api/v1/user/setpwd",
-                            type: "post",
+                            type: "POST",
                             contentType: "application/json;charset=utf-8",
                             data: JSON.stringify(field),
                             beforeSend: function () {
-                                // 显示load
-                                currIndex = layer.load(0);
+                                currIndex = layer.load(0);  // 显示load
                             },
-                            success: function (data) {
-                                if (data.code === 0) {
+                            success: function (res) {
+                                if (res.code === 0) {
                                     layer.closeAll();
-                                    layer.msg("修改密码成功", { icon: 1 });
+                                    layer.msg("密码修改成功", { icon: 1 });
                                 } else {
                                     layer.close(currIndex);
-                                    layer.msg("密码修改失败: " + data.message, { icon: 2 });
+                                    layer.msg(`密码修改失败: ${res.message}`, { icon: 2 });
                                 }
                                 return false;
                             },
@@ -371,8 +373,7 @@
                         btn: ["去修改", "知道啦"]
                     }, function () {
                         layer.closeAll();
-                        // 修改密码
-                        setPassword();
+                        setPassword();    // 修改密码
                     }, function () {
                         layer.closeAll(); // 关闭页面
                     });
@@ -386,9 +387,14 @@
         */
         function markRead (id) {
             $.ajax({
-                url: "/crm/api/v1/",
-                type: "get",
-                success: function (data) { }
+                url: `/crm/api/v1/user/mail/read?id=${id}`,
+                type: "GET",
+                success: function (res) {
+                    return false;
+                },
+                error: function (err) {
+                    return false;
+                }
             });
         }
 
@@ -398,43 +404,52 @@
         */
         function showDetail (id) {
             $.ajax({
-                url: "/crm/api/v1/",
-                type: "get",
-                success: function (data) { }
+                url: `/crm/api/v1/user/mail?id=${id}`,
+                type: "GET",
+                success: function (res) {
+                    if (res.code === 0) {
+                        setMark(id);
+                    }
+                    return false;
+                },
+                error: function (err) {
+                    return false;
+                }
             });
         }
 
         // 加载用户状态信息
         $.ajax({
             url: "/crm/api/v1/user/state",
-            type: "get",
-            success: function (data) {
-                // 填充用户名和头像
-                if (data.message.name) {
-                    $("#name").text(data.message.name);
+            type: "GET",
+            success: function (res) {
+                // 填充用户名
+                if (res.message.name) {
+                    $("#name").text(res.message.name);
                 } else {
-                    $("#name").text(data.message.username);
+                    $("#name").text(res.message.username);
                 }
-                $("#avator").attr("src", data.message.avator);
+                // 填充头像
+                $("#avator").attr("src", res.message.avator);
                 // 判断是否显示水印
-                if (data.message.is_mark) {
-                    if (data.message.name) {
-                        setMark(`${data.message.name}\n${data.message.ip}`);  // 设置水印
+                if (res.message.is_mark) {
+                    if (res.message.name) {
+                        setMark(`${res.message.name}\n${res.message.ip}`);
                     } else {
                         // 如果没有昵称则设置用户名
-                        setMark(`${data.message.username}\n${data.message.ip}`);
+                        setMark(`${res.message.username}\n${res.message.ip}`);
                     }
                 }
                 // 判断是否第一次登录,第一次登录显示新手引导
-                if (data.message.is_first) {
+                if (res.message.is_first) {
                     // 判断是否是管理员
-                    if (data.message.is_admin) {
-                        admin_driver($, getPwdState(data));
+                    if (res.message.is_admin) {
+                        admin_driver($, getPwdState(res));
                     } else {
-                        user_driver($, getPwdState(data));
+                        user_driver($, getPwdState(res));
                     }
                 } else {
-                    getPwdState(data)();
+                    getPwdState(res)();
                 }
                 return false;
             },
@@ -446,15 +461,14 @@
         // 加载用户通知
         $.ajax({
             url: "/crm/api/v1/user/mail",
-            type: "get",
-            success: function (data) {
-                let notify_templ = "";
-                if (data.code === 0) {
-                    if (data.message.count > 0) {
-                        // 显示红点
-                        $("#notice").addClass("layui-badge-dot");
+            type: "GET",
+            success: function (res) {
+                let notify_templ = "";  // 通知信息模板
+                if (res.code === 0) {
+                    if (res.message.total > 0) {
+                        $("#notice").addClass("layui-badge-dot");  // 显示红点
                         let btn_templ = `<div><a style="color: #829bb4;margin-right: 5px;cursor: pointer;">标为已读</a><a style="color: #829bb4;cursor: pointer;">查看详情</a></div>`;
-                        if (data.message.data.today) {
+                        if (res.message.data.today) {  // 存在今天的通知
                             // 右侧弹窗提示
                             layer.open({
                                 type: 1,
@@ -467,20 +481,26 @@
                                 offset: ["70px", "calc(100% - 300px)"],
                                 closeBtn: 0,
                                 resize: false,
+                                maxmin: false,
                                 time: 2000,
-                                content: `<blockquote class="layui-elem-quote" style="margin-bottom: 0px;">你有1条新的未读消息</blockquote>`
-                            })
-                            notify_templ = `<div class="layui-card"><div class="layui-card-header">${data.message.data.today.title}</div><div class="layui-card-body">${data.message.data.today.detail}</div></div>`;
+                                content: `<blockquote class="layui-elem-quote" style="margin-bottom: 0px;">你有${res.message.data.today.length}条新的未读消息</blockquote>`
+                            });
                         }
-                        data.message.data.history.forEach((item) => {
+                        res.message.data.today.forEach((item) => {
                             notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${btn_templ}</div></div>`;
                         });
-                        notify_templ = `<div class="layui-bg-gray" style="padding: 16px;"><div class="layui-row">${notify_templ}</div></div>`
+                        res.message.data.history.forEach((item) => {
+                            notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${btn_templ}</div></div>`;
+                        });
+                        notify_templ = `<div class="layui-bg-gray" style="padding: 16px;" id="showNotify"><div class="layui-row">${notify_templ}</div></div>`;
+                        if (res.message.total > 5) {  // 显示分页
+                            notify_templ += `<div id="notify_page" style="padding-left: 15px;"></div>`;
+                        }
                     } else {
-                        notify_templ = `<div style="padding: 15px;">暂无未读信息</div>`;
+                        notify_templ = `<div style="padding: 15px;">暂无未读信息</div>`;  // 无通知信息
                     }
                 } else {
-                    notify_templ = `<div style="padding: 15px;">${data.message}</div>`;
+                    notify_templ = `<div style="padding: 15px;">${res.message}</div>`;   // 显示错误信息
                 }
                 // 点击右侧面板显示通知信息
                 util.event("lay-header-event", {
@@ -492,9 +512,47 @@
                             offset: "rt",
                             anim: "slideLeft",
                             move: false,
+                            resize: false,
+                            maxmin: false,
                             shadeClose: true,
                             scorllbar: false,
-                            content: `${notify_templ}`
+                            content: `${notify_templ}`,
+                            success: function () {
+                                if (res.message.total > 5) {
+                                    // 渲染分页
+                                    laypage.render({
+                                        elem: "notify_page",
+                                        count: res.message.total,
+                                        limit: 5,
+                                        groups: 3,
+                                        jump: (obj, first) => {
+                                            if (!first) {
+                                                if (0 < obj.curr && obj.curr <= obj.pages) {
+                                                    $.ajax({
+                                                        url: `/crm/api/v1/user/mail?page=${obj.curr}&limit=${obj.limit}`,
+                                                        type: "GET",
+                                                        success: function (res) {
+                                                            let notify_templ = "";  //通知信息模板
+                                                            let btn_templ = `<div><a style="color: #829bb4;margin-right: 5px;cursor: pointer;">标为已读</a><a style="color: #829bb4;cursor: pointer;">查看详情</a></div>`;
+                                                            res.message.data.today.forEach((item) => {
+                                                                notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${btn_templ}</div></div>`;
+                                                            });
+                                                            res.message.data.history.forEach((item) => {
+                                                                notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${btn_templ}</div></div>`;
+                                                            });
+                                                            $("#showNotify").html(`<div class="layui-row">${notify_templ}</div>`);
+                                                            return false;
+                                                        },
+                                                        error: function () {
+                                                            return false;
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                            }
                         });
                     }
                 });
@@ -553,35 +611,34 @@
                                 </div>
                             </form>
                         </div>`,
-                success: function (layro, index) {
+                success: function (_, index) {
                     form.render();
                     // 用户修改资料
                     form.on("submit(modify_info)", function (data) {
                         let field = data.field;
                         $.ajax({
                             url: "/crm/api/v1/user/modify",
-                            type: "post",
+                            type: "POST",
                             contentType: "application/json;charset=utf-8",
                             data: JSON.stringify({
                                 "avatar": field.avatar,
                                 "nickname": field.nickname,
                                 "company": field.company
                             }),
-                            success: function (data) {
-                                if (data.code === 0) {
-                                    // 关闭弹窗
-                                    layer.close(index);
+                            success: function (res) {
+                                if (res.code === 0) {
+                                    layer.close(index);  // 关闭弹窗
                                     layer.msg("修改成功", { icon: 1 });
                                     // 替换用户名和水印
-                                    if (data.message.name) {
-                                        $("#name").text(data.message.name);
-                                        setMark(`${data.message.name}\n${data.message.ip}`);
+                                    if (res.message.name) {
+                                        $("#name").text(res.message.name);
+                                        setMark(`${res.message.name}\n${res.message.ip}`);
                                     } else {
-                                        $("#name").text(data.message.username);
-                                        setMark(`${data.message.username}\n${data.message.ip}`);
+                                        $("#name").text(res.message.username);
+                                        setMark(`${res.message.username}\n${res.message.ip}`);
                                     }
                                 } else {
-                                    layer.msg("修改失败:" + data.message, { icon: 2 });
+                                    layer.msg("修改失败:" + res.message, { icon: 2 });
                                 }
                                 return false;
                             },
@@ -595,14 +652,14 @@
                     });
                     $.ajax({
                         url: "/crm/api/v1/user/state",
-                        type: "get",
-                        success: function (data) {
+                        type: "GET",
+                        success: function (res) {
                             // 填充用户信息表单
-                            $("#avator_view").attr("src", data.message.avator);
+                            $("#avator_view").attr("src", res.message.avator);
                             form.val("user_info", {
-                                "type": data.message.type === 1 ? "永久用户" : "临时用户(有效期至" + data.message.expire_time + ")",
-                                "nickname": data.message.name,
-                                "company": data.message.company
+                                "type": res.message.type === 1 ? "永久用户" : "临时用户(有效期至" + res.message.expire_time + ")",
+                                "nickname": res.message.name,
+                                "company": res.message.company
                             });
                         },
                         complete: function () {
@@ -610,6 +667,7 @@
                             upload.render({
                                 elem: "#avator_img",
                                 url: "/crm/api/v1/upload",
+                                accept: "images",
                                 acceptMime: "image/jpeg, image/png",
                                 exts: "jpg|png|jpeg",
                                 before: function (obj) {
@@ -641,7 +699,7 @@
             // 发送请求以便后台日志记录和服务器端清除session
             $.ajax({
                 url: "/crm/api/v1/user/logout",
-                type: "get",
+                type: "GET",
                 complete: function () {
                     // 清除session和本地存储
                     sessionStorage.clear();
