@@ -168,34 +168,27 @@
             tableUid = obj.value.id;    // 表格的id
             localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
 
-            let header = "";        // 表格的header
-            // if (localStorage.getItem("header")) {
-            //     header = JSON.parse(localStorage.getItem("header"))[tableUid] || "";
-            // }
-
-            if (!header) {    // 如果本地没有则请求获取
-                $.ajax({
-                    url: `/crm/api/v1/manage/header?id=${tableUid}`,
-                    type: "GET",
-                    success: function (res) {
-                        if (res.code === 0) {
-                            header = res.message;
-                            // 本地存储header信息
-                            let obj = new Object();
-                            obj[tableUid] = header;
-                            localStorage.setItem("header", JSON.stringify(obj));
-                        } else {
-                            layer.msg(res.message, { icon: 2 });
-                        }
-                        return false;
-                    },
-                    error: function (err) {
-                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                        layer.msg(errMsg.message, { icon: 2 });
-                        return false;
+            $.ajax({
+                url: `/crm/api/v1/manage/header?id=${tableUid}`,
+                type: "GET",
+                success: function (res) {
+                    if (res.code === 0) {
+                        header = res.message;
+                        // 本地存储header信息
+                        let obj = new Object();
+                        obj[tableUid] = header;
+                        localStorage.setItem("header", JSON.stringify(obj));
+                    } else {
+                        layer.msg(res.message, { icon: 2 });
                     }
-                });
-            }
+                    return false;
+                },
+                error: function (err) {
+                    let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                    layer.msg(errMsg.message, { icon: 2 });
+                    return false;
+                }
+            });
 
             let option_templ = "";  // 选项模板
             header.forEach((item) => {
@@ -375,27 +368,7 @@
                     break;
                 case "LAYTABLE_EXPORT":  // 导出表格
                     // 判断当前是否有筛选
-                    $.ajax({
-                        url: `/crm/api/v1/manage/export?id=${tableUid}`,
-                        type: "GET",
-                        success: function (res) {
-                            if (res.code === 0) {
-                                let target = document.createElement("a");
-                                target.href = `/crm/api/v1/file/${res.message.id}`;
-                                target.download = data.message.filename;
-                                document.body.appendChild(target);
-                                target.click();
-                            } else {
-                                layer.msg(`导出错误: ${data.message}`, { icon: 2 });
-                            }
-                            return false;
-                        },
-                        error: function (err) {
-                            let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                            layer.msg(err.message, { icon: 2 });
-                            return false;
-                        }
-                    });
+                    window.parent.exportTableData(tableUid);
                     break;
                 case "LAYTABLE_DETAIL":  // 查询历史记录
                     window.parent.showHistory(tableUid);

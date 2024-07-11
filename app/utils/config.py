@@ -70,6 +70,9 @@ LOG_PATH = os.path.join(BASE_DIR, cfg.get("server", "log"))
 if not os.path.exists(LOG_PATH):
     os.makedirs(LOG_PATH)  # 如果不存在则创建
 
+# 是否扫描上传的文件
+SCAN_UPLOAD_FILE = cfg.getboolean("security", "clamav")
+
 # 日志级别
 LOG_LEVEL = cfg.get("server", "level")
 

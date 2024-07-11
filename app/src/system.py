@@ -19,19 +19,13 @@ system = Blueprint("system", __name__)
 def getConfig():
     '''读取系统配置'''
     try:  # 写入log表
-
         query_log = Log(ip=g.ip_addr, operate_type="查询系统配置", operate_content="查询系统配置", operate_user=g.username)
         db_session.add(query_log)
         db_session.commit()
-
     except:
-
         db_session.rollback()  # 发生异常事务回滚
-
         crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
-
     finally:
-
         db_session.close()
 
     crmLogger.info(f"用户{g.username}成功查询系统配置")  # 写入日志文件
@@ -69,24 +63,17 @@ def updateConfig():
         return jsonify({"code": -1, "message": "失败次数范围1-10"}), 400
     
     try:  # 更新数据库记录
-
         db_session.query(Setting).filter(Setting.type == "enable_failed").update({"value": int(enable_failed)})
         db_session.query(Setting).filter(Setting.type == "enable_white").update({"value": int(enable_white)})
         db_session.query(Setting).filter(Setting.type == "enable_single").update({"value": int(enable_single)})
         db_session.query(Setting).filter(Setting.type == "failed_count").update({"value": int(failed_count)})
         db_session.query(Setting).filter(Setting.type == "enable_watermark").update({"value": int(enable_watermark)})
         db_session.commit()
-
     except:
-
         db_session.rollback()  # 发生异常事务回滚
-
         crmLogger.error(f"更新setting表发生异常: {traceback.format_exc()}")
-
         return jsonify({"code": -1, "message": "数据库异常"}), 500
-    
     finally:
-
         db_session.close()
 
     # 更新redis信息
@@ -97,19 +84,13 @@ def updateConfig():
     redisClient.setData("crm:system:enable_watermark", int(enable_watermark))
 
     try:  # 写入log表
-
         update_log = Log(ip=g.ip_addr, operate_type="修改系统配置", operate_content="修改系统配置", operate_user=g.username)
         db_session.add(update_log)
         db_session.commit()
-
     except:
-
         db_session.rollback()  # 发生异常事务回滚
-
         crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
-
     finally:
-
         db_session.close()
 
     crmLogger.info(f"用户{g.username}修改系统配置成功")
@@ -131,75 +112,51 @@ def getWhiteList():
     if ip:  # 存在IP检索
 
         try:
-
             count = db_session.query(WhiteList).filter(WhiteList.ip.like(f"%{ip}%")).count()  # 模糊搜索
-        
         finally:
-
             db_session.close()
 
         if count == 0:
             return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
             
         try:
-
             result = db_session.query(WhiteList).filter(WhiteList.ip.like(f"%{ip}%")).order_by(WhiteList.id.desc()).offset((page - 1) * limit).limit(limit).all()
-        
         finally:
-
             db_session.close()
 
         try:  # 写入log表
-
             query_log = Log(ip=g.ip_addr, operate_type="查询白名单", operate_content=f"查询白名单,通过搜索IP: {ip}", operate_user=g.username)
             db_session.add(query_log)
             db_session.commit()
-
         except:
-
             db_session.rollback()  # 发生异常事务回滚
-
             crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
-
         finally:
-
             db_session.close()
 
     else:  # 不存在IP检索
 
         try:
-
             count = db_session.query(WhiteList).count()
-
         finally:
-
             db_session.close()
 
         if count == 0:
             return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
         
-        try:
-            
+        try:            
             result = db_session.query(WhiteList).order_by(WhiteList.id.desc()).offset((page - 1) * limit).limit(limit).all()
-
         finally:
-
             db_session.close()
 
-        try:  # 写入log表
-            
+        try:  # 写入log表           
             query_log = Log(ip=g.ip_addr, operate_type="查询白名单", operate_content="查询白名单信息", operate_user=g.username)
             db_session.add(query_log)
             db_session.commit()
-
         except:
-
             db_session.rollback()  # 发生异常事务回滚
-
             crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
-
         finally:
-
             db_session.close()
 
     crmLogger.info(f"用户{g.username}成功查询白名单信息,搜索IP: {ip}")  # 写入日志文件
@@ -232,46 +189,30 @@ def addWhiteList():
         return jsonify({"code": -1, "message": "请输入正确的IP地址"}), 400
 
     try:  # 判断是否已存在IP
-
         if db_session.query(WhiteList).filter(WhiteList.ip == white_ip).first():
-            return jsonify({"code": -1, "message": "该IP已存在,请勿重复添加"}), 200
-        
+            return jsonify({"code": -1, "message": "该IP已存在,请勿重复添加"}), 200 
     finally:
-
         db_session.close()
 
     try:  # 不存在则写入whitelist
-
         white_list = WhiteList(ip=white_ip, description=description)
         db_session.add(white_list)
         db_session.commit()
-
     except:
-
         db_session.rollback()  # 发生异常事务回滚
-
         crmLogger.error(f"写入white_list表发生异常: {traceback.format_exc()}")
-
         return jsonify({"code": -1, "message": "数据库异常"}), 500
-
     finally:
-
         db_session.close()
 
     try:  # 写入log表
-
         add_log = Log(ip=g.ip_addr, operate_type="添加白名单", operate_content=f"添加白名单IP({white_ip})", operate_user=g.username)
         db_session.add(add_log)
         db_session.commit()
-
     except:
-
         db_session.rollback()  # 发生异常事务回滚
-
         crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
-
     finally:
-
         db_session.close()
 
     redisClient.setSet("crm:system:white_ip_list", white_ip)  # 将白名单IP写入redis
@@ -296,41 +237,25 @@ def deleteWhiteList():
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
 
     try:  # 数据库删除白名单IP
-
         _ip = db_session.query(WhiteList).filter(WhiteList.id == white_id, WhiteList.ip == white_ip).first()
-        
         if _ip:
-
             db_session.delete(_ip)
-
             db_session.commit()
-
     except:
-
         db_session.rollback()  # 发生异常事务回滚
-
         crmLogger.error(f"删除white_list表发生异常: {traceback.format_exc()}")
-
         return jsonify({"code": -1, "message": "数据库异常"}), 500
-
     finally:
-
         db_session.close()
 
     try:  # 写入log表
-
         delete_log = Log(ip=g.ip_addr, operate_type="删除白名单", operate_content=f"删除白名单IP({white_ip})", operate_user=g.username)
         db_session.add(delete_log)
         db_session.commit()
-
     except:
-
         db_session.rollback()  # 发生异常事务回滚
-
         crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
-
     finally:
-
         db_session.close()
 
     redisClient.delSet("crm:system:white_ip_list", white_ip)  # 从redis中删除白名单IP

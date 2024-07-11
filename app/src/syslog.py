@@ -29,55 +29,39 @@ def queryLog():
     query_condition = []  # 查询条件
 
     if operate_user:      # 筛选用户不为空
-
         query_condition.append(Log.operate_user.in_(operate_user.split(",")))
 
     if operate_start:     # 筛选时间不为空
-
         query_condition.append(Log.operate_time >= datetime.strptime(operate_start, "%Y-%m-%dT%H:%M:%S"))
         query_condition.append(Log.operate_time <= datetime.strptime(operate_end, "%Y-%m-%dT%H:%M:%S"))
 
     if len(query_condition) > 0:  # 存在筛选条件
-
         try:
-
             count = count = db_session.query(Log).filter(and_(*query_condition)).count()
-
         finally:
-
             db_session.close()
 
         if count == 0:
             return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
             
         try:  # 按操作时间倒序排序,显示最新的操作日志
-
             result = db_session.query(Log).filter(and_(*query_condition)).order_by(Log.operate_time.desc()).offset((page - 1) * limit).limit(limit).all()
-        
         finally:
-
             db_session.close()
-        
 
     else:  # 不存在筛选条件
 
         try:
-
             count = db_session.query(Log).count()
-
         finally:
-
             db_session.close()
 
         if count == 0:
             return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
             
         try:
-
             result = db_session.query(Log).order_by(Log.operate_time.desc()).offset((page - 1) * limit).limit(limit).all()
-        
         finally:
-
             db_session.close()
 
     crmLogger.info(f"用户{g.username}成功查询日志: 结果total={count}") # 写入日志文件

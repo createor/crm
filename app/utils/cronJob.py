@@ -25,7 +25,7 @@ class Job(object):
             "max_instances": 3
         })
 
-    def setJob(self, id: str = "", job_time: str = "00:00:00", func: Any = None, args: tuple = (), kwargs: dict = {}) -> None:
+    def setJob(self, id: str = "", job_time: str = "00:00:00", func: Any = None, args: list = [], kwargs: dict = {}) -> None:
         '''
         创建定时任务
         :param id: 任务id

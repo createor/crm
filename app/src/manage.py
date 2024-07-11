@@ -11,11 +11,11 @@ import re
 import time
 import json
 import traceback
-from flask import Blueprint, request, jsonify, g, Response, send_file
+from flask import Blueprint, request, jsonify, g, Response
 from app.utils import UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, methods, crmLogger, readExcel, createExcel, getUuid, verify, redisClient, converWords, job, undesense
 from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, DetectResult, File, Notify, History, initManageTable, generateManageTable, addColumn, alterColumn, MyHeader
 from app.src.task import exportTableTask
-from sqlalchemy import or_, func, Column, String, Text, Date, DateTime
+from sqlalchemy import or_, func, Column, String
 from sqlalchemy.sql import insert
 from datetime import datetime, date
 from openpyxl.utils import get_column_letter
@@ -35,59 +35,41 @@ def queryTable():
     if title:  # 如果存在标题搜索
 
         try:
-
             count = db_session.query(Manage).filter(Manage.name.like("%{}%".format(title))).count()
-
         finally:
-
             db_session.close()
 
         if count == 0:  # 如果没有搜索到结果,直接返回空列表
             return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
 
         try:  # 模糊搜索结果,按最新创建的表格降序
-
-            result = db_session.query(Manage).filter(Manage.name.like("%{}%".format(title))).order_by(Manage.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
-        
+            result = db_session.query(Manage).filter(Manage.name.like("%{}%".format(title))).order_by(Manage.create_time.desc()).offset((page - 1) * limit).limit(limit).all()  
         finally:
-
             db_session.close()
 
     else:  # 不存在标题搜索
 
         try:
-
             count = db_session.query(Manage).count()
-
         finally:
-
             db_session.close()
 
         if count == 0:
             return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
 
         try:
-
             result = db_session.query(Manage).order_by(Manage.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
-
         finally:
-
             db_session.close()
 
     try:  # 写入log表
-
         query_log = Log(ip=g.ip_addr, operate_type="查询资产表", operate_content=f"查询资产表,title={title}", operate_user=g.username)
         db_session.add(query_log)
         db_session.commit()
-
     except:
-
         db_session.rollback()
-
         crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
-
     finally:
-        
         db_session.close()
 
     crmLogger.info(f"用户{g.username}成功查询了资产表,title={title},page={page},limit={limit}")  # 写入日志文件
@@ -123,7 +105,7 @@ def queryTableTitle():
 @verify(allow_methods=["GET"], module_name="查询资产表字段", check_ip=True)
 def getTableHeader():
     '''获取表格的头部字段'''
-    args = request.args        # 获取请求参数
+    args = request.args                # 获取请求参数
 
     table_uuid = args.get("id", None)  # 表格的uuid
 
@@ -134,11 +116,8 @@ def getTableHeader():
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
     try:  # 查看表是否存在
-
-        table = db_session.query(Manage).filter(Manage.uuid == table_uuid).first()
-
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
     finally:
-
         db_session.close()
 
     if not table:
@@ -153,18 +132,15 @@ def getTableHeader():
     else:  # 不存在,查询数据库
 
         try:  # 查询数据,按order升序
-
             result = db_session.query(Header).filter(Header.table_name == table.table_name).order_by(Header.order.asc()).all()
-
         finally:
-
             db_session.close()
 
         if result:
             _h = [
                 {c.name: getattr(u, c.name) for c in u.__table__.columns if c.name not in ["create_user", "create_time", "update_user", "update_time"]} for u in result
             ]
-            redisClient.setHashData(f"crm:header:{table.table_name}", json.dumps(_h))  # 写入缓存
+            redisClient.setData(f"crm:header:{table.table_name}", json.dumps(_h))  # 写入缓存
 
     if not result:  # 结果为空
         return jsonify({"code": 0, "message": []}), 200
@@ -188,24 +164,17 @@ def getTableHeader():
         if item.type == 2:  # 如果是下拉框
 
             try:
-
                 options = db_session.query(Options.option_name, Options.option_value).filter(Options.table_name == table.table_name, Options.header_value == item.value).all()
-            
             finally:
-
                 db_session.close()
 
             _obj = {}
-
             _templ = ""
 
             for opt in options:
-
                 _obj[opt.option_value] = opt.option_name
                 _templ += f"<option value='{opt.option_value}'>{opt.option_name}</option>"
-
             obj["option"] = _obj
-
             obj["templet"] = "<select><option value=''>请选择</option>" + _templ + "</select>"  # layui table的templet模板
         
         data.append(obj)
@@ -213,20 +182,15 @@ def getTableHeader():
     return jsonify({"code": 0,"message": data}), 200
 
 @manage.route("/<string:id>", methods=methods.ALL)
-@verify(allow_methods=["GET"], module_name="查询指定资产表", check_ip=True)
+@verify(allow_methods=["GET"], module_name="查看资产表详情", check_ip=True)
 def queryTableByUuid(id):
-    '''
-    查找指定的资产表
-    '''
+    '''查看指定的资产表'''
     if not redisClient.getSet("crm:manage:table_uuid", id):  # 如果不存在
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
     try:
-
-        table = db_session.query(Manage.table_name).filter(Manage.uuid == id).first()  # 根据id查找资产表
-
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == id).first()  # 根据id查找资产表
     finally:
-
         db_session.close()
 
     if not table:  # 表不存在
@@ -234,8 +198,8 @@ def queryTableByUuid(id):
 
     args = request.args                        # 获取请求参数
 
-    page = int(args.get("page", default=1))    # 当前页码,默认第一页
-    limit = int(args.get("limit", default=6))  # 每页显示数量,默认6条
+    page = int(args.get("page", default=1))     # 当前页码,默认第一页
+    limit = int(args.get("limit", default=6))   # 每页显示数量,默认6条
 
     columns = redisClient.getData(f"crm:header:{table.table_name}")  # 从redis中查询
 
@@ -246,61 +210,85 @@ def queryTableByUuid(id):
     else:  # 不存在,查询数据库
 
         try:
-
             columns = db_session.query(Header.value, Header.is_desence).filter(Header.table_name == table.table_name).all()  # 获取表头信息,所有列
-
         finally:
-
             db_session.close()
 
     if not columns:  # 如果没有表头信息,则返回空列表
         return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
 
     # 根据用户搜索关键字返回数据
+    key_type = int(args.get("type", default=1)) # 字段类型:1-字符串,2-下列列表,3-日期
     key = args.get("key", None)      # 用户查找的字段
     value = args.get("value", None)  # 用户查找的值
 
+    if key_type == 3:
+        compare = args.get("c", None)
+        if not compare:
+            return jsonify({"code": -1, "message": "缺少c参数"}), 400
+        
     manageTable = initManageTable(table.table_name)  # 实例化已存在资产表
 
-    if key and value:  # 如果存在关键字搜索,模糊搜索
+    if key and value:  # 如果存在关键字搜索
 
         try:
-            count = db_session.query(manageTable).filter((getattr(manageTable.c, key).like(f"%{value}%"))).count()
-
+            if key_type == 1:
+                count = db_session.query(manageTable).filter((getattr(manageTable.c, key).like(f"%{value}%"))).count()
+            elif key_type == 2:
+                count = db_session.query(manageTable).filter((getattr(manageTable.c, key) == value)).count()
+            elif key_type == 3:
+                if compare == "eq":
+                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) == value)).count()
+                elif compare == "gt":
+                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) > value)).count()
+                elif compare == "lt":
+                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) < value)).count()
+                elif compare == "ge":
+                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) >= value)).count()
+                elif compare == "le":
+                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) <= value)).count()
+                elif compare == "ne":
+                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) != value)).count()
         finally:
-
             db_session.close()
 
         if count == 0:  # 如果没有搜索到结果,直接返回空列表
             return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
 
         try:
-
-            result = db_session.query(manageTable).filter((getattr(manageTable.c, key).like(f"%{value}%"))).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
-
+            if key_type == 1:
+                result = db_session.query(manageTable).filter((getattr(manageTable.c, key).like(f"%{value}%"))).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+            elif key_type == 2:
+                result = db_session.query(manageTable).filter((getattr(manageTable.c, key) == value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+            elif key_type == 3:
+                if compare == "eq":
+                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) == value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                elif compare == "gt":
+                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) > value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                elif compare == "lt":
+                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) < value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                elif compare == "ge":
+                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) >= value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                elif compare == "le":
+                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) <= value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                elif compare == "ne":
+                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) != value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
         finally:
-
             db_session.close()
     
-    else:
+    else:  # 不存在关键字搜索
 
         try:
-
             count = db_session.query(manageTable).count()
-
         finally:
-
             db_session.close()
 
         if count == 0:
             return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
 
         try:
-
             result = db_session.query(manageTable).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
-
         finally:
-
             db_session.close()
 
     data = []
@@ -308,29 +296,60 @@ def queryTableByUuid(id):
     for item in result:
 
         obj = {}
-
         obj["_id"] = item._id
 
         for col in columns:
-
             if bool(col.is_desence):  # 数据脱敏展示
-
                 obj[col.value] = undesense(getattr(item, col.value))
-
             else:
-
                 obj[col.value] = getattr(item, col.value)  # 获取对应属性值
 
         data.append(obj)
 
     return jsonify({"code": 0, "message": {"total": count, "data": data}}), 200
 
+@manage.route("/undesense", methods=methods.ALL)
+@verify(allow_methods=["GET"], module_name="查看脱敏字段", check_ip=True)
+def getDesenseField():
+    '''查看指定脱敏字段'''
+    args = request.args
+
+    table_uuid = args.get("table_id", None)
+    row_id = args.get("row_id", None)
+    key_arr = args.get("key", None)
+
+    if not table_uuid or not row_id or not key_arr:  # 校验参数
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
+    if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+    
+    try:
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
+    finally:
+        db_session.close()
+
+    if not table:
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+    
+    manageTable = initManageTable(table_name=table.table_name)
+
+    try:
+        row = db_session.query(manageTable).filter(manageTable.c._id == row_id).first()
+    finally:
+        db_session.close()
+
+    obj = {}
+    for k in key_arr.split(","):
+        if hasattr(row, k):
+            obj[k] = getattr(row, k)
+    
+    return jsonify({"code": 0, "message": obj}), 200
+
 @manage.route("/add", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="创建资产表", check_ip=True)
 def addTableData():
-    '''
-    创建资产表
-    '''
+    '''创建资产表'''
     reqData = request.get_json()                # 获取请求参数
 
     if not all(key in reqData for key in ["filename", "name", "keyword", "desc"]):  # 校验参数
@@ -348,11 +367,8 @@ def addTableData():
         return jsonify({"code": -1, "message": "不能使用系统表表名"}), 400
 
     try:  # 判断表是否已存在,使用or查询
-
         is_exist_table = db_session.query(Manage).filter(or_(Manage.name == table_name, Manage.table_name == table_keyword)).first()
-    
     finally:
-
         db_session.close()
 
     if is_exist_table:  # 如果已经存在资产表
@@ -361,11 +377,8 @@ def addTableData():
     if filename:  # 表格导入资产表方式
 
         try:
-
             file = db_session.query(File.affix).filter(File.uuid == filename).first()  # 根据文件id查询文件
-
         finally:
-
             db_session.close()
 
         if not file:
@@ -379,29 +392,20 @@ def addTableData():
         table_headers = temp_table.columns.tolist()  # 表头字段
 
         if len(table_headers) == 0:
-
             crmLogger.error(f"读取表格文件{filename}失败: 原因: 表头读取为空")
-
             return jsonify({"code": -1, "message": "读取表格失败"}), 400
 
         column_header = converWords(table_headers)  # 中文拼音转换
 
         try:  # 批量插入表头数据
-
             header_data = [Header(name=k, value=v["pinyin"], table_name=table_keyword, order=v["index"], create_user=g.username) for k, v in column_header.items()]
             db_session.add_all(header_data)
             db_session.commit()
-
         except:
-
             db_session.rollback()
-
             crmLogger.error(f"写入header表发生异常: {traceback.format_exc()}")
-
             return jsonify({"code": -1, "message": "数据库异常"}), 500
-        
         finally:
-
             db_session.close()
 
         manageTable = generateManageTable(table_keyword, [Column(h["pinyin"], String(255)) for _, h in column_header.items()])  # 创建资产表
@@ -412,52 +416,33 @@ def addTableData():
         table_uuid = getUuid()
 
         try:  # 写入manage表
-
             db_session.add(Manage(uuid=table_uuid, name=table_name, table_name=table_keyword, description=table_desc, create_user=g.username))
             db_session.commit()
-
         except:
-
             db_session.rollback()
-
             crmLogger.error(f"写入manage表发生异常: {traceback.format_exc()}")
-
             return jsonify({"code": -1,"message": "数据库异常"}), 500
-        
         finally:
-
             db_session.close()
 
         try:  # 批量插入数据
 
             with engine.begin() as conn:  # 开启事务
-
                 insert_data = temp_table.to_dict(orient="records")  # 转换成[{k1: v1, k2: v2...}]
-
                 for i in insert_data:
-
                     for c, v in column_header.items():
-
                         new_data = i.pop(c)  # c-中文字段名
-
                         if isinstance(new_data, datetime):  # 如果数据格式是时间,格式化为字符串
-
                             new_data = new_data.strftime("%Y-%m-%d %H:%M:%S")
-
                         elif isinstance(new_data, date):    # 如果数据格式是日期,格式化为字符串
-
                             new_data = new_data.strftime("%Y-%m-%d")
-
                         i.update({v["pinyin"]: new_data})   # 将中文k1更新为拼音
-
                 stmt = insert(manageTable)
-
                 conn.execute(stmt, insert_data)
 
         except:
 
             crmLogger.error(f"写入{table_name}表发生异常: {traceback.format_exc()}")
-
             return jsonify({"code": -1,"message": "数据库异常"}), 500
         
     else:  # 直接创建资产表,后面创建列方式
@@ -470,35 +455,22 @@ def addTableData():
         table_uuid = getUuid()
 
         try:  # 写入manage表
-
             db_session.add(Manage(uuid=table_uuid, name=table_name, table_name=table_keyword, description=table_desc, create_user=g.username))
             db_session.commit()
-
         except:
-
             db_session.rollback()
-
             crmLogger.error(f"写入manage表发生异常: {traceback.format_exc()}")
-
             return jsonify({"code": -1, "message": "数据库异常"}), 500
-        
         finally:
-
             db_session.close()
 
     try:  # 写入log表
-
         create_log = Log(ip=g.ip_addr, operate_type="创建资产表", operate_content=f"创建资产表{table_name}", operate_user=g.username)
         db_session.add(create_log)
-
     except:
-
         db_session.rollback()
-
         crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
-
     finally:
-
         db_session.close()
 
     redisClient.setSet("crm:manage:table_name", table_name)  # 将标题写入缓存
@@ -506,17 +478,12 @@ def addTableData():
      
     crmLogger.info(f"用户{g.username}创建资产表{table_name}成功")  # 日志文件记录
 
-    return jsonify({
-        "code": 0,
-        "message": table_uuid
-    }), 200
+    return jsonify({"code": 0, "message": table_uuid}), 200
 
 @manage.route("/template", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="下载资产表模板", check_ip=True)
 def downloadTableTemplate():
-    '''
-    下载资产表模板
-    '''
+    '''下载资产表模板'''
     args = request.args        # 获取请求参数
 
     table_uuid = args.get("id", None)  # 获取表uuid
@@ -528,11 +495,8 @@ def downloadTableTemplate():
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
     try:
-
         table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
-
     finally:
-
         db_session.close()
 
     if not table:  # 查询的表不存在
@@ -543,11 +507,8 @@ def downloadTableTemplate():
     if templ_file:  # 缓存存在则直接返回
 
         try:
-
             file = db_session.query(File.filename).filter(File.uuid == templ_file).first()
-
         finally:
-
             db_session.close()
 
         return jsonify({"code": 0, "message": {"filename": file.filename, "fileuuid": templ_file}}), 200
@@ -557,28 +518,20 @@ def downloadTableTemplate():
         header = redisClient.getData(f"crm:header:{table.table_name}")
 
         if header:
-
             header = [MyHeader(i) for i in json.loads(header)]
-
         else:
-
             try:  # 查询header
-
                 header = db_session.query(Header.name, Header.type, Header.value, Header.value_type, Header.must_input, Header.order).filter(Header.table_name == table.table_name).order_by(Header.order.asc()).all()
-            
             finally:
-
                 db_session.close()
 
         if not header:
             return jsonify({"code": -1, "message": "资产表暂无字段"}), 400
 
         table_header = {}
-
         table_styles = {}
 
-        for h in header:
-                
+        for h in header:    
             table_header[h.name] = { 
                 "index": get_column_letter(h.order + 1),  # 转换成大写字母
                 "must_input": h.must_input == 1
@@ -587,11 +540,8 @@ def downloadTableTemplate():
             if h.value_type == 2:  # 如果是下拉列表
 
                 try:
-
                     opt = db_session.query(Options.option_name).filter(Options.table_name == table.table_name, Options.header_value == h.value).all()
-                
                 finally:
-
                     db_session.close()
 
                 table_styles[f"{h.name}"] = {
@@ -607,18 +557,12 @@ def downloadTableTemplate():
         redisClient.setData(f"crm:{id}:template", fileUuid)   # 写入redis
 
         try:  # 写入file表
-
             db_session.add(File(uuid=fileUuid, filename=f"{table.name}导入模板.xlsx", affix="xlsx", filepath=0))
             db_session.commit()
-
         except:
-
             db_session.rollback()
-
             return jsonify({"code": -1, "message": "数据库异常"}), 500
-
         finally:
-
             db_session.close()
 
         crmLogger.info(f"生成资产表<{table.name}>导入模板文件完成")
@@ -628,9 +572,7 @@ def downloadTableTemplate():
 @manage.route("/import", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="导入资产表数据", check_ip=True)
 def importTableFromExcel():
-    '''
-    导入资产表
-    '''
+    '''导入资产表'''
     reqData = request.get_json()  # 获取请求数据
 
     if not all(key in reqData for key in ["file_uuid", "table_id"]):  # 校验body参数
@@ -1055,11 +997,8 @@ def deleteTableData():
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
     
     try:
-
         table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
-
     finally:
-
         db_session.close()
 
     if not table:
@@ -1068,20 +1007,13 @@ def deleteTableData():
     manageTable = initManageTable(table.table_name)
 
     try:
-
         db_session.query(manageTable).filter(getattr(manageTable.c, "_id").in_(delData)).delete(synchronize_session=False)
         db_session.commit()
-
     except:
-
         db_session.rollback()
-
         crmLogger.error(f"删除{table.table_name}表发生异常: {traceback.format_exc()}")
-
         return jsonify({"code": -1, "message": "数据库异常"}), 500
-
     finally:
-
         db_session.close()
 
     crmLogger.info(f"{g.username}用户删除{table.name}数据成功")
@@ -1574,9 +1506,7 @@ def multDetectHost():
 @manage.route("/notify", methods=methods.ALL)
 @verify(allow_methods=["GET", "POST"], module_name="到期通知", check_ip=True)
 def notifyExpireData():
-    '''
-    到期通知
-    '''
+    '''到期通知'''
     if request.method == "GET":    # 获取所有通知
 
         args = request.args        # 获取请求参数
@@ -1584,38 +1514,32 @@ def notifyExpireData():
         table_uuid = args.get("id", None)  # 资产表id
         page = int(args.get("page", 1))    # 页码
         limit = int(args.get("limit", 5))  # 每页数量
+ 
+        if not table_uuid:
+            return jsonify({"code": -1, "message": "缺少id参数"}), 400
 
         if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
         try:
-
             table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
-
         finally:
-
             db_session.close()
 
         if not table:
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
         
         try:
-
             count = db_session.query(Notify).filter(Notify.table == table.table_name, Notify.create_user == g.username).count()
-        
         finally:
-
             db_session.close()
 
         if count == 0:
             return jsonify({"code": 0, "message": {"total": 0, "data":[]}}), 200
         
         try:
-
             data = db_session.query(Notify).filter(Notify.table == table.table_name, Notify.create_user == g.username).order_by(Notify.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
-        
         finally:
-
             db_session.close()
 
         return jsonify({
@@ -1628,84 +1552,130 @@ def notifyExpireData():
     
     elif request.method == "POST":
 
-        reqData = request.get_json()   # 获取请求数据
-
-        if not all(key in reqData for key in ["id", "task_id", "name", "operate"]):  # 校验参数
-            return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+        reqData = request.get_json()    # 获取请求数据
         
-        id = reqData["id"]              # 资产表id
-        task_id = reqData["task_id"]    # 任务id
-        name = reqData["name"]          # 任务名
         operate = reqData["operate"]    # 任务操作
 
-        try:
-
-            table = db_session.query(Manage).filter(Manage.uuid == id).first()
-
-        finally:
-
-            db_session.close()
-
-        if not table:
-            return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        if not operate:
+            return jsonify({"code": -1, "message": "请求参数不完整"}), 400
         
-        try:
-            # 查询是否已经存在通知
-            if task_id:
-                is_exist_notify = db_session.query(Notify).filter(Notify.id == task_id, Notify.status == 1,).first()
-            else:
-                is_exist_notify = db_session.query(Notify).filter(Notify.table == table.table_name, Notify.status == 1, Notify.create_user == g.username).first()
+        if operate == "add":     # 创建任务
+
+            table_uuid = reqData["id"]        # 资产表id
+            name = reqData["name"]            # 任务名
+            date_keyword = reqData["keyword"] # 日期字段 
+
+            if not all([table_uuid, name, date_keyword]):
+                return jsonify({"code": -1, "message": "请求参数不完整"}), 400
             
-            if operate == "add":  # 新建通知
-                if is_exist_notify:
-                    return jsonify({"code": -1, "message": "该资产表已经存在通知"}), 400
+            if not redisClient.getSet("crm:manage:table_uuid", table_uuid):  # 判断资产表是否存在
+                return jsonify({"code": -1, "message": "资产表不存在"}), 400
+            
+            try:
+                table = db_session.query(Manage).filter(Manage.uuid == table_uuid).first()
+            finally:
+                db_session.close()
+
+            if not table:
+                return jsonify({"code": -1, "message": "资产表不存在"}), 400
+            
+            try:  # 查询是否有存在已有任务
+                is_exist_notify = db_session.query(Notify).filter(Notify.table_name == table.table_name, Notify.create_user == g.username, Notify.keyword == date_keyword).first()
+            finally:
+                db_session.close()
+
+            if is_exist_notify:
+                return jsonify({"code": -1, "message": "已存在相同任务,请勿重复创建"}), 400
+            
+            # 创建定时任务
+            task_id = getUuid()
+            
+            try:
+                job.setJob(id=task_id, job_time="00:05:00", func="app.src.task:notifyTask", args=[task_id, table.name, table.table_name, date_keyword]) 
+            except:
+                crmLogger.error(f"创建定时任务{task_id}发生异常: {traceback.format_exc()}")
+                return jsonify({"code": -1, "message": "定时任务创建失败"}), 500
+
+            try:
+                notify_data = Notify(id=task_id, name=name, table_name=table.table_name, keyword=date_keyword, create_user=g.username)
+                db_session.add(notify_data)
+                db_session.commit()
+            except:
+                db_session.rollback()
+                crmLogger.error(f"写入notify表发生异常: {traceback.format_exc()}")
+                return jsonify({"code": -1, "message": "数据库异常"}), 500
+            finally:
+                db_session.close()
+
+            try:  # 写入log表
+                add_task_log = Log()
+                db_session.add(add_task_log)
+                db_session.commit()
+            except:
+                db_session.rollback()
+                crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+            finally:
+                db_session.close()
+
+            crmLogger.info(f"用户{g.username}创建定时任务{name}成功")
+            crmLogger.debug(f"定时任务{name}详情: task_id={task_id}, table_name={table.table_name}, keyword={date_keyword}")
+
+            return jsonify({"code": 0, "message": task_id}), 200
+            
+        elif operate in ["start", "stop"]:  # 停止任务
+
+            task_id = reqData["task_id"]    # 任务id
+
+            if not task_id:
+                return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+            
+            try:
+                curr_task = db_session.query(Notify).filter(Notify.id == task_id).first()
+            finally:
+                db_session.close()
+
+            if not curr_task:
+                return jsonify({"code": -1, "message": "任务不存在"}), 400
+            
+            if operate == "start":
+                if curr_task.status == 1:
+                    return jsonify({"code": -1, "message": "任务已开启"}), 400
                 else:
-                    # 创建定时任务
-                    task_id = getUuid()
-                    def getTaskFun(timeWord):
-                        def fun():
-                            # 查询过期数据
-                            try:
-                                today = datetime.now().strftime("%Y-%m-%d")  # 获取今天日期
-                                # expire_data = db_session.query().filter(NotifyMessage.expire_table == "crm_notify", NotifyMessage.expire_id == id).all()
-                            finally:
-                                db_session.close()
-                            # 写入数据库
-                            try:
-                                db_session.commit()
-                            except:
-                                db_session.rollback()
-                                crmLogger.error()
-                            finally:
-                                db_session.close()
-                        return fun
                     try:
-                        job.setJob(task_id, "00:00:00", getTaskFun())
-                        
+                        job.resumeJob(id=curr_task.id)
                     except:
-                        pass
-                    # 写入数据库
+                        return jsonify({"code": -1, "message": "开启任务失败"}), 500
+                    
                     try:
-                        add_log = Log()
-                        db_session.add(add_log)
+                        curr_task.status = 1
                         db_session.commit()
                     except:
                         db_session.rollback()
+                        return jsonify({"code": -1, "message": "数据库异常"}), 500
                     finally:
                         db_session.close()
-                    crmLogger.info(f"{task_id}任务添加成功")
-                    return jsonify({
-                        "code": 0,
-                        "message": "创建成功"
-                    }), 200
-            if operate == "stop":  # 停止通知
-                if is_exist_notify:
-                    pass
-                else:
-                    return jsonify({"code": 0, "message": "已停止通知"}), 200
-        finally:
+                
+                return jsonify({"code": 0, "message": "开启任务成功"}), 200
 
-            db_session.close()
+            if operate == "stop":
+                if curr_task == 0:
+                    return jsonify({"code": -1, "message": "任务已停止"}), 400
+                else:
+                    try:
+                        job.pauseJob(id=curr_task.id)
+                    except:
+                        return jsonify({"code": -1, "message": "停止任务失败"}), 500
+
+                    try:
+                        curr_task.status = 0
+                        db_session.commit()
+                    except:
+                        db_session.rollback()
+                        return jsonify({"code": -1, "message": "数据库异常"}), 500
+                    finally:
+                        db_session.close()
+            
+                return jsonify({"code": 0, "message": "停止任务成功"}), 200
 
 @manage.route("/export", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="导出资产表", check_ip=True)
@@ -1747,9 +1717,7 @@ def export():
 @manage.route("/process/<string:task_id>", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="查询任务进度", check_ip=True)
 def progress(task_id):
-    '''
-    查询任务进度
-    '''
+    '''查询任务进度'''
     # sse推送进度
     def event_stream():
         while True:

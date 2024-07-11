@@ -57,51 +57,36 @@ def init_cache():
 
     # 缓存资产表信息用于搜索
     try:
-
         manage_list = db_session.query(Manage.uuid, Manage.name, Manage.table_name).all()
-
     finally:
 
         db_session.close()
     
     if len(manage_list) > 0:
-
         for item in manage_list:
-
             redisClient.setSet("crm:manage:table_uuid", item.uuid)  # 缓存资产表uuid
-
             redisClient.setSet("crm:manage:table_name", item.name)  # 缓存资产表标题
 
             try:
-
                 _h = db_session.query(Header).filter(Header.table_name == item.table_name).order_by(Header.order.asc()).all()
-
             finally:
-
                 db_session.close()
 
             if _h:
-
                 _h_dicts = [
                     {c.name: getattr(u, c.name) for c in u.__table__.columns if c.name not in ["create_user", "create_time", "update_user", "update_time"]} for u in _h
                 ]  # 转换为字典dict
-
                 redisClient.setData(f"crm:header:{item.table_name}", json.dumps(_h_dicts))  # 缓存资产表的header
 
             try:
-
                 _r = db_session.query(Echart).filter(Echart.table_name == item.table_name).order_by(Echart.id.asc()).all()
-
             finally:
-
                 db_session.close()
 
             if _r:
-
                 _r_dicts = [
                     {c.name: getattr(u, c.name) for c in u.__table__.columns} for u in _r
                 ]
-
                 redisClient.setData(f"crm:echart:{item.table_name}", json.dumps(_r_dicts))  # 缓存资产表图表规则
 
     crmLogger.info("缓存初始化完成")
@@ -110,9 +95,9 @@ def init_db():
     '''
     初始化数据库
     '''
-    # crmLogger.info("正在初始化数据库")
-    # Base.metadata.create_all(bind=engine)  # 手册启动创建所有表
-    # crmLogger.info("数据库初始化完成")
+    crmLogger.info("正在初始化数据库")
+    Base.metadata.create_all(bind=engine)  # 手册启动创建所有表
+    crmLogger.info("数据库初始化完成")
     init_cache()
 
 class User(Base):
@@ -259,20 +244,12 @@ class Notify(Base):
 class Notice(Base):
     '''用户通知表'''
     __tablename__ = "crm_notice"
-    id = Column(Integer, primary_key=True, unique=True, nullable=False) # 消息的uuid
-    message = Column(String(40), nullable=False)                        # 消息内容
-    notify_id = Column(String(40), nullable=False)                      # 字段来源:crm_notify的id
-    is_read = Column(Integer, default=0)                                # 0-未读,1-已读
-    create_time = Column(DateTime, default=datetime.now)                # 创建时间
-
-class NotifyMessage(Base):
-    '''到期提醒消息表'''
-    __tablename__ = "crm_notify_message"
-    id = Column(String(40), primary_key=True, autoincrement=True)
-    expire_table = Column(String(20), nullable=False)    # 过期的资产表
-    expire_id = Column(Integer, nullable=False)          # 过期资产id
-    notify_id = Column(String(40), nullable=False)       # crm_notify的id
-    notice_id = Column(String(40), nullable=False)       # crm_notice的id
+    id = Column(Integer, primary_key=True, autoincrement=True)                   # 消息的自增id
+    message = Column(String(40), nullable=False)                                 # 消息内容
+    notify_id = Column(String(40), nullable=False)                               # 字段来源:crm_notify的id
+    is_read = Column(Integer, default=0)                                         # 0-未读,1-已读
+    create_time = Column(DateTime, default=datetime.now)                         # 创建时间
+    update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)  # 更新时间
 
 class History(Base):
     '''导入导出历史记录表'''
@@ -312,14 +289,10 @@ def generateManageTable(table_name: str="", cols=[]) -> Union[Table, None]:
     dynamic_table = Table(table_name, Base.metadata, *cols, extend_existing=True)
 
     try:
-
         with engine.connect() as conn:
             dynamic_table.create(conn)  # 创建动态表格
-
     except:
-
         crmLogger.error(f"生成新资产表{table_name}失败,原因: {traceback.format_exc()}")
-
         return None
     
     return dynamic_table
@@ -349,25 +322,15 @@ def addColumn(table_name: str, col_name: str, col_type: str) -> bool:
     :return:
     '''
     try:
-
         add_col_sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
-
         db_session.execute(text(add_col_sql))
-
         db_session.commit()
-
-        return True
-    
+        return True    
     except:
-
         db_session.rollback()
-
         crmLogger.error(f"资产表{table_name}添加字段失败,原因: {traceback.format_exc()}")
-
-        return False
-    
+        return False  
     finally:
-
         db_session.close()
     
 def alterColumn(table_name: str, col_name: str, dist_type: str) -> bool:
@@ -389,24 +352,17 @@ def alterColumn(table_name: str, col_name: str, dist_type: str) -> bool:
         return False
 
     try:
-
         alter_column_sql = f"ALTER TABLE {table_name} MODIFY COLUMN {col_name} {dist_type}"
-
         db_session.execute(text(alter_column_sql))
         
         if create_index:
             db_session.execute(text(create_index))
 
         db_session.commit()
-
-        return True
-    
+        return True   
     except:
-
         db_session.rollback()
-
         crmLogger.error(f"资产表{table_name}修改字段{col_name}属性失败,原因: {traceback.format_exc()}")
-
         return False
     
     finally:

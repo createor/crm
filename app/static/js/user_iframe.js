@@ -863,58 +863,109 @@ var mulitDetect = function (tableId) {
  * @param {String} tableId 表uuid
  */
 var createNotify = function (tableId) {
-    let id = tableId || localStorage.getItem("tableUid");
-    let header = JSON.parse(localStorage.getItem("header"))[id];
+    let table_id = tableId || localStorage.getItem("tableUid");
+    let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
     let option_template = "";
-    // 判断header中是否有date、datetime属性列
-    header.forEach((item) => {
-
+    header.forEach((item) => {  // 判断header中是否有date、datetime属性列
+        if (item.value_type == 5 || item.value_type == 6) {
+            option_template += `<option value="${item.field}">${item.title}</option>`;
+        }
     });
-    if (1 === 1) {
-        layer.open({
-            type: 1,
-            title: "到期提醒任务",
-            area: ["500px", "300px"],
-            shade: 0.6,
-            shadeClose: false,
-            resize: false,
-            move: false,
-            maxmin: false,
-            content: `<div style="padding: 10px;">
-                        <form class="layui-form">
-                            <div class="layui-form-item">
-                                <label class="layui-form-label">时间列</label>
-                                <div class="layui-input-inline">
-                                    <select>
-                                    <option value="">请选择</option>
-                                    ${option_template}
-                                    </select>
+    layer.open({
+        type: 1,
+        title: "到期提醒任务",
+        area: ["500px", "300px"],
+        shade: 0.6,
+        shadeClose: false,
+        resize: false,
+        move: false,
+        maxmin: false,
+        content: `<div>
+                    <div class="layui-tab" layui-tab-card lay-filter="notify">
+                        <ul class="layui-tab-title">
+                            <li class="layui-this">创建任务</li>
+                            <li>历史任务</li>
+                        </ul>
+                        <div>
+                            <div class="layui-tab-content">
+                                <div class="layui-tab-item layui-show">
+                                    <div style="padding: 10px;">
+                                        <form class="layui-form" lay-filter="notifyForm">
+                                            <div class="layui-form-item">
+                                                <label class="layui-form-label">任务名称</label>
+                                                <div class="layui-input-inline">
+                                                    <input type="text" name="taskName" id="taskName" lay-verify="required" placeholder="请输入任务名称" autocomplete="off" class="layui-input">
+                                                </div>
+                                            </div>
+                                            <div class="layui-form-item">
+                                                <label class="layui-form-label">时间列</label>
+                                                <div class="layui-input-inline">
+                                                    <select name="date_col" id="date_col" lay-verify="required">
+                                                        <option value="">请选择</option>
+                                                        ${option_template}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="layui-form-item" style="margin-left: 180px;margin-top: 40px;">
+                                                <button class="layui-btn" lay-submit lay-filter="add" id="addTask">创建任务</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div class="layui-tab-item">
+                                    <table class="layui-hide" id="historyNotify" lay-filter="historyNotify"></table>
                                 </div>
                             </div>
-                            <div class="layui-form-item">
-                                <button class="layui-btn" lay-submit lay-filter="add">创建任务</button>
-                            </div>
-                        </form>
-                      </div>`,
-            success: function () {
-                form.render();
-                form.on("submit(add)", function(data) {
-                    $.ajax({
-                        url: `/crm/api/v1/manage/id=${id}`,
-                        type: "post",
-                        success: function (data) {},
-                        error: function (err) {}
-                    });
-                    return false;
-                })
+                        </div>
+                    </div>
+                  </div>`,
+        success: (_, index) => {
+            form.render(null, "notifyForm");
+            if (option_template === "") {
+                $("#addTask").text("暂无时间列可选");
+                $("#addTask").addClass("layui-btn-disabled");
+                return false;
             }
-        });
-    } else {
-        layer.msg("未存在时间列,请新增或修改列", { icon: 2 });
-        return false;
-    }
+            form.on("submit(add)", (data) => {
+                let field = data.field;
+                let loadIndex = "";
+                $.ajax({
+                    url: "/crm/api/v1/manage/notify",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({
+                        "operate": "add",
+                        "id": table_id,
+                        "name": field.taskName,
+                        "keyword": field.date_col
+                    }),
+                    beforeSend: () => {
+                        loadIndex = layer.load(1, {
+                            shade: [0.1, "#000"]
+                        });
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
+                        if (res.code === 0) {
+                            layer.close(index);
+                            layer.msg("任务创建成功", { icon: 1 });
+                        } else {
+                            layer.msg(`创建失败: res.message`, { icon: 2 });
+                        }
+                        return false;
+                    },
+                    error: (err) => {
+                        layer.close(loadIndex);
+                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                        layer.msg(errMsg.message, { icon: 2 });
+                        return false;
+                    }
+                });
+                return false;
+            })
+        }
+    });
 }
-
 
 /**
  * @description 显示历史记录
@@ -986,4 +1037,88 @@ var showHistory = function (tableId) {
             });
         } 
     });
+}
+
+/**
+ * @description 导出表格数据
+ * @param {*} tableId 
+ */
+var exportTableData = function (tableId) {
+    let table_id = tableId || localStorage.getItem("tableUid");
+    layer.open({
+        type: 1,
+        title: "是否加密表格",
+        area: ["500px", "250px"],
+        shade: 0.6,
+        shadeClose: false,
+        move: false,
+        resize: false,
+        maxmin: false,
+        content: `<div class="layui-form" lay-filter="exportForm" style="padding: 20px 0 0 20px;">
+                    <div class="layui-form-item">
+                        <div class="layui-input-inline">
+                            <input type="radio" name="is_set" value="0" title="否,直接导出" checked>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <div class="layui-input-inline" style="width: 100%;">
+                            <input type="radio" name="is_set" value="1" title="是,请设置密码">
+                            <div style="width: 180px;display: inline-block;">
+                                <input type="password" name="passwd" maxlength="10" autocomplete="off" lay-affix="eye" class="layui-input">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="layui-form-item" style="margin-top: 20px;">
+                        <button type="button" class="layui-btn" lay-submit lay-filter="export" style="margin-left: 90px;">导出</button>
+                        <button type="button" class="layui-btn layui-btn-primary layui-border" lay-submit lay-filter="cancel" style="margin-left: 100px;">取消</button>
+                    </div>
+                  </div>`,
+        success: function (_, index) {
+            form.render(null, "exportForm");
+            form.on("submit(export)", (data) => {
+                let field = data.field;
+                if (field.is_set === "1") {
+                    if (field.passwd.length < 6) {
+                        layer.msg("密码长度不能小于6位", { icon: 2 });
+                        return false;
+                    }
+                }
+                $.ajax({
+                    url: `/crm/api/v1/manage/export?id=${table_id}${field.is_set === "1" ? `&passwd=${field.passwd}` : ""}`,
+                    type: "GET",
+                    success: function (res) {
+                        layer.close(index);
+                        if (res.code === 0) {
+                            let target = document.createElement("a");
+                            target.href = `/crm/api/v1/file/${res.message.id}`;
+                            target.download = res.message.filename;
+                            document.body.appendChild(target);
+                            target.click();
+                        } else {
+                            layer.msg(`导出错误: ${res.message}`, { icon: 2 });
+                        }
+                        return false;
+                    },
+                    error: function (err) {
+                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                        layer.msg(errMsg.message, { icon: 2 });
+                        return false;
+                    }
+                });
+                return false;
+            });
+            form.on("submit(cancel)", () => {
+                layer.close(index);
+                return false;
+            });
+        }
+    });
+}
+
+
+/** 
+ * @description 全局加载动画
+*/
+var showLoading = () => {
+    layer.load(2);
 }
