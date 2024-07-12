@@ -96,11 +96,14 @@ def getUuid() -> str:
     '''
     return str(uuid.uuid1())
 
-def formatDate(time: Union[date, None]) -> str:
+def formatDate(time: Union[date, None], mode: int = 1) -> str:
     '''
     格式化时间
     :return:
     '''
     if not time:
         return ""
-    return time.strftime("%Y-%m-%d")
+    if mode == 1:
+        return time.strftime("%Y-%m-%d")
+    elif mode == 2:
+        return time.strftime("%Y-%m-%d %H:%M:%S")

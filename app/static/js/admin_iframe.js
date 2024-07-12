@@ -5,18 +5,18 @@
 /**
  * @description 添加白名单IP 
 */
-var addNewWhiteIp = function () {
-    let currIndex = layer.open({
+var addNewWhiteIp = () => {
+    layer.open({
         type: 1,
         title: "添加白名单IP",
+        area: ["300px", "220px"],
         shade: 0.8,
         shadeClose: false,
         move: false,
         resize: false,
         maxmin: false,
-        area: ["300px", "220px"],
         content: `<div class="layui-form" style="padding: 10px 0 0 0;">
-                    <div class="layui-form-item">
+                    <div class="layui-form-item" lay-filter="addIpForm">
                         <label class="layui-form-label" style="width: 40px;">IP</label>
                         <div class="layui-input-inline">
                             <input type="text" name="ip" lay-verify="required|isAddress" maxlength="15" autocomplete="off" placeholder="请输入IP" class="layui-input">
@@ -32,9 +32,9 @@ var addNewWhiteIp = function () {
                         <button class="layui-btn" lay-submit lay-filter="add" style="margin-left: 120px;">添加</button>
                     </div>
                   </div>`,
-        success: function () {
+        success: (_, index) => {
             form.verify({
-                isAddress: function(value) {
+                isAddress: (value) => {
                     if (!value) return;
                     // 使用正则校验是否是IP
                     if (!/^(([1-9]|([1-9]\d)|(1\d\d)|(2([0-4]\d|5[0-5])))\.)(([1-9]|([1-9]\d)|(1\d\d)|(2([0-4]\d|5[0-5])))\.){2}([1-9]|([1-9]\d)|(1\d\d)|(2([0-4]\d|5[0-5])))$/.test(value)) {
@@ -42,9 +42,10 @@ var addNewWhiteIp = function () {
                     }
                 }
             })
-            form.render();
-            form.on("submit(add)", function (data) {
+            form.render(null, "addIpForm");
+            form.on("submit(add)", (data) => {
                 let field = data.field;
+                let loadIndex = "";
                 $.ajax({
                     url: "/crm/api/v1/system/add_white_list",
                     type: "POST",
@@ -53,18 +54,23 @@ var addNewWhiteIp = function () {
                         ip: field.ip,
                         description: field.remark
                     }),
-                    success: function (res) {
+                    beforeSend: () => {
+                        loadIndex = layer.load();
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
                         if (res.code === 0) {
-                            layer.close(currIndex);
-                            layer.msg("添加IP成功", {icon: 1});
+                            layer.close(index);
+                            layer.msg("添加IP成功", { icon: 1 });
                         } else {
-                            layer.msg("添加IP失败: " + res.message, {icon: 2});  
+                            layer.msg(`添加IP失败: ${res.message}`, { icon: 2 });  
                         }
                         return false;
                     },
-                    error: function (err) {
+                    error: (err) => {
+                        layer.close(loadIndex);
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                        layer.msg(errMsg.message, {icon: 2});
+                        layer.msg(errMsg.message, { icon: 2 });
                         return false;
                     }
                 });
@@ -79,11 +85,12 @@ var addNewWhiteIp = function () {
  * @param {string} id id值
  * @param {string} ip ip值
 */
-var delWhiteIp = function (id, ip) {
+var delWhiteIp = (id, ip) => {
     layer.confirm("确定删除该IP吗?", {
         title: "删除IP",
         btn: ["确定", "取消"]
-    }, function (index) {
+    }, (index) => {
+        let loadIndex = "";
         $.ajax({
             url: "/crm/api/v1/system/delete_white_list",
             type: "POST",
@@ -92,23 +99,28 @@ var delWhiteIp = function (id, ip) {
                 id: id,
                 ip: ip
             }),
-            success: function (res) {
+            beforeSend: () => {
+                loadIndex = layer.load();
+            },
+            success: (res) => {
+                layer.close(loadIndex);
                 if (res.code === 0) {
                     layer.close(index);
                     layer.msg("删除成功", { icon: 1 });
-                    // 剔除被删除的数据
+                    table.reloadData("myWhiteIp");
                 } else {
-                    layer.msg("删除失败:" + res.message, {icon: 2});
+                    layer.msg(`删除失败: ${res.message}`, { icon: 2 });
                 }
                 return false;
             },
-            error: function (err) {
+            error: (err) => {
+                layer.close(loadIndex);
                 let errMsg = err.responseJSON || JSON.parse(err.responseText);
                 layer.msg(errMsg.message, {icon: 2});
                 return false;
             }
         });
-    }, function (index) {
+    }, (index) => {
         layer.close(index);
     });
 }
@@ -116,8 +128,7 @@ var delWhiteIp = function (id, ip) {
 /**
  * @description 查看白名单IP信息
 */
-var showWhiteIp = function () {
-    // 新建白名单
+var showWhiteIp = () => {
     layer.open({
         type: 1,
         area: ["500px", "310px"],
@@ -127,10 +138,9 @@ var showWhiteIp = function () {
         maxmin: false,
         move: false,
         resize: false,
-        anim: 0,
         content: `<div>
                     <div style="margin: 5px 0 5px 10px;">
-                        <div class="layui-form">
+                        <div class="layui-form" lay-filter="showIpForm">
                             <div class="layui-input-wrap" style="width: 250px;">
                                 <input name="ip" placeholder="搜索IP" autocomplete="off" type="text" class="layui-input" style="width: 250px;" lay-filter="ip" lay-affix="search" lay-options="{split:true}">
                             </div>
@@ -139,7 +149,7 @@ var showWhiteIp = function () {
                     </div>
                     <table class="layui-hide" id="myWhiteIp" lay-filter="myWhiteIp"></table>
                   </div>`,
-        success: function () {
+        success: () => {
             table.render({
                 elem: "#myWhiteIp",
                 id: "myWhiteIp",
@@ -148,7 +158,7 @@ var showWhiteIp = function () {
                 page: true,
                 limit: 3,
                 limits: [3],
-                parseData: function (res) {
+                parseData: (res) => {
                     return {
                         "code": res.code,
                         "msg": res.code === 0 ? "" : res.message,
@@ -165,9 +175,9 @@ var showWhiteIp = function () {
                     } }
                 ]]
             });
-            form.render();
+            form.render(null, "showIpForm");
             // 搜索事件
-            form.on("input-affix(ip)", function (data) {
+            form.on("input-affix(ip)", (data) => {
                 let elem = data.elem;
                 let value = elem.value; 
                 table.reloadData("myWhiteIp", {
@@ -192,7 +202,7 @@ function reloadUserData() {
 /**
  * @description 新建用户
 */
-var addNewUser = function () {
+var addNewUser = () => {
     layer.open({
         type: 1,
         title: "新建用户",
@@ -202,7 +212,6 @@ var addNewUser = function () {
         maxmin: false,
         move: false,
         resize: false,
-        anim: 0,
         content: `<div style="width: 300px;padding-top: 10px;">
                     <form class="layui-form" lay-filter="editUser">
                         <div class="layui-form-item">
@@ -245,26 +254,26 @@ var addNewUser = function () {
                         </div>
                     </form>
                   </div>`,
-        success: function() {
+        success: (_, index) => {
             form.verify({
                 // 校验用户名是否是英文字符
-                isEnglish: function(value) {
+                isEnglish: (value) => {
                     if (!value) return;
                     if (!/^[a-zA-Z]+$/.test(value)) {
                         return "用户名只能包含英文字符";
                     }
                 }
             });
-            form.render();  // 渲染表格
+            form.render(null, "editUser");  // 渲染表格
             // 日期渲染
             laydate.render({
                 elem: "#expire-time",
                 max: 30,
-                disabledDate: function(date){
+                disabledDate: (date) => {
                     return date.getTime() < Date.now();
                 }
             });
-            form.on("radio(type)", function(data){
+            form.on("radio(type)", (data) => {
                 if (data.value === "2") {
                     $("#showExpire").show();
                 } else {
@@ -273,7 +282,8 @@ var addNewUser = function () {
                 return false;
             });
             // 创建用户事件
-            form.on("submit(create)", function(data) {
+            let loadIndex = "";
+            form.on("submit(create)", (data) => {
                 let field = data.field;
                 if (field.type === "2" && !$("#expire-time").val()) {
                     layer.msg("请选择到期时间", {icon: 2});
@@ -290,26 +300,31 @@ var addNewUser = function () {
                         company: field.company,
                         expire_time: field.type === "2" ? $("#expire-time").val() : ""
                     }),
-                    success: function(res) {
+                    beforeSend: () => {
+                        loadIndex = layer.load();
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
                         if (res.code === 0) {
-                            layer.closeAll();
-                            layer.msg("创建成功", {icon: 1});
+                            layer.close(index);
+                            layer.msg("创建成功", { icon: 1 });
                             reloadUserData();  // 重载用户表格
                         } else {
-                            layer.msg("创建失败: " + res.message, {icon: 2});
+                            layer.msg(`创建失败: ${res.message}`, { icon: 2 });
                        }
                        return false;
                     },
-                    error: function(err) {
+                    error: (err) => {
+                        layer.close(loadIndex);
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                        layer.msg(errMsg.message, {icon: 2});
+                        layer.msg(errMsg.message, { icon: 2 });
                         return false;
                     }
                 });
                 return false;
             });
-            form.on("submit(cancel)", function() {
-                layer.closeAll();
+            form.on("submit(cancel)", () => {
+                layer.close(index);
                 return false;
             });
         }
@@ -320,7 +335,7 @@ var addNewUser = function () {
  * @description 编辑用户
  * @param {object} userData 用户数据
  */
-var showUserEdit = function (userData) {
+var showUserEdit = (userData) => {
     layer.open({
         type: 1,
         title: "编辑",
@@ -330,7 +345,6 @@ var showUserEdit = function (userData) {
         maxmin: false,
         move: false,
         resize: false,
-        anim: 0,
         content: `<div style="width:300px;padding-top:10px;">
                     <form class="layui-form" lay-filter="editUser">
                         <div class="layui-form-item">
@@ -361,12 +375,12 @@ var showUserEdit = function (userData) {
                         </div>
                     </form>
                   </div>`,
-        success: function () {
-            form.render();
+        success: (_, index) => {
+            form.render(null, "editUser");
             laydate.render({
                 elem: "#expire-time",
                 max: 30,
-                disabledDate: function(date){
+                disabledDate: (date) => {
                     return date.getTime() < Date.now();
                 }
             });
@@ -374,7 +388,7 @@ var showUserEdit = function (userData) {
             if ($("input[name=type]:checked").val() === "2") {
                 $("#showExpire").show();
             }
-            form.on("radio(type)", function(data){
+            form.on("radio(type)", (data) => {
                 if (data.value === "2") {
                     $("#showExpire").show();
                 } else {
@@ -382,8 +396,9 @@ var showUserEdit = function (userData) {
                 }
                 return false;
             });
-            form.on("submit(update)", function (data) {
+            form.on("submit(update)", (data) => {
                 let field = data.field;
+                let loadIndex = "";
                 $.ajax({
                     url: "/crm/api/v1/user/edit",
                     type: "POST",
@@ -396,19 +411,24 @@ var showUserEdit = function (userData) {
                         company: field.company,
                         expire_time: field.type === "2" ? $("#expire-time").val() : ""
                     }),
-                    success: function (res) {
+                    beforeSend: () => {
+                        loadIndex = layer.load();
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
                         if (res.code === 0) {
-                            layer.closeAll();
-                            layer.msg("更新成功", {icon: 1});
+                            layer.close(index);
+                            layer.msg("更新成功", { icon: 1 });
                             reloadUserData();  // 重载用户表格
                         } else {
-                            layer.msg("更新失败:" + res.message, {icon: 2});
+                            layer.msg(`更新失败: ${res.message}`, {icon: 2});
                         }
                         return false;
                     },
-                    error: function(err) {
+                    error: (err) => {
+                        layer.close(loadIndex);
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                        layer.msg(errMsg.message, {icon: 2});
+                        layer.msg(errMsg.message, { icon: 2 });
                         return false;
                     }
                 });
@@ -422,12 +442,13 @@ var showUserEdit = function (userData) {
  * @description 删除用户
  * @param {object} data 用户数据
 */
-var showUserDel = function (data) {
+var showUserDel = (data) => {
     layer.confirm("是否删除用户?", {
             title: "删除",
             btn: ["确定", "取消"]
-        }, function () {
+        }, (index) => {
             // 删除用户
+            let loadIndex = "";
             $.ajax({
                 url: "/crm/api/v1/user/del",
                 type: "POST",
@@ -436,8 +457,13 @@ var showUserDel = function (data) {
                     "uid": data.id,
                     "username": data.username
                 }),
-                success: function (res) {
+                beforeSend: () => {
+                    loadIndex = layer.load();
+                },
+                success: (res) => {
+                    layer.close(loadIndex);
                     if (res.code === 0) {
+                        layer.close(index);
                         layer.msg("删除成功", {icon: 1});
                         reloadUserData();
                     } else {
@@ -445,15 +471,16 @@ var showUserDel = function (data) {
                     }
                     return false;
                 },
-                error: function (err) {
+                error: (err) => {
+                    layer.close(loadIndex);
                     let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                    layer.msg(errMsg.message, {icon: 2});
+                    layer.msg(errMsg.message, { icon: 2 });
                     return false;
                 }
             });
         },
-        function () {
-            layer.closeAll();  // 关闭窗口
+        (index) => {
+            layer.close(index);  // 关闭窗口
         }
     );
 }
@@ -462,12 +489,13 @@ var showUserDel = function (data) {
  * @description 锁定用户
  * @param {object} data 用户数据
 */
-var showUserLock = function (data) {
+var showUserLock = (data) => {
     layer.confirm("是否锁定用户?", {
             title: "锁定",
             btn: ["确定", "取消"]
-        }, function () {
+        }, (index) => {
             // 锁定用户
+            let loadIndex = "";
             $.ajax({
                 url: "/crm/api/v1/user/lock",
                 type: "POST",
@@ -476,8 +504,13 @@ var showUserLock = function (data) {
                     "uid": data.id,
                     "username": data.username
                 }),
-                success: function (res) {
+                beforeSend: () => {
+                    loadIndex = layer.load();
+                },
+                success: (res) => {
+                    layer.close(loadIndex);
                     if (res.code === 0) {
+                        layer.close(index);
                         layer.msg("已锁定", {icon: 1});
                         reloadUserData();
                     } else {
@@ -486,14 +519,15 @@ var showUserLock = function (data) {
                     return false;
                 },
                 error: function (err) {
+                    layer.close(loadIndex);
                     let errMsg = err.responseJSON || JSON.parse(err.responseText);
                     layer.msg(errMsg.message, {icon: 2});
                     return false;
                 }
             });
         },
-        function () {
-            layer.closeAll();
+        (index) => {
+            layer.close(index);
         }
     );
 }
@@ -502,12 +536,13 @@ var showUserLock = function (data) {
  * @description 解锁用户
  * @param {object} data 用户数据
 */
-var showUserUnlock = function (data) {
+var showUserUnlock = (data) => {
     layer.confirm("是否解锁用户?", {
             title: "解锁",
             btn: ["确定", "取消"]
-        }, function () {
+        }, (index) => {
             // 解锁用户
+            let loadIndex = "";
             $.ajax({
                 url: "/crm/api/v1/user/unlock",
                 type: "POST",
@@ -516,8 +551,13 @@ var showUserUnlock = function (data) {
                     "uid": data.id,
                     "username": data.username
                 }),
-                success: function (res) {
+                beforeSend: () => {
+                    loadIndex = layer.load();
+                },
+                success: (res) => {
+                    layer.close(loadIndex);
                     if (res.code === 0) {
+                        layer.close(index);
                         layer.msg("解锁成功", {icon: 1});
                         reloadUserData();
                     } else {
@@ -525,15 +565,16 @@ var showUserUnlock = function (data) {
                     }
                     return false;
                 },
-                error: function (err) {
+                error: (err) => {
+                    layer.close(loadIndex);
                     let errMsg = err.responseJSON || JSON.parse(err.responseText);
                     layer.msg(errMsg.message, {icon: 2});
                     return false;
                 }
             });
         },
-        function () {
-            layer.closeAll();
+        (index) => {
+            layer.close(index);
         }
     );
 }
@@ -542,12 +583,13 @@ var showUserUnlock = function (data) {
  * @description 重置密码
  * @param {object} data 用户数据 
 */
-var showUserReset = function (data) {
+var showUserReset = (data) => {
     layer.confirm("是否重置密码?", {
             title: "重置密码",
             btn: ["确定", "取消"]
-        }, function () {
+        }, (index) => {
             // 重置用户密码
+            let loadIndex = "";
             $.ajax({
                 url: "/crm/api/v1/user/reset",
                 type: "POST",
@@ -556,23 +598,29 @@ var showUserReset = function (data) {
                     "uid": data.id,
                     "username": data.username
                 }),
-                success: function (res) {
+                beforeSend: () => {
+                    loadIndex = layer.load();
+                },
+                success: (res) => {
+                    layer.close(loadIndex);
                     if (res.code === 0) {
-                        layer.msg("重置成功", {icon: 1});
+                        layer.close(index);
+                        layer.msg("重置成功", { icon: 1 });
                     } else {
-                        layer.msg("重置失败: " + res.message, {icon: 2});
+                        layer.msg("重置失败: " + res.message, { icon: 2 });
                     }
                     return false;
                 },
-                error: function (err) {
+                error: (err) => {
+                    layer.close(loadIndex);
                     let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                    layer.msg(errMsg.message, {icon: 2});
+                    layer.msg(errMsg.message, { icon: 2 });
                     return false;
                 }
             });
         },
-        function () {
-            layer.closeAll();
+        (index) => {
+            layer.close(index);
         }
     );
 }

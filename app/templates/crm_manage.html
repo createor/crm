@@ -49,7 +49,16 @@
     }
 
     #prefix .layui-select-title input {
-        margin-top: 9px;
+        margin-top: 8px;
+        height: 32px;
+    }
+
+    #prefix .layui-select-title .layui-edge {
+        top: 56%;
+    }
+
+    #select_group .layui-unselect {
+        line-height: 32px;
         height: 32px;
     }
 
@@ -129,7 +138,7 @@
         base: "{{ url_for('static', filename='layui/ext/') }}"
     }).extend({
         cardTable: "cardTable/cardTable"
-    }).use(["layer", "cardTable", "jquery", "table", "form", "dropdown", "upload"], function () {
+    }).use(["layer", "cardTable", "jquery", "table", "form", "dropdown", "upload", "laydate"], () => {
         const form = layui.form;
         const layer = layui.layer;
         const table = layui.table;
@@ -137,9 +146,10 @@
         const dropdown = layui.dropdown;
         const cardTable = layui.cardTable;
         const upload = layui.upload;
+        const laydate = layui.laydate;
 
         var tableUid = "";   // 资产表id
-        var isEdit = false;  // 是否在编辑状态,如果是当用户尝试关闭或刷新页面时,提示他们有可能未保存的更改
+        var loadIndex = "";  // loading
 
         // 渲染资产表列表
         var currentTable = cardTable.render({
@@ -158,20 +168,30 @@
                 countName: "message.total",
                 dataName: "message.data"
             },
-            done: function () { }
+            done: () => { }
         });
 
-        currentTable.on("row(manageTable)", function (obj) {
+        /**
+         * @description 重载卡片表格
+        */
+        function reloadCardTable () {
+            cardTable.reload("manageTable");
+        }
+
+        window.reloadCardTable = window.reloadCardTable || reloadCardTable;
+
+        currentTable.on("row(manageTable)", (obj) => {
             $("#showAllManage").hide(); // 隐藏资产表列表
             $("#showManage").show();    // 显示具体资产表表格
 
             tableUid = obj.value.id;    // 表格的id
             localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
 
+            // 获取header
             $.ajax({
                 url: `/crm/api/v1/manage/header?id=${tableUid}`,
                 type: "GET",
-                success: function (res) {
+                success: (res) => {
                     if (res.code === 0) {
                         header = res.message;
                         // 本地存储header信息
@@ -183,7 +203,7 @@
                     }
                     return false;
                 },
-                error: function (err) {
+                error: (err) => {
                     let errMsg = err.responseJSON || JSON.parse(err.responseText);
                     layer.msg(errMsg.message, { icon: 2 });
                     return false;
@@ -191,8 +211,10 @@
             });
 
             let option_templ = "";  // 选项模板
+            let select_header = new Object();
             header.forEach((item) => {
                 option_templ += `<option value="${item.field}">${item.title}</option>`;
+                select_header[item.field] = item.col_type === 1 ? { "type": item.col_type, "value_type": item.value_type } : { "type": item.col_type, "value_type": item.value_type, "options": item.option };
             });
 
             // 加载资产表数据
@@ -209,12 +231,14 @@
                             <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="del" id="del">删除选中的数据</a>
                             <div style="width: 400px;display: inline-block; height: 20px;margin-left: 15px;">
                                 <div class="layui-input-group">
-                                    <div class="layui-input-split layui-input-prefix" style="width: 120px;padding: 0;height: 30px;" id="prefix">
-                                        <select name="utype" id="utype">
-                                        ${option_templ}    
+                                    <div class="layui-input-split layui-input-prefix" style="width: 120px;padding: 0;height: 30px;border: none;" id="prefix">
+                                        <select name="utype" id="utype" lay-filter="utype">
+                                            ${option_templ}    
                                         </select>
                                     </div>
-                                    <input type="text" placeholder="搜索相关内容" name="keywords" class="layui-input" style="height: 32px;">
+                                    <div id="select_group">
+                                        <input type="text" placeholder="搜索相关内容" name="keywords" class="layui-input" style="height: 32px;">
+                                    </div>
                                     <div class="layui-input-split layui-input-suffix" style="cursor: pointer;width: 30px;height: 30px;" id="searchData">
                                         <i class="layui-icon layui-icon-search"></i>
                                     </div>
@@ -232,7 +256,7 @@
                 limit: 8,
                 limits: [8],
                 totalRow: true,
-                parseData: function (result) {
+                parseData: (result) => {
                     return {
                         "code": result.code,
                         "msg": result.code === 0 ? "" : result.message,
@@ -250,15 +274,114 @@
                     { title: "导入导出详情", layEvent: "LAYTABLE_DETAIL", icon: "layui-icon-time" }
                 ],
                 done: function () {
-                    // 搜索
-                    $("#searchData").on("click", () => {
-                        let u = $("#utype").val();
-                        let k = $("input[name='keywords']").val();
-                        if (k.length > 0) {
-                            table.reload("manage", {
-                                where: {
-                                    "key": u,
-                                    "value": k
+                    // select选择事件
+                    form.on("select(utype)", (data) => {
+                        let value = data.value;  // 获取选中的值
+                        if (select_header[value].type === 2) {
+                            $("#select_group").html(`
+                                <div class="layui-input-inline" style="width: 120px;height: 34px;">
+                                    <select name="${value}" id="${value}">
+                                        ${select_header[value].options.map((item) => { return `<option value="${item.value}">${item.title}</option>`; })}
+                                    </select>
+                                </div>
+                            `);
+                            form.render($(`#${value}`));
+                            $("#searchData").on("click", () => {
+                                let u = $("#utype").val();
+                                let k = $(`#${value}`).val();
+                                if (k.length > 0) {
+                                    table.reloadData("manage", {
+                                        where: {
+                                            "type": 2,
+                                            "key": u,
+                                            "value": k
+                                        }
+                                    });
+                                }
+                            });
+                        } else if (select_header[value].value_type === 5) {
+                            $("#select_group").html(`
+                                <div class="layui-input-inline" style="width: 225px;">
+                                    <div style="width: 100px;height: 34px;" class="layui-input-inline">
+                                        <select id="compare" name="compare">
+                                            <option value="eq">等于</option>
+                                            <option value="gt">大于</option>
+                                            <option value="lt">小于</option>
+                                            <option value="ge">大于等于</option>
+                                            <option value="le">小于等于</option>
+                                            <option value="ne">不等于</option>
+                                        </select>
+                                    </div>
+                                    <input type="text" class="layui-input" id="select_group_date" placeholder="yyyy-MM-dd" style="display: inline-block;width: 120px;height: 34px;">
+                                </div>`
+                            );
+                            form.render($("#compare"));
+                            laydate.render({
+                                elem: "#select_group_date"
+                            });
+                            $("#searchData").on("click", () => {
+                                let u = $("#utype").val();
+                                let k = $("#select_group_date").val();
+                                if (k.length > 0) {
+                                    table.reloadData("manage", {
+                                        where: {
+                                            "type": 3,
+                                            "key": u,
+                                            "c": $("#compare").val(),
+                                            "value": k
+                                        }
+                                    });
+                                }
+                            });
+                        } else if (select_header[value].value_type === 6) {
+                            $("#select_group").html(`
+                                <div class="layui-input-inline" style="width: 305px;">
+                                    <div style="width: 100px;height: 34px;" class="layui-input-inline">
+                                        <select id="compare" name="compare">
+                                            <option value="eq">等于</option>
+                                            <option value="gt">大于</option>
+                                            <option value="lt">小于</option>
+                                            <option value="ge">大于等于</option>
+                                            <option value="le">小于等于</option>
+                                            <option value="ne">不等于</option>
+                                        </select>
+                                    </div>
+                                    <input type="text" class="layui-input" id="select_group_time" placeholder="yyyy-MM-dd HH:mm:ss" style="display: inline-block;width: 200px;height: 34px;">
+                                </div>`
+                            );
+                            form.render($("#compare"));
+                            laydate.render({
+                                elem: "#select_group_time",
+                                type: "datetime"
+                            });
+                            $("#searchData").on("click", () => {
+                                let u = $("#utype").val();
+                                let k = $("#select_group_time").val();
+                                if (k.length > 0) {
+                                    table.reloadData("manage", {
+                                        where: {
+                                            "type": 3,
+                                            "key": u,
+                                            "c": $("#compare").val(),
+                                            "value": k
+                                        }
+                                    });
+                                }
+                            });
+                        } else {
+                            $("#select_group").html(`<input type="text" placeholder="搜索相关内容" name="keywords" class="layui-input" style="height: 32px;">`);
+                            form.render($("#select_group"));
+                            // 搜索
+                            $("#searchData").on("click", () => {
+                                let u = $("#utype").val();
+                                let k = $("input[name='keywords']").val();
+                                if (k.length > 0) {
+                                    table.reloadData("manage", {
+                                        where: {
+                                            "key": u,
+                                            "value": k
+                                        }
+                                    });
                                 }
                             });
                         }
@@ -272,11 +395,15 @@
                                   </div>`,
                         ready: function () {
                             // 下载模板导入文件
-                            $("#downTempl").on("click", function () {
+                            $("#downTempl").on("click", () => {
                                 $.ajax({
                                     url: `/crm/api/v1/manage/template?id=${tableUid}`,
                                     type: "GET",
-                                    success: function (res) {
+                                    beforeSend: () => {
+                                        loadIndex = layer.load(2);
+                                    },
+                                    success: (res) => {
+                                        layer.close(loadIndex);
                                         if (res.code == 0) {
                                             let target = document.createElement("a");
                                             target.href = `/crm/api/v1/file/${res.message.fileuuid}`;
@@ -289,7 +416,8 @@
                                         }
                                         return false;
                                     },
-                                    error: function (err) {
+                                    error: (err) => {
+                                        layer.close(loadIndex);
                                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
                                         layer.msg(errMsg.message, { icon: 2 });
                                         return false;
@@ -303,15 +431,34 @@
                                 accept: "file",
                                 acceptMime: "application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 exts: "xls|xlsx",
-                                done: function (res) {
+                                done: (res) => {
                                     if (res.code == 0) {
-                                        // 显示导入进度
+                                        $.ajax({
+                                            url: "/crm/api/v1/manage/import",
+                                            type: "POST",
+                                            contentType: "application/json;charset=utf-8",
+                                            data: JSON.stringify({
+                                                "file_uuid": res.message,
+                                                "table_id": tableUid
+                                            }),
+                                            success: (r) => {
+                                                if (r.code === 0) {
+                                                    // 显示导入进度
+                                                    window.parent.showProgress(res.message);
+                                                }
+                                                return false;
+                                            },
+                                            error: (e) => {
+                                                layer.msg("表格导入数据失败", { icon: 2 });
+                                                return false;
+                                            }
+                                        });
                                     } else {
-                                        layer.msg("失败: " + res.message, { icon: 2 });
+                                        layer.msg(`失败: ${res.message}`, { icon: 2 });
                                     }
                                     return false;
                                 },
-                                error: function () {
+                                error: (err) => {
                                     layer.msg("表格导入数据失败", { icon: 2 });
                                     return false;
                                 }
@@ -327,7 +474,7 @@
         });
 
         // 表格复选框触发事件
-        table.on("checkbox(manage)", function (obj) {
+        table.on("checkbox(manage)", (obj) => {
             let id = obj.config.id;
             let checkStatus = table.checkStatus(id);
             if (checkStatus.data.length > 0) {  // 选中数据则展示编辑和删除按钮
@@ -340,7 +487,7 @@
         });
 
         // 工具栏事件
-        table.on("toolbar(manage)", function (obj) {
+        table.on("toolbar(manage)", (obj) => {
             let id = obj.config.id;
             let checkStatus = table.checkStatus(id);
             switch (obj.event) {
@@ -406,7 +553,7 @@
                 $.ajax({
                     url: `/crm/api/v1/manage/title?k=${value}`,
                     type: "GET",
-                    success: function (res) {
+                    success: (res) => {
                         if (res.code === 0) {
                             if (res.message.length > 0) {
                                 let keyword_templ = "";
@@ -415,7 +562,7 @@
                                 });
                                 $("#showkeyword").html(keyword_templ);
                                 $("#showkeyword").show();
-                                $("#showkeyword div").on("click", function () {
+                                $("#showkeyword div").on("click", () => {
                                     $("#tableName").val($(this).text());
                                     $("#showkeyword").hide();
                                 });
@@ -425,7 +572,7 @@
                         }
                         return false;
                     },
-                    error: function () {
+                    error: () => {
                         return false;
                     }
                 });
@@ -437,7 +584,7 @@
         $("#tableName").keyup(debouncedSearch);
 
         // 搜索标题
-        form.on("submit(search)", function (data) {
+        form.on("submit(search)", (data) => {
             let field = data.field;
             if (field.tableName) {
                 // 重载cardTable
@@ -451,7 +598,7 @@
         });
 
         // 新增资产表
-        form.on("submit(addTable)", function () {
+        form.on("submit(addTable)", () => {
             window.parent.addNewTable(tableUid);
             return false;
         });
@@ -464,7 +611,7 @@
             $.ajax({
                 url: `/crm/api/v1/manage/echart?id=${tableUid}`,
                 type: "GET",
-                success: function (res) {
+                success: (res) => {
                     if (res.code === 0) {
                         res.message.forEach((item, index) => {
                             $(`#chart${index}`).empty();  // 清除图片
@@ -474,25 +621,21 @@
                         });
                     }
                 },
-                error: function (err) {
+                error: (err) => {
                     console.log(err);
                     return false;
                 }
-            })
+            });
         }
 
-        // 新建图表规则
-        $("#newRule").on("click", function () {
-            // 新建或者编辑规则
+        window.showCharts = window.showCharts || showCharts;
+
+        // 新建或者编辑规则
+        $("#newRule").on("click", () => {
             window.parent.addNewRule();
             return false;
         });
 
-        window.addEventListener("beforeunload", () => {
-            if (isEdit) {
-                layer.msg("检测到你有未保存的信息,是否保存")
-            }
-        });
     });
 </script>
 

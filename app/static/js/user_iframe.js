@@ -4,7 +4,7 @@
 /**
  * @description 绑定进度条步骤
  */
-var renderStepProgress = function () {
+var renderStepProgress = () => {
     let stepItems = [
         {
             title: "开始",
@@ -26,23 +26,22 @@ var renderStepProgress = function () {
     stepprogress.render({
         elem: "#stepProgressBar",  // 绑定元素
         stepItems: stepItems,
-        position: 0  // 起始位置0
+        position: 0                // 起始位置0
     });
 }
 
 /**
  * @description 文本输入长度
- * @param {*} that 
+ * @param {this} that 
  */
-var checkLength = function (that) {
+var checkLength = (that) => {
     $("#char-count").text(that.value.length);
 }
 
 /**
  * @description 新建资产表
  */
-var addNewTable = function () {
-    // 新建资产表 
+var addNewTable = () => {
     layer.open({
         type: 1,
         area: ["500px", "400px"],
@@ -53,8 +52,9 @@ var addNewTable = function () {
         resize: false,
         maxmin: false,
         content: `<div class="layui-container" style="width: 100%;height: 100%;padding-top: 10px;">
+                    <!-- 顶部步骤 -->
                     <div id="stepProgressBar"></div>
-                    <div class="stepContent layui-form" style="padding-top: 10px;text-align: left;">
+                    <div class="stepContent layui-form" style="padding-top: 10px;text-align: left;" lay-filter="stepFrom">
                         <div class="layui-form-item">
                             <div class="layui-inline">
                                 <label class="layui-form-label" style="width: 100px;">表名(必填)</label>
@@ -105,17 +105,17 @@ var addNewTable = function () {
                     <!-- 显示结果 -->
                     <div class="stepContent layui-form">
                     </div>
-                    <div class="layui-btn-container" style="position: absolute;bottom: 15px;left:200px;">
+                    <div class="layui-btn-container" style="position: absolute;bottom: 15px;left: 200px;">
                         <div style="text-align: center;margin-top: 10px;">
 	                        <button type="button" id="pre" class="layui-btn layui-btn-sm" style="margin-top: 10px;margin-left: -20px;">上一步</button>
 	                        <button type="button" id="next" class="layui-btn layui-btn-sm" style="margin: 0 20px;">下一步</button>
-                            <button type="button" id="rightUse" class="layui-btn layui-btn-sm" style="display: none;">立即使用</button>
+                            <button type="button" id="rightUse" class="layui-btn layui-btn-sm" style="display: none; margin-left: 20px;">立即使用</button>
                         </div>
                     </div> 
                   </div>`,
-        success: function () {
+        success: (_, index) => {
             let uploadFilename = "";  // 文件名
-            let layerIndex = "";  // load的index
+            let layerIndex = "";      // load的index
             // 文件上传
             upload.render({
                 elem: "#uploadExcel",
@@ -123,15 +123,15 @@ var addNewTable = function () {
                 accet: "file",
                 acceptMime: "application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 exts: "xlsx|xls",
-                choose: function (obj) {
-                    obj.preview(function(_,file) {
+                choose: (obj) => {
+                    obj.preview((_, file) => {
                         uploadFilename = file.name;
                     });
                 },
-                before: function () {
+                before: () => {
                     layerIndex = layer.load();
                 },
-                done: function (res) {
+                done: (res) => {
                     layer.close(layerIndex);
                     if (res.code === 0) {
                         // 写入filename
@@ -139,25 +139,27 @@ var addNewTable = function () {
                         $("#upload-preview span").text(uploadFilename);
                         $("#upload-preview").removeClass("layui-hide");
                         layer.msg("上传成功", {icon: 1});
+                    } else {
+                        layer.msg(`上传失败: ${res.message}`, {icon: 2});
                     }
                 }
             });
             form.verify({
                 // 校验输入是否是英文
-                isEnglish: function(value) {
+                isEnglish: (value) => {
                     if (!value) return;
                     if (!(/^[A-Za-z]+$/.test(value))) {
                         return "只能由英文组成";
                     }
                 }
             });
-            form.render();      // 渲染表格
-            let currIndex = 0;  // 定义当前步骤
-            $("#pre").hide();   // 隐藏上一步
-            $(".stepContent").eq(0).show();  // 显示第一步
-            renderStepProgress();  // 渲染步骤进度
+            form.render(null, "stepFrom");      // 渲染表格
+            let currIndex = 0;                  // 定义当前步骤
+            $("#pre").hide();                   // 隐藏上一步
+            $(".stepContent").eq(0).show();    // 显示第一步
+            renderStepProgress();              // 渲染步骤进度
             // 点击下一步触发函数
-            $("#next").click(function(){
+            $("#next").click(() => {
                 if (currIndex === 0) {
                     let isEmpty = form.validate("#manageName");  // 验证是否为空
                     let isValid = form.validate("#emanegName");  // 验证是否是英文
@@ -178,15 +180,22 @@ var addNewTable = function () {
                     }
                 }
                 currIndex += 1;
-		        stepprogress.next('stepProgressBar');
+		        stepprogress.next("stepProgressBar");
 	        });
-            // 点击上一步触发函数
-	        $("#pre").click(function(){
+            // 点击上一步触发的函数
+	        $("#pre").click(() => {
                 currIndex -= 1;
-		        stepprogress.pre('stepProgressBar');
+		        stepprogress.pre("stepProgressBar");
 	        });
+            // 点击立即使用触发的函数
+            $("#rightUse").click(() => {
+                layer.close(index);
+                // 重载列表
+                let win = window.frames["crm_manage"];
+                win.contentWindow.reloadCardTable();
+            });
             // 绑定进度变化事件
-            stepprogress.on('change(stepProgressBar)', function (options) {
+            stepprogress.on("change(stepProgressBar)", (options) => {
                 if (options.position == 0) {
                     $(".stepContent").eq(0).show();
                     $(".stepContent").eq(1).hide();
@@ -214,7 +223,7 @@ var addNewTable = function () {
                     $("#next").hide();
                     $.ajax({
                         url: "/crm/api/v1/manage/add",
-                        type: "post",
+                        type: "POST",
                         contentType: "application/json;charset=utf-8",
                         data: JSON.stringify({
                             "name": $("input[name='manageName']").val(),
@@ -222,8 +231,8 @@ var addNewTable = function () {
                             "filename": $("input[name='filename']").val() ? $("input[name='filename']").val() : "",
                             "desc": $("#remark").val(),
                         }),
-                        success: function (data) {
-                            if (data.code === 0) {
+                        success: (res) => {
+                            if (res.code === 0) {
                                 // 成功提示
                                 $(".stepContent").eq(3).html("<div style='padding: 35px 0;margin-left: -10px;'> \
                                     <i class='layui-icon layui-icon-success' style='font-size: 100px;color: green;'></i> \
@@ -235,20 +244,20 @@ var addNewTable = function () {
                                 $(".stepContent").eq(3).html("<div style='padding: 35px 0;margin-left: -10px;'> \
                                     <i class='layui-icon layui-icon-error' style='font-size: 100px;color: red;'></i> \
                                     </div> \
-                                    <span style='margin-left: -10px;font-size: 20px;'>创建失败: " + data.message + "</span>");
+                                    <span style='margin-left: -10px;font-size: 20px;'>创建失败: " + res.message + "</span>");
                             }
-                            stepprogress.next('stepProgressBar');
+                            stepprogress.next("stepProgressBar");
                             $(".stepContent").eq(2).hide();
                             $(".stepContent").eq(3).show();
                             return false;
                         },
-                        error: function (err) {
+                        error: (err) => {
                             let errMsg = err.responseJSON || JSON.parse(err,responseText);
                             $(".stepContent").eq(3).html("<div style='padding: 35px 0;margin-left: -10px;'> \
                                     <i class='layui-icon layui-icon-error' style='font-size: 100px;color: red;'></i> \
                                     </div> \
                                     <span style='margin-left: -10px;font-size: 20px;'>创建失败: " + errMsg.message + "</span>");
-                            stepprogress.next('stepProgressBar');
+                            stepprogress.next("stepProgressBar");
                             $(".stepContent").eq(2).hide();
                             $(".stepContent").eq(3).show();
                             return false;
@@ -266,7 +275,7 @@ var addNewTable = function () {
  * @description 新增图表规则
  * @param {String} tableId 表uuid
  */
-var addNewRule = function (tableId) {
+var addNewRule = (tableId) => {
     let table_id = tableId || localStorage.getItem("tableUid");
     let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
     let option_template = "";  // 字段选项模板
@@ -347,21 +356,21 @@ var addNewRule = function (tableId) {
                         </div>
                     </div>
                 </div>`,
-        success: function () {
+        success: (_, index) => {
             // 渲染tab
             element.render("tab", "ruleTab");
             // tab切换事件
-            element.on("tab(ruleTab)", function(data) {
-                $(".layui-tab-content .layui-tab-item").each(function(){
+            element.on("tab(ruleTab)", (data) => {
+                $(".layui-tab-content .layui-tab-item").each(() => {
                     $(this).removeClass("layui-show");
                 });
                 $(".layui-tab-content .layui-tab-item").eq(data.index).addClass("layui-show");
             });
-            form.render();  // 渲染表单
+            form.render(null, "ruleForm");  // 渲染表单
             $.ajax({
                 url: `/crm/api/v1/manage/rule?id=${table_id}`,
                 type: "GET",
-                success: function (res) {
+                success: (res) => {
                     if (res.code === 0) {
                         let has_options = res.message;
                         if (has_options.length > 0) {
@@ -377,34 +386,43 @@ var addNewRule = function (tableId) {
                     }
                     return false;
                 },
-                error: function (err) {
+                error: (err) => {
                     console.log(err);
                     return false;
                 }
             });
-            form.on("submit(updateChart)", function(data) {
+            form.on("submit(updateChart)", (data) => {
                 let field = data.field;  // 获取字段值
+                let loadIndex = "";
                 // 校验
                 $.ajax({
                     url: "/crm/api/v1/manage/rule",
                     type: "POST",
+                    contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
                         "table_uuid": tableId,
                         "rules": number.map((item) => {return {"name": field[`rule_${item}_name`], "type": field[`rule_${item}_type`], "keyword": field[`rule_${item}_value`], "date_keyword": field[`rule_${item}_date`]}})
                     }),
-                    success: function (res) {
+                    beforeSend: () => {
+                        loadIndex = layer.load();
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
                         if (res.code === 0) {
-                            layer.closeAll();
-                            layer.msg("更新成功", {icon: 1});
+                            layer.close(index);
+                            layer.msg("更新成功", { icon: 1 });
                             // 刷新图表
+                            let win = window.frames["crm_manage"];
+                            win.contentWindow.showCharts();
                         } else {
-                            layer.msg("更新失败: " + res.message, {icon: 2});
+                            layer.msg(`更新失败: ${res.message}`, { icon: 2 });
                         }
                         return false;
                     },
-                    error: function (err) {
+                    error: (err) => {
+                        layer.close(loadIndex);
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                        layer.msg("更新失败: " + errMsg.message, {icon: 2});
+                        layer.msg(`更新失败: ${errMsg.message}`, { icon: 2 });
                         return false;
                     }
                 })
@@ -419,12 +437,12 @@ var addNewRule = function (tableId) {
  * @param {*} tableId 
  * @param {*} data 
  */
-var delColData = function (tableId, data) {
+var delColData = (tableId, data) => {
     let table_id = tableId || localStorage.getItem("tableUid");
     layer.confirm(`是否删除本页已选中的${data.length}条数据`, {
             title: "删除数据",
             btn: ["确定", "取消"]
-        }, function () {
+        }, () => {
             if (data.length > 0) {
                 let id_array = [];  // 要删除数据的id数组
                 data.forEach((item) => {
@@ -438,29 +456,29 @@ var delColData = function (tableId, data) {
                         "table_uuid": table_id,
                         "data": id_array
                     }),
-                    beforeSend: function () {
+                    beforeSend: () => {
                         layer.load(0);
                     },
-                    success: function (res) {
+                    success: (res) => {
                         layer.closeAll();
                         if (res.code === 0) {
-                            layer.msg("删除成功", {icon: 1});
+                            layer.msg("删除成功", { icon: 1 });
                         } else {
-                            layer.msg("删除失败: " + res.message, {icon: 2});
+                            layer.msg(`删除失败: ${res.message}`, { icon: 2 });
                         }
                         return false;
                     },
-                    error: function (err) {
+                    error: (err) => {
                         layer.closeAll();
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                        layer.msg(errMsg.message, {icon: 2});
+                        layer.msg(errMsg.message, { icon: 2 });
                         return false;
                     }
                 });
             }
         },
-        function () {
-            layer.closeAll();
+        (index) => {
+            layer.close(index);
         }
     );
 }
@@ -470,7 +488,7 @@ var delColData = function (tableId, data) {
  * @param {String} tableId 表uuid
  * @param {Object} colData 列数据
  */
-var addOrEditData = function (tableId, colData) {
+var addOrEditData = (tableId, colData) => {
     let table_id = tableId || localStorage.getItem("tableUid");
     let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
     let formData = colData;
@@ -536,9 +554,9 @@ var addOrEditData = function (tableId, colData) {
                             </div>
                         </form>
                       </div>`,
-            success: function () {
+            success: (_, index) => {
                 // 脱敏数据要展示全
-                form.render();   // 渲染表格
+                form.render(null, "tableData");   // 渲染表格
                 date_array.forEach((item) => {
                     laydate.render({ // 渲染日期
                         elem: `#date_${item}`
@@ -555,30 +573,32 @@ var addOrEditData = function (tableId, colData) {
                 }
                 form.on("submit(add)", (data) => {
                     let field = data.field;
+                    let loadIndex = "";
                     $.ajax({
                         url: `/crm/api/v1/manage/add_or_edit`,
                         type: "POST",
-                        contentType: "application/json",
+                        contentType: "application/json;charset=utf-8",
                         data: JSON.stringify(Object.assign({}, {
                             "mode": formData ? "edit" : "add",
                             "table_id": table_id  
                         }, field)),
-                        beforeSend: function () {
-                            layer.load(2);
+                        beforeSend: () => {
+                            loadIndex = layer.load(2);
                         },
-                        success: function (res) {
-                            layer.closeAll();
+                        success: (res) => {
+                            layer.close(loadIndex);
                             if (res.code === 0) {
-                                layer.msg("成功", {icon: 1});
+                                layer.close(index);
+                                layer.msg("成功", { icon: 1 });
                             } else {
-                                layer.msg("失败: " + res.message, {icon: 2});
+                                layer.msg(`失败: ${res.message}`, { icon: 2 });
                             }
                             return false;
                         },
-                        error: function (err) {
-                            layer.closeAll();
+                        error: (err) => {
+                            layer.close(loadIndex);
                             let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                            layer.msg(errMsg.message, {icon: 2});
+                            layer.msg(errMsg.message, { icon: 2 });
                             return false;
                         }
                     })
@@ -593,7 +613,7 @@ var addOrEditData = function (tableId, colData) {
  * @description 新增或修改列
  * @param {String} tableId 表uuid
  */ 
-var addOrAlterCol = function (tableId) {
+var addOrAlterCol = (tableId) => {
     let table_id = tableId || localStorage.getItem("tableUid");
     layer.open({
         type: 1,
@@ -655,9 +675,9 @@ var addOrAlterCol = function (tableId) {
                         </div>
                     </form>
                   </div>`,
-        success: function () {
+        success: (_, index) => {
             form.render(null, "column");
-            $("#addNewOption").on("click", function() {
+            $("#addNewOption").on("click", () => {
                 layer.open({
                     type: 1,
                     title: "新增下拉选项",
@@ -684,27 +704,28 @@ var addOrAlterCol = function (tableId) {
                                     <button class="layui-btn" lay-submit lay-filter="add" style="margin-left: 120px;">添加</button>
                                 </div>
                               </div>`,
-                    success: function (_, index) {
+                    success: (_, oindex) => {
                         form.render(null, "option");
-                        form.on("submit(add)", function (data) {
+                        form.on("submit(add)", (data) => {
                             let field = data.field;
                             // 判断是否和已有的重复
 
                             // 没有则添加
                             $("#down_options").append(`<option value="${field.option_value}">${field.option_name}</option>`);  // 追加元素
                             form.render("select", "column");
-                            layer.close(index);
+                            layer.close(oindex);
                             return false;
                         });
                     }
                 });
             });
-            form.on("submit(addNewCol)", function (data){
+            form.on("submit(addNewCol)", (data) => {
                 let field = data.field;
+                let loadIndex = "";
                 // 获取select下列列表元素
                 let option = [];
                 $("#down_options").each(function () {
-                    $("option", this).each(function() {
+                    $("option", this).each(function () {
                         option.push({"name": $(this).text(), "value": $(this).val()});
                     });
                 });
@@ -724,18 +745,23 @@ var addOrAlterCol = function (tableId) {
                         "is_unique": field.is_unique,
                         "length": field.length
                     }),
-                    success: function (data) {
-                        if (data.code === 0) {
-                            layer.closeAll();
-                            layer.msg("新增列成功", {icon: 1});
+                    beforeSend: () => {
+                        loadIndex = layer.load(1);
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
+                        if (res.code === 0) {
+                            layer.close(index);
+                            layer.msg("新增列成功", { icon: 1 });
                         } else {
-                            layer.msg(data.message, {icon: 2});
+                            layer.msg(`新增失败: ${res.message}`, { icon: 2 });
                         }
                         return false;
                     },
-                    error: function (err) {
+                    error: (err) => {
+                        layer.close(loadIndex);
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                        layer.msg(errMsg.message, {icon: 2});
+                        layer.msg(errMsg.message, { icon: 2 });
                         return false;
                     }
                 });
@@ -748,9 +774,9 @@ var addOrAlterCol = function (tableId) {
  * @description 批量检测
  * @param {String} tableId 表uuid
  */ 
-var mulitDetect = function (tableId) {
+var mulitDetect = (tableId) => {
     let table_id = tableId || localStorage.getItem("tableUid");
-    let header =JSON.parse(localStorage.getItem("header"))[table_id] || "";
+    let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
     let option_template = "";
     header.forEach((item) => {
         if (item.type !== 2 && item.col_type !== 4 && item.col_type !== 5) {
@@ -807,7 +833,41 @@ var mulitDetect = function (tableId) {
                     $("#showTaskForm").hide();
                     $("#showTask").hide();
                     $("#showHistory").show();
-                    table();
+                    table.render({
+                        elem: "#historyTask",
+                        id: "historyTask",
+                        url: `/crm/api/v1/manage/ping?id=${table_id}`,
+                        page: true,
+                        limit: 5,
+                        limits: [5],
+                        text: {none: "暂无数据,请先创建任务"},
+                        defaultToolbar:[{title: "刷新", layEvent: "LAYTABLE_REFRESH", icon: "layui-icon-refresh"}],
+                        parseData: (res) => {
+                            return {
+                                "code": res.code,
+                                "msg": res.code === 0 ? "" : res.message,
+                                "count": res.message.total,
+                                "data": res.message.data
+                            };
+                        },
+                        cols:[[
+                            {fidle: "id", title: "任务ID", hide: true},
+                            {field: "name", title: "任务名称", width: 160},
+                            {field: "create_time", title: "创建时间", width: 170},
+                            {field: "status", title: "状态", width: 100, templet: (d) => {
+                            
+                            }},
+                            {field: "result", title: "结果", width: 120, templet: (d) => {
+
+                            }}
+                        ]],
+                        done: () => {
+                            table.on("tool(historyTask)", (obj) => {
+                                console.log(obj);
+                                table.reloadData("");
+                            });
+                        }
+                    });
                 }
             });
             form.render(null, "taskForm");
@@ -819,50 +879,54 @@ var mulitDetect = function (tableId) {
                 console.log($("#ip_col").val());
                 return false;
             });
-            table.render({
-                elem: "historyTask",
-                id: "historyTask",
-                url: "/crm/api/v1/manage/",
-                page: true,
-                limit: 5,
-                limits: [5],
-                text: {none: "暂无数据,请先创建任务"},
-                defaultToolbar:[{title: "刷新", layEvent: "LAYTABLE_REFRESH", icon: "layui-icon-refresh"}],
-                parseData: (res) => {
-                    return {
-                        "code": res.code,
-                        "msg": res.code === 0 ? "" : res.message,
-                        "count": res.message.total,
-                        "data": res.message.data
-                    };
-                },
-                cols:[[
-                    {fidle: "id", title: "任务ID", hide: true},
-                    {field: "name", title: "任务名称", width: 200},
-                    {field: "create_time", title: "创建时间", width: 200},
-                    {field: "status", title: "状态", width: 200, templet: (d) => {
-
-                    }},
-                    {field: "result", title: "结果", width: 200, templet: (d) => {
-                        
-                    }}
-                ]],
-                done: () => {
-                    table.on("tool(historyTask)", (obj) => {
-                        console.log(obj);
-                        table.reloadData("");
-                    });
-                }
-            });
         }
     });
 }
 
 /**
+ * @description 启动或停止通知
+ * @param {String} mode 
+ * @param {String} task_id 
+ */
+function startOrStopNotify (mode, task_id) {
+    let loadIndex = "";
+    $.ajax({
+        url: "/crm/api/v1/manage/notify",
+        type: "POST",
+        contentType: "application/json;charset=utf-8",
+        data: JSON.stringify({
+            "operate": mode,
+            "task_id": task_id
+        }),
+        beforeSend: () => {
+            loadIndex = layer.load();
+        },
+        success: (res) => {
+            layer.close(loadIndex);
+            if (res.code === 0) {
+                layer.msg("操作成功", { icon: 1 });
+                table.reloadData("historyNotify");
+            } else {
+                layer.msg(`操作失败: ${res.message}`, { icon: 2 });
+            }
+            return false;
+        },
+        error: (err) => {
+            layer.close(loadIndex);
+            let errMsg = err.responseJSON || JSON.parse(err.responseText);
+            layer.msg(errMsg.message, { icon: 2 });
+            return false;
+        }
+    });
+}
+
+window.startOrStopNotify = window.startOrStopNotify || startOrStopNotify;
+
+/**
  * @description 新建到期通知
  * @param {String} tableId 表uuid
  */
-var createNotify = function (tableId) {
+var createNotify = (tableId) => {
     let table_id = tableId || localStorage.getItem("tableUid");
     let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
     let option_template = "";
@@ -880,46 +944,85 @@ var createNotify = function (tableId) {
         resize: false,
         move: false,
         maxmin: false,
-        content: `<div>
-                    <div class="layui-tab" layui-tab-card lay-filter="notify">
-                        <ul class="layui-tab-title">
-                            <li class="layui-this">创建任务</li>
-                            <li>历史任务</li>
-                        </ul>
-                        <div>
-                            <div class="layui-tab-content">
-                                <div class="layui-tab-item layui-show">
-                                    <div style="padding: 10px;">
-                                        <form class="layui-form" lay-filter="notifyForm">
-                                            <div class="layui-form-item">
-                                                <label class="layui-form-label">任务名称</label>
-                                                <div class="layui-input-inline">
-                                                    <input type="text" name="taskName" id="taskName" lay-verify="required" placeholder="请输入任务名称" autocomplete="off" class="layui-input">
-                                                </div>
-                                            </div>
-                                            <div class="layui-form-item">
-                                                <label class="layui-form-label">时间列</label>
-                                                <div class="layui-input-inline">
-                                                    <select name="date_col" id="date_col" lay-verify="required">
-                                                        <option value="">请选择</option>
-                                                        ${option_template}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div class="layui-form-item" style="margin-left: 180px;margin-top: 40px;">
-                                                <button class="layui-btn" lay-submit lay-filter="add" id="addTask">创建任务</button>
-                                            </div>
-                                        </form>
+        content: `<div class="layui-tab layui-tab-card" lay-filter="notify" style="margin-top: 0px;border-bottom-style: none;box-shadow: none;">
+                    <ul class="layui-tab-title">
+                        <li class="layui-this">创建任务</li>
+                        <li>历史任务</li>
+                    </ul>
+                    <div>
+                        <div class="layui-tab-content">
+                            <div class="layui-tab-item" id="showAddTask">
+                                <form class="layui-form" lay-filter="notifyForm">
+                                    <div class="layui-form-item">
+                                        <label class="layui-form-label">任务名称</label>
+                                        <div class="layui-input-inline">
+                                            <input type="text" name="taskName" id="taskName" lay-verify="required" placeholder="请输入任务名称" autocomplete="off" class="layui-input">
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="layui-tab-item">
-                                    <table class="layui-hide" id="historyNotify" lay-filter="historyNotify"></table>
-                                </div>
+                                    <div class="layui-form-item">
+                                        <label class="layui-form-label">时间列</label>
+                                        <div class="layui-input-inline">
+                                            <select name="date_col" id="date_col" lay-verify="required">
+                                                <option value="">请选择</option>
+                                                ${option_template}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="layui-form-item" style="margin-left: 180px;margin-top: 20px;">
+                                        <button class="layui-btn" lay-submit lay-filter="add" id="addTask">创建任务</button>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="layui-tab-item" id="showHistory">
+                                <table class="layui-hide" id="historyNotify" lay-filter="historyNotify"></table>
                             </div>
                         </div>
                     </div>
-                  </div>`,
+                </div>`,
         success: (_, index) => {
+            $("#showAddTask").show();
+            element.on("tab(notify)", (data) => {
+                if (data.index === 0) {
+                    $("#showHistory").hide();
+                    $("#showAddTask").show();
+                } else if (data.index === 1) {
+                    $("#showAddTask").hide();
+                    $("#showHistory").show();
+                    table.render({
+                        elem: "#historyNotify",
+                        id: "historyNotify",
+                        url: `/crm/api/v1/manage/notify?id=${table_id}`,
+                        page: true,
+                        limit: 2,
+                        limits: [2],
+                        text: {none: "暂无数据,请先创建任务"},
+                        defaultToolbar:[{title: "刷新", layEvent: "LAYTABLE_REFRESH", icon: "layui-icon-refresh"}],
+                        parseData: (result) => {
+                            return {
+                                "code": result.code,
+                                "msg": result.code === 0 ? "" : result.message,
+                                "count": result.message.total,
+                                "data": result.message.data
+                            }
+                        },
+                        cols: [[
+                            { field: "id", title: "任务ID", hide: true },
+                            { field: "name", title: "任务名称", width: 125 },
+                            { field: "keyword", title: "字段", width: 120, templet: (d) => {
+                                header.forEach((item) => {
+                                    if (item.field == d.keyword) {
+                                        return item.title;
+                                    }
+                                });
+                            } },
+                            { field: "create_time", title: "创建时间", width: 160 },
+                            { field: "status", title: "操作", width: 80, templet: (d) => {
+                                return d.status === 0 ? `<button type="button" class="layui-btn layui-btn-sm" onclick="startOrStopNotify('start', '${d.id}')">启动</button>` : `<button type="button" class="layui-btn layui-btn-sm layui-bg-red" onclick="startOrStopNotify('stop', '${d.id}')">停止</button>`;
+                            } }
+                        ]]
+                    });
+                }
+            });
             form.render(null, "notifyForm");
             if (option_template === "") {
                 $("#addTask").text("暂无时间列可选");
@@ -971,11 +1074,11 @@ var createNotify = function (tableId) {
  * @description 显示历史记录
  * @param {String} tableId
  */
-var showHistory = function (tableId) {
+var showHistory = (tableId) => {
     let table_id = tableId || localStorage.getItem("tableUid");
     layer.open({
         type: 1,
-        area: ["500px", "300px"],
+        area: ["620px", "410px"],
         title: "显示详情",
         shade: 0.6,
         shadeClose: false,
@@ -983,7 +1086,7 @@ var showHistory = function (tableId) {
         move: false,
         maxmin: false,
         content: `<div>
-                    <div class="layui-tab" layui-tab-card lay-filter="history">
+                    <div class="layui-tab layui-tab-card" lay-filter="history" style="margin-top: 0px;border-bottom-style: none;box-shadow: none;">
                         <ul class="layui-tab-title">
                             <li class="layui-this">导入记录</li>
                             <li>导出记录</li>
@@ -1003,24 +1106,37 @@ var showHistory = function (tableId) {
                 id: "historyTable",
                 url: `/crm/api/v1/manage/history?type=1&id=${table_id}`,
                 page: true,
+                limit: 5,
+                limits: [5],
+                parseData: (result) => {
+                    return {
+                        "code": result.code,
+                        "msg": result.code === 0 ? "" : result.message,
+                        "count": result.message.total,
+                        "data": result.message.data
+                    }
+                },
                 cols: [[
                     { field: "id", title: "ID", hide: true },
                     { field: "file", title: "文件", width: 120, templet: (d) => {
                         if (!d.file) {
                             return "";
                         }
-                        return `<a href="/crm/api/v1/file/${d.file.fileuuid}">${d.file.filename}</a>`;
+                        return `<a href="/crm/api/v1/file/${d.file}" style="color: blue;">点此下载文件</a>`;
                     } },
                     { field: "create_user", title: "创建者", width: 120 },
-                    { field: "create_time", title: "创建时间", width:120},
-                    { field: "status", title: "状态", width: 120, templet: (d) => {
-                        if (d.status === 1) return `"成功"`;
-                        if (d.status === 0) return `"失败"`;
-                        if (d.status === 2) return `"待执行"`;
-                        if (d.status === 2) return `"执行中"`;
+                    { field: "create_time", title: "创建时间", width:170},
+                    { field: "status", title: "状态", width: 80, templet: (d) => {
+                        if (d.status === 1) return `<span class="layui-badge layui-bg-blue">执行中</span>`;
+                        if (d.status === 0) return `<span class="layui-badge-rim">排队中</span>`;
+                        if (d.status === 2) return `<span class="layui-badge layui-bg-green">成功</span>`;
+                        if (d.status === 3) return `<span class="layui-badge">失败</span>`;
                     } },
                     { field: "error", title: "错误", width: 120, templet: (d) => {
-                        return `<a href="/crm/api/v1/file/${d.error}">点此下载错误文件</a>`;
+                        if (!d.error) {
+                            return "";
+                        }
+                        return `<a href="/crm/api/v1/file/${d.error}" style="color: blue;">下载错误文件</a>`;
                     } }
                 ]]
             });
@@ -1043,7 +1159,7 @@ var showHistory = function (tableId) {
  * @description 导出表格数据
  * @param {*} tableId 
  */
-var exportTableData = function (tableId) {
+var exportTableData = (tableId) => {
     let table_id = tableId || localStorage.getItem("tableUid");
     layer.open({
         type: 1,
@@ -1073,10 +1189,11 @@ var exportTableData = function (tableId) {
                         <button type="button" class="layui-btn layui-btn-primary layui-border" lay-submit lay-filter="cancel" style="margin-left: 100px;">取消</button>
                     </div>
                   </div>`,
-        success: function (_, index) {
+        success: (_, index) => {
             form.render(null, "exportForm");
             form.on("submit(export)", (data) => {
                 let field = data.field;
+                let loadIndex = "";
                 if (field.is_set === "1") {
                     if (field.passwd.length < 6) {
                         layer.msg("密码长度不能小于6位", { icon: 2 });
@@ -1086,9 +1203,13 @@ var exportTableData = function (tableId) {
                 $.ajax({
                     url: `/crm/api/v1/manage/export?id=${table_id}${field.is_set === "1" ? `&passwd=${field.passwd}` : ""}`,
                     type: "GET",
-                    success: function (res) {
-                        layer.close(index);
+                    beforeSend: () => {
+                        loadIndex = layer.load(2);
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
                         if (res.code === 0) {
+                            layer.close(index);
                             let target = document.createElement("a");
                             target.href = `/crm/api/v1/file/${res.message.id}`;
                             target.download = res.message.filename;
@@ -1099,7 +1220,8 @@ var exportTableData = function (tableId) {
                         }
                         return false;
                     },
-                    error: function (err) {
+                    error: (err) => {
+                        layer.close(loadIndex);
                         let errMsg = err.responseJSON || JSON.parse(err.responseText);
                         layer.msg(errMsg.message, { icon: 2 });
                         return false;
@@ -1115,10 +1237,32 @@ var exportTableData = function (tableId) {
     });
 }
 
-
 /** 
- * @description 全局加载动画
+ * @description 显示任务进度
 */
-var showLoading = () => {
-    layer.load(2);
+var showProgress = (task_id) => {
+    layer.open({
+        type: 1,
+        title: false,
+        area: ["500px", "250px"],
+        shade: 0.6,
+        shadeClose: true,
+        move: false,
+        resize: false,
+        maxmin: false,
+        content: `<div class="layui-progress" lay-showPercent="true" lay-filter="progress">
+                    <div class="layui-progress-bar" lay-percent="0%">
+                  </div>`,
+        success: () => {
+            element.render("progress", "progress");
+            // sse推送进度
+            let eventSource = new EventSource(`/crm/api/v1/manage/process/${task_id}`);
+            eventSource.onmessage = (e) => {
+                element.progress("progress", `${e.speed}%`);
+            };
+            eventSource.onerror = () => {
+                eventSource.close();
+            };
+        }
+    });
 }
