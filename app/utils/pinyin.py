@@ -18,11 +18,11 @@ def converWords(words: list = []) -> dict:
     result = {}
     hasConver = []
     for index, word in enumerate(words):
-        py = ''.join([j for i in pypinyin.lazy_pinyin(word) for j in i])
+        py = "".join([j for i in pypinyin.lazy_pinyin(word) for j in i])
         while py in hasConver:
-            py = py + '1'
+            py = py + "1"
         result[word] = {
-            'pinyin': py,
-            'index': index
+            "pinyin": py,
+            "index": index
         }
     return result

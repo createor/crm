@@ -360,7 +360,7 @@ var addNewRule = (tableId) => {
             // 渲染tab
             element.render("tab", "ruleTab");
             // tab切换事件
-            element.on("tab(ruleTab)", (data) => {
+            element.on("tab(ruleTab)", function (data) {
                 $(".layui-tab-content .layui-tab-item").each(() => {
                     $(this).removeClass("layui-show");
                 });
@@ -1210,11 +1210,13 @@ var exportTableData = (tableId) => {
                         layer.close(loadIndex);
                         if (res.code === 0) {
                             layer.close(index);
-                            let target = document.createElement("a");
-                            target.href = `/crm/api/v1/file/${res.message.id}`;
-                            target.download = res.message.filename;
-                            document.body.appendChild(target);
-                            target.click();
+                            showProgress(res.message, () => {
+                                let target = document.createElement("a");
+                                target.href = `/crm/api/v1/file/${res.message}`;
+                                target.download = "资产表导出文件.xlsx";
+                                document.body.appendChild(target);
+                                target.click();
+                            });
                         } else {
                             layer.msg(`导出错误: ${res.message}`, { icon: 2 });
                         }
@@ -1239,26 +1241,44 @@ var exportTableData = (tableId) => {
 
 /** 
  * @description 显示任务进度
+ * @param {String} task_id  任务id
+ * @param {Function} callback  回调函数
 */
-var showProgress = (task_id) => {
+var showProgress = (task_id, callback) => {
     layer.open({
         type: 1,
         title: false,
-        area: ["500px", "250px"],
+        area: ["300px", "20px"],
         shade: 0.6,
         shadeClose: true,
         move: false,
         resize: false,
         maxmin: false,
-        content: `<div class="layui-progress" lay-showPercent="true" lay-filter="progress">
-                    <div class="layui-progress-bar" lay-percent="0%">
+        closeBtn: 0,
+        skin: "layui-layer-opacity",
+        content: `<div style="width: 300px;">
+                    <div class="layui-progress layui-progress-big" lay-showPercent="true" lay-filter="progress">
+                        <div class="layui-progress-bar" lay-percent="0%"></div>
+                    </div>
                   </div>`,
-        success: () => {
+        success: (_, index) => {
             element.render("progress", "progress");
             // sse推送进度
             let eventSource = new EventSource(`/crm/api/v1/manage/process/${task_id}`);
             eventSource.onmessage = (e) => {
-                element.progress("progress", `${e.speed}%`);
+                let data = JSON.parse(e.data);
+                element.progress("progress", `${data.speed}%`);
+                if (data.speed === 100) {
+                    eventSource.close();
+                    if (data.error) {
+                        layer.msg(`导入失败: ${data.error}`, { icon: 2 });
+                    } else {
+                        layer.close(index);
+                        if (callback) {
+                            callback();
+                        }
+                    }
+                }
             };
             eventSource.onerror = () => {
                 eventSource.close();

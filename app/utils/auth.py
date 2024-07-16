@@ -9,7 +9,7 @@
 '''
 from functools import wraps
 import traceback
-from flask import jsonify, redirect, request, url_for, session, g
+from flask import jsonify, redirect, url_for, request, session, g
 from app.utils import crmLogger, redisClient
 
 def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: bool = True, is_admin: bool = False, allow_admin: list = ["admin"], check_ip: bool = False):
@@ -31,11 +31,11 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
             # ip_addr = request.headers.get("X-Forwarded-For") or "127.0.0.1"
 
             # 直接访问
-            ip_addr = request.remote_addr or "127.0.0.1" # 用户IP地址
+            ip_addr = request.remote_addr or "127.0.0.1" # 用户访问的IP地址
 
             g.ip_addr = ip_addr
 
-            if bool(int(redisClient.getData("crm:system:enable_white"))):  # 判断是否开启IP白名单以及用户是否在白名单中
+            if bool(int(redisClient.getData("crm:system:enable_white"))):        # 判断是否开启IP白名单以及用户是否在白名单中
 
                 if not redisClient.getSet("crm:system:white_ip_list", ip_addr):  # IP不在白名单中
                     return jsonify({"code": -1, "message": "无法访问,你不在白名单中"}), 403

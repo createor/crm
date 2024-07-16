@@ -83,8 +83,9 @@ def userLogin():
         return jsonify({"code": -1, "message": "用户已过期"}), 200
     
     if result.type == 2 and result.expire_time < date.today():  # 判断用户是否是临时用户且授权是否过期
+        
         try:
-            result.status = 2    # 更新用户状态为过期
+            db_session.query(User).filter(User.username == username).update({"status": 2})  # 更新用户状态为过期
             db_session.commit()
         except:
             db_session.rollback()
@@ -92,6 +93,7 @@ def userLogin():
             return jsonify({"code": -1, "message": "数据库异常"}), 500
         finally:
             db_session.close()
+    
         crmLogger.error(f"用户{username}登陆失败: 用户已过期")
         return jsonify({"code": -1, "message": "用户已过期"}), 200
     
@@ -114,6 +116,7 @@ def userLogin():
         crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
+
     crmLogger.info(f"用户{username}登录成功")
 
     redisClient.delData(captcha_id)  # redis删除已使用的验证码

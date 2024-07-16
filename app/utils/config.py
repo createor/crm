@@ -77,9 +77,7 @@ SCAN_UPLOAD_FILE = cfg.getboolean("security", "clamav")
 LOG_LEVEL = cfg.get("server", "level")
 
 class Methods:
-    '''
-    flask的methods允许的方法
-    '''
+    '''flask的methods允许的方法'''
     def __init__(self):
         self.methods = ["GET", "POST"]
     
@@ -99,6 +97,8 @@ def getUuid() -> str:
 def formatDate(time: Union[date, None], mode: int = 1) -> str:
     '''
     格式化时间
+    :param time: 需要格式化的时间
+    :param mode: 模式
     :return:
     '''
     if not time:

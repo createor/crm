@@ -87,7 +87,7 @@ def init_cache():
                 _r_dicts = [
                     {c.name: getattr(u, c.name) for c in u.__table__.columns} for u in _r
                 ]
-                redisClient.setData(f"crm:echart:{item.table_name}", json.dumps(_r_dicts))  # 缓存资产表图表规则
+                redisClient.setData(f"crm:rule:{item.table_name}", json.dumps(_r_dicts))  # 缓存资产表图表规则
 
     crmLogger.info("缓存初始化完成")
 

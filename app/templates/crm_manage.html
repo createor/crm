@@ -444,7 +444,7 @@
                                             success: (r) => {
                                                 if (r.code === 0) {
                                                     // 显示导入进度
-                                                    window.parent.showProgress(res.message);
+                                                    window.parent.showProgress(r.message);
                                                 }
                                                 return false;
                                             },
@@ -632,7 +632,7 @@
 
         // 新建或者编辑规则
         $("#newRule").on("click", () => {
-            window.parent.addNewRule();
+            window.parent.addNewRule(tableUid);
             return false;
         });
 

@@ -13,7 +13,6 @@ import traceback
 import pandas as pd
 from app.utils.logger import crmLogger
 from openpyxl import Workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.worksheet.datavalidation import DataValidation
 # from openpyxl.styles import Protection
 from openpyxl.cell.text import InlineFont
@@ -27,7 +26,7 @@ def readExcel(filePath: str) -> Union[pd.DataFrame, None]:
     '''
     try:
         return pd.read_excel(filePath).fillna(value="")  # 替换表中的空值nan
-    except Exception as e:
+    except:
         crmLogger.error(f"读取表格时发生错误: {traceback.format_exc()}")
         return None
 
@@ -40,7 +39,7 @@ def createExcel(filepath: str, filename: str, sheet_name: str, header: dict, dat
     :param sheet_name: 工作簿名称
     :param header: 表头 {"column_name": {"index": "A/B/C...", "must_input": True/False}}
     :param data: 数据 {"clumn_name": ["d1", "d2"...]}
-    :param styles: 样式 {"column_name": {"type": 2, "options": "选项1,选项2..."}}"}
+    :param styles: 样式 {"column_name": {"index": "A/B/C...", "options": "选项1,选项2..."}}"}
     :param is_template: 是否为模板
     :param passwd: 加密密码
     :return:
@@ -57,26 +56,28 @@ def createExcel(filepath: str, filename: str, sheet_name: str, header: dict, dat
                 ws[f"{v['index']}1"] = CellRichText([name, richText])
             else:
                 ws[f"{v['index']}1"] = name
-            ws.column_dimensions[v["index"]].width = len(name) + 2  # 设置列宽度
+            ws.column_dimensions[f"{v['index']}"].width = len(name) * 4  # 设置列宽度
         # 写入数据
         if not is_template:
-            for r in dataframe_to_rows(data, index=False, header=True):
-                ws.append(r)
-        # 设置样式,type如果为1-字符串,2-下拉列表,取值options
-        for col, val in styles.items():
-            if val["type"] == 2:
-                dv = DataValidation(type="list", formula1='{}'.format(val["options"]), showDropDown=False, allow_blank=True)  # showDropDown-是否显示下拉箭头,allow_blank-是否允许空值
-                ws.add_data_validation(dv)
-                dv.add(f"{col}2:{col}{ws.max_row}")
+            for col, row in data.items():
+                col_index = header[col]["index"]
+                for idx, val in enumerate(row, start=2):  # 从第二行开始写入数据
+                    ws[f"{col_index}{idx}"] = val
+        # 设置下拉样式
+        for _, val in styles.items():
+            dv = DataValidation(type="list", formula1=f'"{val["options"]}"', showDropDown=False, allow_blank=True)  # showDropDown-是否显示下拉箭头,allow_blank-是否允许空值
+            ws.add_data_validation(dv)
+            dv.add(f"{val['index']}2:{val['index']}{1000 if ws.max_row < 1000 else ws.max_row}")
         # 给表格添加密码
         if passwd:
-            ws.protection.password = passwd
-        # 保护工作表不被修改
+            # TODO: 密码加密待实现
+            wb.security.key = passwd
+        # 保护工作表保护不被修改
         # ws.protection.sheet = True
-        # ws.protection.options = Protection(locked=True)
+        # ws.protection.enable()
         # 保存文件
         wb.save(os.path.join(filepath, f"{filename}.xlsx"))
         return True
-    except Exception as e:
+    except:
         crmLogger.error(f"写入表格时发生错误: {traceback.format_exc()}")
         return False

@@ -14,7 +14,7 @@ import traceback
 from flask import Blueprint, request, jsonify, g, Response
 from app.utils import UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, methods, crmLogger, readExcel, createExcel, getUuid, verify, redisClient, converWords, job, undesense, formatDate
 from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, DetectResult, File, Notify, History, initManageTable, generateManageTable, addColumn, alterColumn, MyHeader
-from app.src.task import exportTableTask, startImportTableTask
+from app.src.task import startExportTableTask, startImportTableTask, startPingTask
 from sqlalchemy import or_, func, Column, String
 from sqlalchemy.sql import insert
 from datetime import datetime, date
@@ -310,6 +310,16 @@ def queryTableByUuid(id):
 
         data.append(obj)
 
+    try:
+        visit_log = Log(ip=g.ip_addr, operate_type="访问资产表", operate_content=f"访问资产表({table.name})", operate_user=g.username)
+        db_session.add(visit_log)
+        db_session.commit()
+    except:
+        db_session.rollback()
+        crmLogger.error(f"[queryTableByUuid]写入log表发生异常: {traceback.format_exc()}")
+    finally:
+        db_session.close()
+
     return jsonify({"code": 0, "message": {"total": count, "data": data}}), 200
 
 @manage.route("/undesense", methods=methods.ALL)
@@ -541,7 +551,7 @@ def downloadTableTemplate():
                 "must_input": h.must_input == 1
             }
 
-            if h.value_type == 2:  # 如果是下拉列表
+            if h.type == 2:  # 如果是下拉列表
 
                 try:
                     opt = db_session.query(Options.option_name).filter(Options.table_name == table.table_name, Options.header_value == h.value).all()
@@ -549,7 +559,7 @@ def downloadTableTemplate():
                     db_session.close()
 
                 table_styles[f"{h.name}"] = {
-                    "type": 2,
+                    "index": get_column_letter(h.order + 1),
                     "options": ",".join([o.option_name for o in opt])
                 }
 
@@ -619,6 +629,15 @@ def importTableFromExcel():
     finally:
         db_session.close()
 
+    try:
+        import_log = Log(ip=g.ip_addr, operate_type="导入表格", operate_content="", operate_user=g.username)
+        db_session.add(import_log)
+        db_session.commit()
+    except:
+        db_session.rollback()
+    finally:
+        db_session.close()
+    
     # 将任务信息插入到队列
     redisClient.lpush(f"crm:import:{table.table_name}", json.dumps({
         "task_id": task_id,                   # 任务id
@@ -1187,7 +1206,6 @@ def multDetectHost():
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
         
         if task_uuid:  # 查询任务详情
-
             try:
                 is_exist_task = db_session.query(Task).filter(Task.id == task_uuid).first()
             finally:
@@ -1237,33 +1255,24 @@ def multDetectHost():
         else:
 
             try:
-
                 table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
-
             finally:
-
                 db_session.close()
 
             if not table:
                 return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
             try:
-
                 count = db_session.query(Task).filter(Task.table_name == table.table_name, Task.create_user == g.username).count()
-
             finally:
-
                 db_session.close()
 
             if count == 0:
                 return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
 
             try:
-
                 task_list = db_session.query(Task).filter(Task.table_name == table.table_name, Task.create_user == g.username).order_by(Task.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
-
             finally:
-
                 db_session.close()
 
             return jsonify({
@@ -1283,49 +1292,43 @@ def multDetectHost():
 
         table_uuid = reqData["id"]
         task_name = reqData["name"] 
-        date_column = reqData["column"]  # 用户选择的IP列名
+        ip_column = reqData["column"]  # 用户选择的IP列名
 
-        if not table_uuid or not task_name or not date_column:
+        if not table_uuid or not task_name or not ip_column:
             return jsonify({"code": -1, "message": "缺少参数"}), 400
 
         task_id = getUuid()  # 生成任务uuid
 
-        # 创建任务,存入redis
-        redisClient.lpush("ping_task_queue", task_id)
-
         try:   # 插入数据库
-
-            task_data = Task(uuid=task_id, name=task_name, keyword=date_column, table_name=table.table_name, status=0, create_user=g.username)
+            task_data = Task(uuid=task_id, name=task_name, keyword=ip_column, table_name=table.table_name, status=0, create_user=g.username)
             db_session.add(task_data)
             db_session.commit()
-
         except:
-
             db_session.rollback()
-
             crmLogger.error(f"写入task表发生异常: {traceback.format_exc()}")
-
             return jsonify({"code": -1, "message": "数据库异常"}), 500
-
         finally:
-
             db_session.close()
 
         try:
-
             add_task_log = Log(ip=g.ip_addr, operate_type="创建Ping任务", operate_content=f"创建了ping任务,任务id: {task_id}", operate_user=g.username)
             db_session.add(add_task_log)
             db_session.commit()
-
         except:
-
             db_session.rollback()
-
             crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
-
         finally:
-
             db_session.close()
+
+        # 创建任务,存入redis队列
+        redisClient.lpush("crm:task:ping", json.dumps({
+            "task_id": task_id,
+            "table": table.table_name,
+            "keyword": ip_column,
+            "user": g.username
+        }))
+
+        startPingTask()
 
         crmLogger.info(f"用户{g.username}成功创建ping任务,任务id: {task_id}")
 
@@ -1513,15 +1516,18 @@ def exportTableData():
     '''
     args = request.args  # 获取请求参数
 
-    id = args.get("id", None)           # 资产表id
+    table_uuid = args.get("id", None)   # 资产表id
     password = args.get("passwd", None) # 表格密码
     filter = args.get("filter", None)   # 筛选条件
 
-    if not id:  # 如果请求参数没有资产表id
+    if not table_uuid:  # 如果请求参数没有资产表id
         return jsonify({"code": -1, "message": "缺少id参数"}), 400
     
+    if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+    
     try:  # 查询是否存在资产表
-        table = db_session.query(Manage.name, Manage.table_image).filter(Manage.uuid == id).first()
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
     finally:
         db_session.close()
 
@@ -1530,17 +1536,35 @@ def exportTableData():
 
     task_id = getUuid()  # 任务id
 
+    try:
+        export_history = History(id=task_id, mode=2, status=0, table_name=table.table_name, create_user=g.username)
+        db_session.add(export_history)
+        db_session.commit()
+    except:
+        db_session.rollback()
+    finally:
+        db_session.close()
+
+    try:
+        export_log = Log(ip=g.ip_addr, operate_type="导出表格", operate_content="", operate_user=g.username)
+        db_session.add(export_log)
+        db_session.commit()
+    except:
+        db_session.rollback()
+    finally:
+        db_session.close()
+
     # 将任务条件到队列
-    redisClient.lpush("crm:task:export", json.dumps({
-        "table_id": id,
-        "table_name": table.table_name,
+    redisClient.lpush(f"crm:export:{table.table_name}", json.dumps({
         "task_id": task_id,
+        "table": table.table_name,
+        "name": table.name,
         "filter": filter,
         "user": g.username,
         "password": password
     }))
 
-    exportTableTask()
+    startExportTableTask(table.table_name)
 
     return jsonify({"code": 0, "message": task_id}), 200
 
@@ -1554,15 +1578,10 @@ def progress(task_id):
             time.sleep(1)
             data = redisClient.getData(f"crm:task:{task_id}")  # done:total
             if not data:
-                yield "speed: 0\n\n"
+                yield "data: {\"error\":\"\", \"speed\": 0}\n\n"
                 continue
-            done, total = map(int, data.split(":"))
-            rate = (done / total) * 100
-            print(f"{done}/{total}")
-            if rate >= 100:
-                yield "speed: 100\n\n"
-                break
-            yield f"speed: {rate}\n\n"
+            # 删除任务进度信息
+            yield f"data: {data}\n\n"
     return Response(event_stream(), mimetype="text/event-stream")
 
 @manage.route("/history", methods=methods.ALL)
@@ -1624,39 +1643,28 @@ def setEchartRule():
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
         
         try:  # 查询资产表表是否存在
-
             table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
-
         finally:
-
             db_session.close()
 
         if not table:  # 资产表不存在
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
         
-        rules = redisClient.getData(f"crm:echart:{table.table_name}")
+        rules = redisClient.getData(f"crm:rule:{table.table_name}")
 
         if rules:
-
             rules = [MyHeader(i) for i in json.loads(rules)]
-
         else:
-
             try:  # 查询规则,升序
-
                 rules = db_session.query(Echart).filter(Echart.table_name == table.table_name).order_by(Echart.id.asc()).all()
-
             finally:
-
                 db_session.close()
 
             if rules:
-
                 _r = [
                     {c.name: getattr(u, c.name) for c in u.__table__.columns} for u in rules
                 ]
-
-                redisClient.setData(f"crm:echart:{table.table_name}", json.dumps(_r))
+                redisClient.setData(f"crm:rule:{table.table_name}", json.dumps(_r))
 
         if not rules:  # 查无规则
             return jsonify({"code": 0, "message": []}), 200
@@ -1683,57 +1691,40 @@ def setEchartRule():
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
         
         try:
-
             table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
-
         finally:
-
             db_session.close()
 
         if not table:
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
         
         try:  # 先删除所有规则
-
             db_session.query(Echart).filter(Echart.table_name == table.table_name).delete()
             db_session.commit()
-
         except:
-
             db_session.rollback()
-
             return jsonify({"code": -1, "message": "数据库异常"}), 500
-        
         finally:
-
             db_session.close()
 
         try:  # 再创建规则
-
             new_rules = [Echart(table_name=table.table_name, name=r["name"], type=r["type"], keyword=r["keyword"], date_keyword=r["date_keyword"]) for r in rules]
-
             db_session.add_all(new_rules)
-
             db_session.commit()
-
         except:
-
             db_session.rollback()
-
             return jsonify({"code": -1, "message": "数据库异常"}), 500
-        
         finally:
-
             db_session.close()
+
+        redisClient.delData(f"crm:rule:{table.table_name}")  # 删除缓存规则
 
         return jsonify({"code": 0, "message": "创建成功"}), 200
 
 @manage.route("/echart", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="获取图表信息", check_ip=True)
 def getEchart():
-    '''
-    获取echart数据
-    '''
+    '''获取echart数据'''
     args = request.args        # 获取请求参数
 
     table_uuid = args.get("id", None)  # 获取表id
@@ -1742,101 +1733,163 @@ def getEchart():
         return jsonify({"code": -1, "message": "缺少id参数"}), 400
     
     try:  # 查询表是否存在
-
-        table = db_session.query(Manage.table_name).filter(Manage.uuid == table_uuid).first()
-    
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
     finally:
-
         db_session.close()
 
     if not table:
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
     
     # 从缓存中查询
+    result = redisClient.getData(f"crm:echart:{table.table_name}")
 
-    # 缓存不存在
-    
-    try:  # 查询规则
+    if result:
+        result = json.loads(result)
 
-        rules = db_session.query(Echart).filter(Echart.table_name == table.table_name).order_by(Echart.id.asc()).all()
-        
-    finally:
+    else:
 
-        db_session.close()
+        rules = redisClient.getData(f"crm:rule:{table.table_name}")
 
-    if not rules:
-        return jsonify({"code": 0, "message": [] }), 200
-
-    result = []
-
-    manageTable = initManageTable(table.table_name)  # 实例化已存在资产表
-
-    for rule in rules:
-        if rule.type == 1:  # 饼图
-
-            try:
-                pie_result = db_session.query(getattr(manageTable.c, rule.keyword), func.count(1)).group_by(getattr(manageTable.c, rule.keyword)).all()
+        if rules:
+            rules = [MyHeader(i) for i in json.loads(rules)]
+        else:
+            try:  # 缓存不存在查询规则
+                rules = db_session.query(Echart).filter(Echart.table_name == table.table_name).order_by(Echart.id.asc()).all()
             finally:
                 db_session.close()
-            
-            if pie_result:
-                data = []
-                for i in pie_result:
-                    data.append({"value": i[1], "name": i[0]})
-                result.append({
-                    "title": {
-                        "text": rule.name,
-                        "left": "center"
-                    },
-                    "tooltip": {
-                        "trigger": "item"
-                    },
-                    "legend": {
-                        "orient": "vertical",
-                        "left": "left"
-                    },
-                    "toolbox": {
-                        "feature": {
-                            "saveAsImage": {}
-                        }
-                    },
-                    "series": [
-                        {
-                            "name": rule.name,
-                            "type": "pie",
-                            "radius": "50%",
-                            "data": data,
-                            "emphasis": {
-                                "itemStyle": {
-                                    "shadowBlur": 10,
-                                    "shadowOffsetX": 0,
-                                    "shadowColor": "rgba(0, 0, 0, 0.5)"
+
+        if not rules:
+            return jsonify({"code": 0, "message": [] }), 200
+
+        result = []
+
+        manageTable = initManageTable(table.table_name)  # 实例化已存在资产表
+
+        for rule in rules:
+            if rule.type == 1:  # 饼图
+
+                try:
+                    pie_result = db_session.query(getattr(manageTable.c, rule.keyword), func.count(1)).group_by(getattr(manageTable.c, rule.keyword)).all()
+                finally:
+                    db_session.close()
+
+                if pie_result:
+                    data = []
+                    for i in pie_result:
+                        data.append({"value": i[1], "name": i[0]})
+                    result.append({
+                        "title": {
+                            "text": rule.name,
+                            "left": "center"
+                        },
+                        "tooltip": {
+                            "trigger": "item"
+                        },
+                        "legend": {
+                            "orient": "vertical",
+                            "left": "left"
+                        },
+                        "toolbox": {
+                            "feature": {
+                                "saveAsImage": {}
+                            }
+                        },
+                        "series": [
+                            {
+                                "name": rule.name,
+                                "type": "pie",
+                                "radius": "50%",
+                                "data": data,
+                                "emphasis": {
+                                    "itemStyle": {
+                                        "shadowBlur": 10,
+                                        "shadowOffsetX": 0,
+                                        "shadowColor": "rgba(0, 0, 0, 0.5)"
+                                    }
                                 }
                             }
-                        }
-                    ]
-                })
+                        ]
+                    })
 
-        elif rule.type == 2:  # 柱形图
+            elif rule.type == 2:  # 柱形图
 
-            try:
-                bar_result = db_session.query(getattr(manageTable.c, rule.keyword), func.count(1)).group_by(getattr(manageTable.c, rule.keyword)).all()
-            finally:
-                db_session.close()
+                try:
+                    bar_result = db_session.query(getattr(manageTable.c, rule.keyword), func.count(1)).group_by(getattr(manageTable.c, rule.keyword)).all()
+                finally:
+                    db_session.close()
 
-            if bar_result:
-                data_1 = []
-                data_2 = []
-                for i in pie_result:
-                    data_1.append(i[0])
-                    data_2.append(i[1])
+                if bar_result:
+                    data_1 = []
+                    data_2 = []
+                    for i in pie_result:
+                        data_1.append(i[0])
+                        data_2.append(i[1])
+                    result.append({
+                        "title": {
+                            "text": rule.name
+                        },
+                        "xAxis": {
+                            "type": "category",
+                            "data": data_1
+                        },
+                        "yAxis": {
+                            "type": "value"
+                        },
+                        "toolbox": {
+                            "feature": {
+                                "saveAsImage": {}
+                            }
+                        },
+                        "series": [
+                            {
+                                "data": data_2,
+                                "type": "bar"
+                            }
+                        ]
+                    })
+
+            elif rule.type == 3:  # 折线图
+
+                try:  # 根据日期排序
+                    line_result = db_session.query(getattr(manageTable.c, rule.keyword), func.date(getattr(manageTable.c, rule.date_keyword)), func.count(1)).group_by(getattr(manageTable.c, rule.keyword), func.date(getattr(manageTable.c, rule.date_keyword))).order_by(func.date(getattr(manageTable.c, rule.date_keyword)).asc()).all()
+                finally:
+                    db_session.close()
+                
+                legend_set = set()
+                date_set = set()
+                for l in line_result:
+                    legend_set.add(l[0])
+                    date_set.add(l[1])
+                legend_set = list(legend_set)
+                date_set = list(date_set)
+
+                data = {}
+                for i in legend_set:
+                    data[i] = {"name": i, "type": "line", "stack": "total", "data":["null" for _ in date_set]}
+
+                for m in line_result:
+                    data[m[0]]["data"][date_set.index(m[1])] = m[2]
+
                 result.append({
                     "title": {
                         "text": rule.name
                     },
+                    "tooltip": {
+                        "trigger": "axis"
+                    },
+                    "legend": {
+                        "data": legend_set
+                    },
+                    "grid": {
+                        "left": "3%",
+                        "right": "4%",
+                        "bottom": "3%",
+                        "containLabel": True
+                    },
                     "xAxis": {
                         "type": "category",
-                        "data": data_1
+                        "boundaryGap": False,
+                        "data": [formatDate(d) for d in date_set]
                     },
                     "yAxis": {
                         "type": "value"
@@ -1846,55 +1899,10 @@ def getEchart():
                             "saveAsImage": {}
                         }
                     },
-                    "series": [
-                        {
-                            "data": data_2,
-                            "type": "bar"
-                        }
-                    ]
+                    "series": [v for v in data.values()]
                 })
 
-        elif rule.type == 3:  # 折线图
-
-            try:  # # 根据日期排序
-                line_result = db_session.query(getattr(manageTable.c, rule.keyword), func.count(1)).group_by(getattr(manageTable.c, rule.keyword)).all()
-            finally:
-                db_session.close()
-
-            data = []
-            data.append({"name": "", "type": "line", "stack": "total", "data":[]})
-            result.append({
-                "title": {
-                    "text": rule.name
-                },
-                "tooltip": {
-                    "trigger": "axis"
-                },
-                "legend": {
-                    "data": []
-                },
-                "grid": {
-                    "left": "3%",
-                    "right": "4%",
-                    "bottom": "3%",
-                    "containLabel": True
-                },
-                "xAxis": {
-                    "type": "category",
-                    "boundaryGap": False,
-                    "data": []
-                },
-                "yAxis": {
-                    "type": "value"
-                },
-                "toolbox": {
-                    "feature": {
-                        "saveAsImage": {}
-                    }
-                },
-                "series": []
-            })
-
-    # 将结果写入缓存
+        # 将结果写入缓存
+        redisClient.setData(f"crm:echart:{table.table_name}", json.dumps(result))
 
     return jsonify({"code": 0, "message": result}), 200

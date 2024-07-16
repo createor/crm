@@ -40,7 +40,7 @@ def scan_ip(ip: str) -> bool:
     :return:
     '''
     try:
-        resp = ping3.ping(ip)
+        resp = ping3.ping(ip, 2)
         if resp is not None:
             return True
         else:

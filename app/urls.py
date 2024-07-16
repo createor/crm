@@ -33,9 +33,11 @@ def login():
             return jsonify({"code": -1, "message": "无法访问,你不在白名单中"}), 403
         
     if request.method == "GET":
-        if session.get("username") is not None:
-            return redirect(url_for("index"))  
+        if session.get("username"):
+            return redirect(url_for("index"))
+        
         errMsg = request.args.get("errMsg", "null")  # 获取错误信息
+    
         return render_template("login.html", errMsg=errMsg)
     else:
         return jsonify({"code": -1, "message": "不支持的请求方法"}), 405
@@ -156,7 +158,7 @@ def download_image(filename):
     finally:
         db_session.close()
 
-    if file is None:
+    if not file:
         return jsonify({"code": -1,"message": "文件不存在"}), 400
 
     return send_from_directory(UPLOAD_IMAGE_DIR, f"{filename}.{file.affix}")
@@ -170,8 +172,8 @@ def download_file(filename):
     finally:
         db_session.close()
 
-    if file is None:
-        crmLogger.error(f"用户{g.username}下载文件(文件id为{filename})失败: 文件不存在")
+    if not file:
+        crmLogger.error(f"用户{g.username}下载文件(文件id为{filename})失败, 原因: 文件不存在")
         return jsonify({"code": -1, "message": "文件不存在"}), 400
     
     try:
@@ -195,7 +197,7 @@ def download_file(filename):
 @verify(allow_methods=["GET"], module_name="帮助手册")
 def download_help():
     '''下载帮助手册'''
-    filename = "管理员使用手册.docx" if g.username == "admin" else "用户使用手册.docx"  # pdf文件
+    filename = "管理员使用手册.pdf" if g.username == "admin" else "用户使用手册.pdf"  # pdf文件
 
     try:
         help_log = Log(ip=g.ip, operate_type="下载手册", operate_content=f"用户下载{filename}", operate_user=g.username)
