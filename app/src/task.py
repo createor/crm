@@ -35,29 +35,29 @@ def notifyTask(task_id: str, name: str, table_name: str, keyword: str):
     '''
     manageTable = initManageTable(table_name)        # 实例化已存在资产表
 
-    try:  # 查询过期数据数量
+    try:      # 查询过期数据数量
         today = datetime.now().strftime("%Y-%m-%d")  # 获取今天日期
         expire_data = db_session.query(manageTable).filter(and_(f"{today} 00:00:00" <= getattr(manageTable.c, keyword), getattr(manageTable.c, keyword) <= f"{today} 23:59:59")).count()
     finally:
-        db_session.close
+        db_session.close()
         
     if expire_data > 0:
         try:  # 写入数据库
             notice_data = Notice(message="{}资产表有{}条数据已过期".format(name, expire_data), notify_id=task_id)
             db_session.add(notice_data)
             db_session.commit()
+            crmLogger.info(f"[notifyTask]定时任务执行成功: 任务id({task_id})")
         except:
             db_session.rollback()
-            crmLogger.error(f"写入notice表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[notifyTask]写入notice表发生异常: {traceback.format_exc()}")
         finally:
             db_session.close()
 
-def writeError(task_id: str, error: str) -> bool:
+def writeError(task_id: str, error: str):
     '''
     导入任务写入错误信息
     :param task_id: 任务id
     :param error: 错误信息
-    :return:
     '''
     filename = getUuid()
     filepath = os.path.join(TEMP_DIR, f"{filename}.txt")
@@ -65,14 +65,13 @@ def writeError(task_id: str, error: str) -> bool:
     with open(filepath, "w", encoding="utf-8") as f:  # 创建错误文件
         f.write(error)
 
-    try:  # 插入file表
+    try:  # 写入file表
         err_file = File(uuid=filename, filename="错误信息.txt", filepath=0, affix="txt")
         db_session.add(err_file)
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入file表发生异常: {traceback.format_exc()}")
-        return False
+        crmLogger.error(f"[writeError]写入file表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
         redisClient.setData(f"crm:task:{task_id}", json.dumps({"error": f"{error}", "speed": 100}))
@@ -82,57 +81,56 @@ def writeError(task_id: str, error: str) -> bool:
         db_session.commit()
     except:     
         db_session.rollback()
-        crmLogger.error(f"更新history表发生异常: {traceback.format_exc()}")
-        return False
+        crmLogger.error(f"[writeError]更新history表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
         redisClient.setData(f"crm:task:{task_id}", json.dumps({"error": f"{error}", "speed": 100}))
-
-    return True
 
 def importTableTask(table_name: str):
     '''
     表格导入任务
     :param table_name: 表别名
     '''
-    lock = redisClient.lock(f"import_{table_name}_lock", timeout=300)  # 300秒锁过期时间
+    lock = redisClient.lock(f"import_{table_name}_lock", timeout=300)  # 设置300秒锁过期时间
 
-    if lock.acquire(blocking=False):  # 获取锁
+    if lock.acquire(blocking=False): # 获取锁
 
         try:
-            while redisClient.llen(f"crm:import:{table_name}") > 0:  # 导入队列不为空时
+            while redisClient.llen(f"crm:import:{table_name}") > 0:    # 导入队列不为空时
 
-                # 进度
-                import time
-                time.sleep(20)
+                is_continue = False  # 是否继续执行循环
 
                 task_data = json.loads(redisClient.rpop(f"crm:import:{table_name}"))  # 读取任务数据
 
-                crmLogger.info(f"正在执行导入任务: {task_data}")
-
-                try:               # 更新状态为执行中
+                try:                 # 更新任务状态为执行中
                     db_session.query(History).filter(History.id == task_data["task_id"]).update({"status": 1})
                     db_session.commit()
                 except:
                     db_session.rollback()
-                    crmLogger.error(f"更新history表发生异常: {traceback.format_exc()}")
+                    crmLogger.error(f"[importTableTask]更新history表发生异常: {traceback.format_exc()}")
                     continue
                 finally:
                     db_session.close()
+
+                crmLogger.debug(f"[importTableTask]正在执行导入任务: {task_data}")
+
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 5}))  # 设置进度为5%
                 
                 temp_table = readExcel(os.path.join(UPLOAD_EXCEL_DIR, task_data["file"]))  # 读取表格
 
                 if temp_table is None:  # 读取表格失败
-                    crmLogger.error(f"用户{task_data['user']}导入资产表{task_data['table']}失败: 读取导入表格失败")
-                    if not writeError(task_data["task_id"], "读取导入表格失败"):
-                        continue
+                    crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: 读取导入表格失败")
+                    writeError(task_data["task_id"], "读取导入表格失败")
+                    continue
 
                 table_headers = temp_table.columns.tolist()  # 获取表头字段
 
                 if len(table_headers) == 0:                  # 如果表头为空
-                    crmLogger.error(f"用户{task_data['user']}导入资产表{task_data['table']}失败: 读取表格表头为空")
-                    if not writeError(task_data["task_id"], "读取表格表头为空"):
-                        continue
+                    crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: 读取表格表头为空")
+                    writeError(task_data["task_id"], "读取表格表头为空")
+                    continue
+
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 15}))  # 设置进度为15%
 
                 templ_header = redisClient.getData(f"crm:header:{task_data['table']}")  # 从redis中读取缓存
 
@@ -146,9 +144,9 @@ def importTableTask(table_name: str):
 
                 # 读取文件的header和数据库中比对是否一致,不一致说明不是使用模板导入
                 if [h.name for h in templ_header].sort() != list(map(lambda x: x.rsplit("*", 1)[0] if x.endswith("*") else x, table_headers)).sort():  # 去除*号后排序后比较
-                    crmLogger.error(f"用户{task_data['user']}导入资产表{task_data['table']}失败: 未使用模板导入")
-                    if not writeError(task_data["task_id"], "未使用模板导入"):
-                        continue
+                    crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: 未使用模板导入")
+                    writeError(task_data["task_id"], "未使用模板导入")
+                    continue
 
                 manageTable = initManageTable(task_data["table"])  # 实例化已存在的资产表
 
@@ -156,9 +154,13 @@ def importTableTask(table_name: str):
                 must_header = [h.name for h in templ_header if h.must_input == 1]
                 for h in must_header:
                     if temp_table[f"{h}*"].isnull().any():         # 判断是否有空值,带*表示必填
-                        crmLogger.error(f"用户{task_data['user']}导入资产表{task_data['table']}失败: {h}字段为必填项,存在空值")
-                        if not writeError(task_data["task_id"], f"{h}字段为必填项,存在空值"):
-                            continue
+                        crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: {h}字段为必填项,存在空值")
+                        writeError(task_data["task_id"], f"{h}字段为必填项,存在空值")
+                        is_continue = True
+                        break
+                
+                if is_continue:
+                    continue
 
                 # 校验数据是否唯一,有重复导入
                 unique_header = []
@@ -171,10 +173,11 @@ def importTableTask(table_name: str):
                         
                 for h in unique_header:
                     if temp_table[f"{h['name']}"].duplicated().any():  # 判断是否有重复数据
-                        crmLogger.error(f"用户{task_data['user']}导入资产表{task_data['table']}失败: {h['name'].rsplit('*', 1)[0]}字段为唯一项,有重复数据")
-                        if not writeError(task_data["task_id"], f"{h['name'].rsplit('*', 1)[0]}字段为唯一项,有重复数据"):
-                            continue
-
+                        crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: {h['name'].rsplit('*', 1)[0]}字段为唯一项,有重复数据")
+                        writeError(task_data["task_id"], f"{h['name'].rsplit('*', 1)[0]}字段为唯一项,有重复数据")
+                        is_continue = True
+                        break
+                    
                     try:  # 比对导入的表格数据与数据库中是否有重复
                         col_data = db_session.query(getattr(manageTable.c, h["value"])).all()
                     finally:
@@ -183,31 +186,41 @@ def importTableTask(table_name: str):
                     col_data = [getattr(c, h["value"]) for c in col_data if getattr(c, h["value"])]
 
                     if temp_table[f"{h['name']}"].isin(col_data).any():  # 判断是否有重复数据
-                        crmLogger.error(f"用户{task_data['user']}导入资产表{task_data['table']}失败: {h['name'].rsplit('*', 1)[0]}字段在数据库中有重复数据")
-                        if not writeError(task_data["task_id"], f"{h['name'].rsplit('*', 1)[0]}字段在数据库中有重复数据"):
-                            continue
+                        crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: {h['name'].rsplit('*', 1)[0]}字段在数据库中有重复数据")
+                        writeError(task_data["task_id"], f"{h['name'].rsplit('*', 1)[0]}字段在数据库中有重复数据")
+                        is_continue = True
+                        break
+                
+                if is_continue:
+                    continue
 
                 for h in templ_header:
-                
-                    if h.type == 2:  # 校验数据是否从下拉列表选项中值
+                    if h.type == 2:         # 校验数据是否从下拉列表选项中值
                         try:
                             _opt = db_session.query(Options.option_name).filter(Options.table_name == task_data["table"], Options.header_value == h.value).all()
                         finally:
                             db_session.close()
 
                         if not temp_table[f"{h.name}"].isin([o.option_name for o in _opt]):
-                            crmLogger.error(f"用户{task_data['user']}导入资产表{task_data['table']}失败: {h.name}字段存在非固定选项值")
-                            if not writeError(task_data["task_id"], f"{h.name}字段存在非固定选项值"):
-                                continue
+                            crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: {h.name}字段存在非固定选项值")
+                            writeError(task_data["task_id"], f"{h.name}字段存在非固定选项值")
+                            is_continue = True
+                            break
 
                     if h.value_type == 2:   # 校验数据中长度是否合法       
                         # is_all_length = temp_table[h.name].str.len == h.length
                         # if not is_all_length.all():
                         if len(temp_table[temp_table[f"{h.name}"].str.len() != h.length]) > 0:
-                            crmLogger.error(f"用户{task_data['user']}导入资产表{task_data['table']}失败: {h.name}字段存在不满足长度的值")
-                            if not writeError(task_data["task_id"], f"{h.name}字段存在不满足长度的值"):
-                                continue
+                            crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: {h.name}字段存在不满足长度的值")
+                            writeError(task_data["task_id"], f"{h.name}字段存在不满足长度的值")
+                            is_continue = True
+                            break
+                
+                if is_continue:
+                    continue
 
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 50}))  # 设置进度为50%
+                                
                 insert_data = temp_table.to_dict(orient="records")
 
                 date_header = [h.name for h in templ_header if h.value_type == 4]
@@ -244,12 +257,14 @@ def importTableTask(table_name: str):
                                         new_data = new_data.strftime("%Y-%m-%d")
                             i.update({c.value: new_data})
 
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 80})) # 设置进度为80%
+
                 try:
                     with engine.begin() as conn:  # 开启事务,批量插入数据        
                         stmt = insert(manageTable)
                         conn.execute(stmt, insert_data)
                 except:
-                    crmLogger.error(f"{table_name}表插入数据失败: {traceback.format_exc()}")
+                    crmLogger.error(f"[importTableTask]{table_name}表插入数据失败: {traceback.format_exc()}")
                     continue
 
                 try:
@@ -257,19 +272,23 @@ def importTableTask(table_name: str):
                     db_session.commit()
                 except:
                     db_session.rollback()
+                    crmLogger.error(f"[importTableTask]更新history表发生异常: {traceback.format_exc()}")
+                    continue
                 finally:
                     db_session.close()
 
-                crmLogger.info("导入成功")
+                crmLogger.info(f"[importTableTask]{table_name}导入成功")
                 
                 redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 100}))   # 设置进度为100%
 
+        except:
+            crmLogger.error(f"[importTableTask]{table_name}表导入失败: {traceback.format_exc()}")
+
         finally:
             lock.release()  # 释放锁
-            # lock_extender.join()
 
     else:
-        crmLogger.info("任务已存在")
+        crmLogger.info("[importTableTask]任务已存在")
 
 def startImportTableTask(table_name: str):
     '''启动表格导入任务'''
@@ -298,22 +317,27 @@ def exportTableTask(table_name: str):
                     continue
                 finally:
                     db_session.close()
+
+                crmLogger.debug(f"[exportTableTask]正在执行导出任务: {task_data}")
                 
                 # 将任务进度写入redis
                 redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 5}))
 
                 manageTable = initManageTable(task_data["table"])  # 实例化已存在的资产表
 
-                if task_data["filter"]:  # 如果存在筛选条件,
+                if task_data["filter"]:  # 如果存在筛选条件
                     try:
+                        # TODO 待实现筛选条件
                         export_data = db_session.query(manageTable).filter(eval(filter)).all()
                     finally:
                         db_session.close()
-                else:
-                    try:  # 全量导出
+                else:  # 全量导出
+                    try:
                         export_data = db_session.query(manageTable).all()
                     finally:
                         db_session.close()
+
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 15}))
 
                 header = redisClient.getData(f"crm:header:{task_data['table']}")
 
@@ -350,9 +374,13 @@ def exportTableTask(table_name: str):
                 for h, v in table_header.items():
                     write_data[h] = [getattr(i, v["name"]) if getattr(i, v["name"]) else "" for i in export_data]
 
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 50}))
+
                 result_status = 2
                 if not createExcel(filepath=TEMP_DIR, filename=task_data["task_id"], sheet_name=task_data["name"], header=table_header, data=write_data, styles=table_styles, passwd=task_data["password"]):
                     result_status = 3
+
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 80}))
 
                 try:
                     db_session.query(History).filter(History.id == task_data["task_id"]).update({"status": result_status, "file_uuid": f"{task_data['task_id'] if result_status == 2 else ''}"})
@@ -360,6 +388,7 @@ def exportTableTask(table_name: str):
                 except:
                     db_session.rollback()
                     crmLogger.error(f"[exportTableTask]更新history表发生异常: {traceback.format_exc()}")
+                    redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "数据库异常", "speed": 100}))
                     continue
                 finally:
                     db_session.close()
@@ -371,23 +400,24 @@ def exportTableTask(table_name: str):
                         db_session.commit()
                     except:
                         db_session.rollback()
+                        crmLogger.error(f"[exportTableTask]更新file表发生异常: {traceback.format_exc()}")
+                        redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "数据库异常", "speed": 100}))
+                        continue
                     finally:
                         db_session.close()
 
-                crmLogger.info("导出成功")
+                crmLogger.info(f"[exportTableTask]{table_name}表导出成功")
 
                 redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 100}))
         
         except:
-
-            crmLogger.error(f"[exportTableTask]发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[exportTableTask]{table_name}表导出异常: {traceback.format_exc()}")
 
         finally:
-
             lock.release()
 
 def startExportTableTask(table_name: str):
-    ''''''
+    '''启动表格导出任务'''
     return exportExecutor.submit(exportTableTask, (table_name))
 
 def consumer(ip_queue: queue.Queue, result_queue: queue.Queue):
@@ -421,14 +451,22 @@ def pingHostTask():
                     db_session.commit()
                 except:
                     db_session.rollback()
+                    crmLogger.error(f"[pingHostTask]更新task表发生异常: {traceback.format_exc()}")
+                    continue
                 finally:
                     db_session.close()
+
+                crmLogger.debug(f"[pingHostTask]开始探测主机任务: {task_data}")
+
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 5}))
 
                 try:
                     manageTable = initManageTable(task_data["table"])
                     ip_result = db_session.query(getattr(manageTable.c, task_data["keyword"])).all()
                 finally:
                     db_session.close()
+
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 15}))
 
                 if ip_result:
                     for i in ip_result:
@@ -444,6 +482,8 @@ def pingHostTask():
                 else:
                     continue
 
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 30}))
+
                 threads = []
                 for _ in range(5):
                     thread = threading.Thread(target=consumer, args=(ip_queue, result_queue,))
@@ -452,6 +492,8 @@ def pingHostTask():
 
                 for t in threads:
                     t.join()
+
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 50}))
 
                 # 批量插入结果中
                 insert_data = []
@@ -466,22 +508,36 @@ def pingHostTask():
                         })
 
                 if insert_data:
-                    with engine.connect() as conn:
-                        stmt = insert(DetectResult)
-                        conn.execute(stmt, insert_data) 
+                    try:
+                        with engine.connect() as conn:
+                            stmt = insert(DetectResult)
+                            conn.execute(stmt, insert_data)
+                    except:
+                        crmLogger.error(f"[pingHostTask]批量插入detect_result表发生异常: {traceback.format_exc()}")
+                        redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "数据库异常", "speed": 100}))
+                        continue
+
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 80}))
 
                 try:
                     db_session.query(Task).filter(Task.id == task_data["task_id"]).update({"status": 2})
                     db_session.commit()
                 except:
                     db_session.rollback()
+                    crmLogger.error(f"[pingHostTask]更新task表发生异常: {traceback.format_exc()}")
+                    redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "数据库异常", "speed": 100}))
+                    continue
                 finally:
-                    db_session.close()        
+                    db_session.close()
+
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 100}))      
+
+        except:
+            crmLogger.error(f"[pingHostTask]ping主机任务发生异常: {traceback.format_exc()}")
 
         finally:
-
             lock.release()
 
 def startPingTask():
-    ''''''
+    '''启动ping任务'''
     return pingExecutor.submit(pingHostTask)

@@ -7,14 +7,12 @@
 @Desc    :  表格模块
 '''
 import os
-import re
 from typing import Union
 import traceback
 import pandas as pd
 from app.utils.logger import crmLogger
 from openpyxl import Workbook
 from openpyxl.worksheet.datavalidation import DataValidation
-# from openpyxl.styles import Protection
 from openpyxl.cell.text import InlineFont
 from openpyxl.cell.rich_text import TextBlock, CellRichText
 

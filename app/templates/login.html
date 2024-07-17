@@ -103,7 +103,7 @@
 </body>
 
 <script type="text/javascript">
-    layui.use(function () {
+    layui.use(() => {
         const form = layui.form;
         const layer = layui.layer;
         const $ = layui.jquery;
@@ -115,12 +115,12 @@
         function getCaptcha () {
             $.ajax({
                 url: "/crm/api/v1/captcha",
-                type: "get",
-                success: function (data) {
-                    $("#captcha_img").attr("src", "data:image/png;base64," + data.message);  // 绘制验证码图片,base64编码格式
+                type: "GET",
+                success: (res) => {
+                    $("#captcha_img").attr("src", `data:image/png;base64,${res.message}`);  // 绘制验证码图片,base64编码格式
                     return false;
                 },
-                error: function () {
+                error: () => {
                     return false;
                 }
             });
@@ -132,34 +132,40 @@
         $("#captcha_img").on("click", () => { getCaptcha(); });
 
         // 点击登录事件
-        form.on("submit(login)", function (data) {
+        form.on("submit(login)", (data) => {
             let reqArgs = data.field;  // 获取表单字段
+            let loadIndex = "";
             if (reqArgs.captcha.length !== 4) {
                 layer.msg("验证码长度为4位", { icon: 2 });
                 return false;
             }
             $.ajax({
                 url: "/crm/api/v1/user/login",
-                type: "post",
+                type: "POST",
                 contentType: "application/json;charset=UTF-8",
                 data: JSON.stringify({
                     "username": reqArgs.username,
                     "password": CryptoJS.MD5(reqArgs.password).toString(),  // MD5加密密码
                     "captcha": reqArgs.captcha
                 }),
-                success: function (data) {
-                    if (data.code === 0) {
+                beforeSend: () => {
+                    loadIndex = layer.load(2);
+                },
+                success: (res) => {
+                    layer.close(loadIndex);
+                    if (res.code === 0) {
                         window.location.href = "/index";  // 跳转到首页
                     } else {
                         getCaptcha(); // 刷新验证码
-                        layer.msg(data.message, { icon: 2 });
+                        layer.msg(res.message, { icon: 2 });
                     }
                     return false;
                 },
-                error: function (err) {
+                error: (err) => {
+                    layer.close(loadIndex);
                     let errMsg = err.responseJSON || JSON.parse(err.responseText);
                     layer.msg(errMsg.message, { icon: 2 });
-                    getCaptcha(); // 刷新验证码
+                    getCaptcha();  // 刷新验证码
                     return false;
                 }
             });

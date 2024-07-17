@@ -21,14 +21,14 @@
 </body>
 
 <script type="text/javascript">
-    layui.use(["table", "layer", "jquery", "form"], function () {
+    layui.use(["table", "layer", "jquery", "form"], () => {
         const table = layui.table;
         const layer = layui.layer;
         const $ = layui.jquery;
         const form = layui.form;
 
         // 创建用户
-        form.on("submit(newUser)", function () {
+        form.on("submit(newUser)", () => {
             window.parent.addNewUser();
             return false;
         });
@@ -46,7 +46,7 @@
             },
             limit: 10,
             limits: [10],
-            parseData: function (result) {
+            parseData: (result) => {
                 return {
                     "code": result.code,
                     "msg": result.code === 0 ? "" : result.message,
@@ -59,20 +59,20 @@
                 { field: "username", title: "用户名", width: 150 },
                 { field: "name", title: "昵称", width: 150 },
                 {
-                    fidld: "type", title: "类型", width: 250, templet: function (d) {
+                    fidld: "type", title: "类型", width: 250, templet: (d) => {
                         return d.type === 1 ? "永久用户" : `临时用户(${d.expire})`;
                     }
                 },
                 { field: "company", title: "所属组织", width: 220 },
                 {
-                    field: "status", title: "状态", width: 80, templet: function (d) {
+                    field: "status", title: "状态", width: 80, templet: (d) => {
                         if (d.status === 2) return "<span class='layui-badge'>过期</span>";
                         if (d.status === 1) return "<span class='layui-badge layui-bg-green'>正常</span>";
                         if (d.status === 0) return "<span class='layui-badge layui-bg-orange'>锁定</span>";
                     }
                 },
                 {
-                    field: "operate", title: "操作", width: 260, templet: function (d) {
+                    field: "operate", title: "操作", width: 260, templet: (d) => {
                         let defaultDiv = "<div><a class='layui-btn layui-btn-xs' lay-event='edit'>编辑</a><a class='layui-btn layui-btn-xs' lay-event='del'>删除</a><a class='layui-btn layui-btn-xs' lay-event='reset'>重置密码</a>";
                         return d.status === 0 ? defaultDiv + "<a class='layui-btn layui-btn-xs' lay-event='unlock'>解锁</a></div>" : defaultDiv + "<a class='layui-btn layui-btn-xs' lay-event='lock'>锁定</a></div>";
                     }
@@ -90,7 +90,7 @@
         window.reloadData = window.reloadData || reloadData;
 
         // 用户操作
-        table.on("tool(user)", function (obj) {
+        table.on("tool(user)", (obj) => {
             let event = obj.event;
             let data = obj.data;
             switch (event) {

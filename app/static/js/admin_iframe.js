@@ -29,7 +29,7 @@ var addNewWhiteIp = () => {
                         </div>
                     </div>
                     <div class="layui-form-item">
-                        <button class="layui-btn" lay-submit lay-filter="add" style="margin-left: 120px;">添加</button>
+                        <button type="button" class="layui-btn" lay-submit lay-filter="add" style="margin-left: 120px;">添加</button>
                     </div>
                   </div>`,
         success: (_, index) => {
@@ -55,7 +55,7 @@ var addNewWhiteIp = () => {
                         description: field.remark
                     }),
                     beforeSend: () => {
-                        loadIndex = layer.load();
+                        loadIndex = layer.load(2);
                     },
                     success: (res) => {
                         layer.close(loadIndex);
@@ -100,7 +100,7 @@ var delWhiteIp = (id, ip) => {
                 ip: ip
             }),
             beforeSend: () => {
-                loadIndex = layer.load();
+                loadIndex = layer.load(2);
             },
             success: (res) => {
                 layer.close(loadIndex);
@@ -122,6 +122,7 @@ var delWhiteIp = (id, ip) => {
         });
     }, (index) => {
         layer.close(index);
+        return false;
     });
 }
 
@@ -170,8 +171,8 @@ var showWhiteIp = () => {
                     { field: "id", title:"ID", hide: true },
                     { field: "ip", title:"IP", width: 200 },
                     { field: "desc", title: "备注" },
-                    { field: "operate", title: "操作", templet: function(d) {
-                        return `<button type="button" class="layui-btn layui-btn-sm layui-btn-danger" onclick="delWhiteIp(${d.id}, '${d.ip}')">删除</button>`;
+                    { field: "operate", title: "操作", templet: (d) => {
+                        return `<button type="button" class="layui-btn layui-btn-sm layui-btn-danger" onclick="delWhiteIp('${d.id}', '${d.ip}')">删除</button>`;
                     } }
                 ]]
             });
@@ -194,7 +195,7 @@ var showWhiteIp = () => {
 /**
  * @description 重载用户数据
 */
-function reloadUserData() {
+function reloadUserData () {
     let win = window.frames["crm_user"];
     win.contentWindow.reloadData();  // 调用iframe内方法
 }
@@ -282,9 +283,9 @@ var addNewUser = () => {
                 return false;
             });
             // 创建用户事件
-            let loadIndex = "";
             form.on("submit(create)", (data) => {
                 let field = data.field;
+                let loadIndex = "";
                 if (field.type === "2" && !$("#expire-time").val()) {
                     layer.msg("请选择到期时间", {icon: 2});
                     return false;
@@ -301,7 +302,7 @@ var addNewUser = () => {
                         expire_time: field.type === "2" ? $("#expire-time").val() : ""
                     }),
                     beforeSend: () => {
-                        loadIndex = layer.load();
+                        loadIndex = layer.load(2);
                     },
                     success: (res) => {
                         layer.close(loadIndex);
@@ -412,7 +413,7 @@ var showUserEdit = (userData) => {
                         expire_time: field.type === "2" ? $("#expire-time").val() : ""
                     }),
                     beforeSend: () => {
-                        loadIndex = layer.load();
+                        loadIndex = layer.load(2);
                     },
                     success: (res) => {
                         layer.close(loadIndex);
@@ -444,7 +445,7 @@ var showUserEdit = (userData) => {
 */
 var showUserDel = (data) => {
     layer.confirm("是否删除用户?", {
-            title: "删除",
+            title: "删除用户",
             btn: ["确定", "取消"]
         }, (index) => {
             // 删除用户
@@ -458,7 +459,7 @@ var showUserDel = (data) => {
                     "username": data.username
                 }),
                 beforeSend: () => {
-                    loadIndex = layer.load();
+                    loadIndex = layer.load(2);
                 },
                 success: (res) => {
                     layer.close(loadIndex);
@@ -467,7 +468,7 @@ var showUserDel = (data) => {
                         layer.msg("删除成功", {icon: 1});
                         reloadUserData();
                     } else {
-                        layer.msg("删除失败: " + res.message, {icon: 2});
+                        layer.msg(`删除失败: ${res.message}`, {icon: 2});
                     }
                     return false;
                 },
@@ -481,6 +482,7 @@ var showUserDel = (data) => {
         },
         (index) => {
             layer.close(index);  // 关闭窗口
+            return false;
         }
     );
 }
@@ -491,7 +493,7 @@ var showUserDel = (data) => {
 */
 var showUserLock = (data) => {
     layer.confirm("是否锁定用户?", {
-            title: "锁定",
+            title: "锁定用户",
             btn: ["确定", "取消"]
         }, (index) => {
             // 锁定用户
@@ -538,7 +540,7 @@ var showUserLock = (data) => {
 */
 var showUserUnlock = (data) => {
     layer.confirm("是否解锁用户?", {
-            title: "解锁",
+            title: "解锁用户",
             btn: ["确定", "取消"]
         }, (index) => {
             // 解锁用户
@@ -552,7 +554,7 @@ var showUserUnlock = (data) => {
                     "username": data.username
                 }),
                 beforeSend: () => {
-                    loadIndex = layer.load();
+                    loadIndex = layer.load(2);
                 },
                 success: (res) => {
                     layer.close(loadIndex);
@@ -561,7 +563,7 @@ var showUserUnlock = (data) => {
                         layer.msg("解锁成功", {icon: 1});
                         reloadUserData();
                     } else {
-                        layer.msg("解锁失败: " + res.message, {icon: 2});
+                        layer.msg(`解锁失败: ${res.message}`, {icon: 2});
                     }
                     return false;
                 },
@@ -575,6 +577,7 @@ var showUserUnlock = (data) => {
         },
         (index) => {
             layer.close(index);
+            return false;
         }
     );
 }
@@ -599,7 +602,7 @@ var showUserReset = (data) => {
                     "username": data.username
                 }),
                 beforeSend: () => {
-                    loadIndex = layer.load();
+                    loadIndex = layer.load(2);
                 },
                 success: (res) => {
                     layer.close(loadIndex);
@@ -607,7 +610,7 @@ var showUserReset = (data) => {
                         layer.close(index);
                         layer.msg("重置成功", { icon: 1 });
                     } else {
-                        layer.msg("重置失败: " + res.message, { icon: 2 });
+                        layer.msg(`重置失败: ${res.message}`, { icon: 2 });
                     }
                     return false;
                 },
@@ -621,6 +624,7 @@ var showUserReset = (data) => {
         },
         (index) => {
             layer.close(index);
+            return false;
         }
     );
 }

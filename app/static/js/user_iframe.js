@@ -479,6 +479,7 @@ var delColData = (tableId, data) => {
         },
         (index) => {
             layer.close(index);
+            return false;
         }
     );
 }
@@ -793,7 +794,7 @@ var mulitDetect = (tableId) => {
         resize: false,
         maxmin: false,
         content: `<div>
-                    <div class="layui-tab" layui-tab-card lay-filter="pingTask">
+                    <div class="layui-tab layui-tab-card" lay-filter="pingTask" style="margin-top: 0px;border-bottom-style: none;box-shadow: none;">
                         <ul class="layui-tab-title">
                             <li class="layui-this">创建任务</li>
                             <li>历史任务</li>
@@ -802,6 +803,12 @@ var mulitDetect = (tableId) => {
                             <div class="layui-tab-content">
                                 <div class="layui-tab-item layui-show" id="showTask">
                                     <form class="layui-form" id="showTaskForm" lay-filter="taskForm">
+                                        <div class="layui-form-item">
+                                            <label class="layui-form-label">任务名称</label>
+                                            <div class="layui-input-inline">
+                                                <input type="text" name="task_name" lay-verify="required" autocomplete="off" placeholder="请输入任务名称" class="layui-input">
+                                            </div>
+                                        </div>
                                         <div class="layui-form-item">
                                             <label class="layui-form-label">IP列</label>
                                             <div class="layui-input-inline">
@@ -852,12 +859,12 @@ var mulitDetect = (tableId) => {
                         },
                         cols:[[
                             {fidle: "id", title: "任务ID", hide: true},
-                            {field: "name", title: "任务名称", width: 160},
-                            {field: "create_time", title: "创建时间", width: 170},
-                            {field: "status", title: "状态", width: 100, templet: (d) => {
+                            {field: "name", title: "任务名称", width: 120},
+                            {field: "create_time", title: "创建时间", width: 140},
+                            {field: "status", title: "状态", width: 80, templet: (d) => {
                             
                             }},
-                            {field: "result", title: "结果", width: 120, templet: (d) => {
+                            {field: "result", title: "结果", width: 100, templet: (d) => {
 
                             }}
                         ]],
@@ -876,7 +883,34 @@ var mulitDetect = (tableId) => {
                     layer.msg("请选择IP列", { icon: 2 });
                     return false;
                 }
-                console.log($("#ip_col").val());
+                $.ajax({
+                    url: `/crm/api/v1/manage/ping?id=${table_id}`,
+                    type: "POST",
+                    contentType: "application/json;charset=utf-8",
+                    data: JSON.stringify({
+                        "name": "ping任务",
+                        "ip_col": $("#ip_col").val()
+                    }),
+                    beforeSend: () => {
+                        loadIndex = layer.load();
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
+                        if (res.code === 0) {
+                            layer.msg("创建成功", { icon: 1 });
+                            table.reloadData("historyTask");
+                        } else {
+                            layer.msg(`创建失败: ${res.message}`, { icon: 2 });
+                        }
+                        return false;
+                    },
+                    error: (err) => {
+                        layer.close(loadIndex);
+                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                        layer.msg(errMsg.message, { icon: 2 });
+                        return false;
+                    }
+                });
                 return false;
             });
         }
@@ -1035,7 +1069,7 @@ var createNotify = (tableId) => {
                 $.ajax({
                     url: "/crm/api/v1/manage/notify",
                     type: "POST",
-                    contentType: "application/json",
+                    contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
                         "operate": "add",
                         "id": table_id,
@@ -1043,9 +1077,7 @@ var createNotify = (tableId) => {
                         "keyword": field.date_col
                     }),
                     beforeSend: () => {
-                        loadIndex = layer.load(1, {
-                            shade: [0.1, "#000"]
-                        });
+                        loadIndex = layer.load(1);
                     },
                     success: (res) => {
                         layer.close(loadIndex);
@@ -1053,7 +1085,7 @@ var createNotify = (tableId) => {
                             layer.close(index);
                             layer.msg("任务创建成功", { icon: 1 });
                         } else {
-                            layer.msg(`创建失败: res.message`, { icon: 2 });
+                            layer.msg(`创建失败: ${res.message}`, { icon: 2 });
                         }
                         return false;
                     },
@@ -1100,7 +1132,7 @@ var showHistory = (tableId) => {
                         </div>
                     </div>
                   </div>`,
-        success: function () {
+        success: () => {
             table.render({
                 elem: "#historyTable",
                 id: "historyTable",
@@ -1142,11 +1174,11 @@ var showHistory = (tableId) => {
             });
             element.on("tab(history)", (data) => {
                 if (data.index === 0) {
-                    table.reload("historyTable", {
+                    table.reloadData("historyTable", {
                         url: `/crm/api/v1/manage/history?type=1&id=${table_id}`
                     }); 
                 } else {
-                    table.reload("historyTable", {
+                    table.reloadData("historyTable", {
                         url: `/crm/api/v1/manage/history?type=2&id=${table_id}`
                     }); 
                 }
@@ -1157,7 +1189,7 @@ var showHistory = (tableId) => {
 
 /**
  * @description 导出表格数据
- * @param {*} tableId 
+ * @param {String} tableId 表id 
  */
 var exportTableData = (tableId) => {
     let table_id = tableId || localStorage.getItem("tableUid");
@@ -1190,7 +1222,7 @@ var exportTableData = (tableId) => {
                     </div>
                   </div>`,
         success: (_, index) => {
-            form.render(null, "exportForm");
+            form.render(null, "exportForm");  // 渲染表单
             form.on("submit(export)", (data) => {
                 let field = data.field;
                 let loadIndex = "";
@@ -1216,6 +1248,7 @@ var exportTableData = (tableId) => {
                                 target.download = "资产表导出文件.xlsx";
                                 document.body.appendChild(target);
                                 target.click();
+                                document.body.removeChild(target);
                             });
                         } else {
                             layer.msg(`导出错误: ${res.message}`, { icon: 2 });
@@ -1267,11 +1300,11 @@ var showProgress = (task_id, callback) => {
             let eventSource = new EventSource(`/crm/api/v1/manage/process/${task_id}`);
             eventSource.onmessage = (e) => {
                 let data = JSON.parse(e.data);
-                element.progress("progress", `${data.speed}%`);
+                element.progress("progress", `${data.speed}%`);  // 渲染进度
                 if (data.speed === 100) {
-                    eventSource.close();
+                    eventSource.close();  // 关闭连接
                     if (data.error) {
-                        layer.msg(`导入失败: ${data.error}`, { icon: 2 });
+                        layer.msg(`失败: ${data.error}`, { icon: 2 });
                     } else {
                         layer.close(index);
                         if (callback) {

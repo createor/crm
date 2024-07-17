@@ -44,7 +44,7 @@
 </body>
 
 <script type="text/javascript">
-    layui.use(["table", "form", "laydate", "layer", "jquery", "tree"], function () {
+    layui.use(["table", "form", "laydate", "layer", "jquery", "tree"], () => {
         const table = layui.table;
         const form = layui.form;
         const laydate = layui.laydate;
@@ -65,7 +65,7 @@
             },
             limit: 10,
             limits: [10],
-            parseData: function (result) {
+            parseData: (result) => {
                 return {
                     "code": result.code,
                     "msg": result.code === 0 ? "" : result.message,
@@ -79,7 +79,7 @@
                 { field: "operate_time", title: "操作时间", width: 240 },
                 { field: "ip", title: "IP", width: 180 },
                 { field: "type", title: "操作类型", width: 180 },
-                { field: "content", title: "操作内容", style: "width: calc(100% - 480px)" }
+                { field: "content", title: "操作内容", style: "width: calc(100% - 480px);" }
             ]]
         });
 
@@ -93,7 +93,7 @@
                 return false;
             }
             let userList = [];  // 用户列表
-            checkData[0].children.forEach(item => {
+            checkData[0].children.forEach((item) => {
                 userList.push(item.field);
             });
             localStorage.setItem("filter", JSON.stringify(userList));  // 使用localstorage存储筛选信息
@@ -119,14 +119,14 @@
         window.filterUser = window.filterUser || filterUser;
 
         // 工具事件
-        table.on("colTool(log)", function (obj) {
+        table.on("colTool(log)", (obj) => {
             let event = obj.event;
             if (event === "filter") {
                 // 获取用户列表
                 $.ajax({
                     url: "/crm/api/v1/user/list",
                     type: "GET",
-                    success: function (res) {
+                    success: (res) => {
                         if (res.code === 0) {
                             let hasChecked = JSON.parse(localStorage.getItem("filter")) || [];
                             let tempDiv = [];
@@ -159,7 +159,7 @@
                                                 <button type="button" class="layui-btn layui-btn-xs" style="margin-left: 60px;" onclick="filterUser()">筛选</button>
                                             </div>
                                           </div>`,
-                                success: function () {
+                                success: () => {
                                     tree.render({
                                         elem: "#show_user_checkbox",
                                         showCheckbox: true,
@@ -187,13 +187,13 @@
             type: "datetime",
             format: "yyyy-MM-ddTHH:mm:ss",
             min: -30,  // 近一个月内时间
-            disabledDate: function (date, type) {
+            disabledDate: (date) => {
                 return date.getTime() > Date.now();
             }
         });
 
         // 通过日期、用户筛选日志
-        form.on("submit(query)", function (data) {
+        form.on("submit(query)", (data) => {
             let field = data.field;
             if (!field.start_time && !field.end_time) {
                 layer.msg("时间不能为空", { icon: 2 });
