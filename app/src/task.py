@@ -152,8 +152,9 @@ def importTableTask(table_name: str):
 
                 # 判断必填值列是否有空值
                 must_header = [h.name for h in templ_header if h.must_input == 1]
+                print(must_header)
                 for h in must_header:
-                    if temp_table[f"{h}*"].isnull().any():         # 判断是否有空值,带*表示必填
+                    if temp_table[f"{h}*"].isnull().any():         # 判断是否有空值,带*表示必填   
                         crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: {h}字段为必填项,存在空值")
                         writeError(task_data["task_id"], f"{h}字段为必填项,存在空值")
                         is_continue = True
@@ -395,7 +396,7 @@ def exportTableTask(table_name: str):
 
                 if result_status == 2:
                     try:
-                        export_file = File(uuid=task_data["task_id"], filename=f"{task_data['name']}资产表导出文件.xlsx", filepath=0, upload_user=task_data["user"], password=task_data["password"], affix="xlsx")
+                        export_file = File(uuid=task_data["task_id"], filename=f"{task_data['name']}资产表导出文件.xlsx", filepath=0, upload_user=task_data["user"], password=f"{task_data['password'] if task_data['password'] else ''}", affix="xlsx")
                         db_session.add(export_file)
                         db_session.commit()
                     except:
@@ -432,7 +433,8 @@ def consumer(ip_queue: queue.Queue, result_queue: queue.Queue):
             status = int(scan_ip(ip))
             result_queue.put({
                 "ip": ip,
-                "status": status
+                "status": status,
+                "reason": ""
             })
 
 def pingHostTask():
@@ -530,7 +532,9 @@ def pingHostTask():
                 finally:
                     db_session.close()
 
-                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 100}))      
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 100}))
+
+                crmLogger.info("ping主机任务结束")   
 
         except:
             crmLogger.error(f"[pingHostTask]ping主机任务发生异常: {traceback.format_exc()}")

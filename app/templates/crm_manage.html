@@ -62,13 +62,13 @@
         height: 32px;
     }
 
+    /* 设置滚动条样式 */
     .layui-anim-upbit::-webkit-scrollbar {
-        /* 设置滚动条样式 */
         display: none;
     }
 
+    /* 设置滚动条样式 */
     .layui-table-tool-panel::-webkit-scrollbar {
-        /* 设置滚动条样式 */
         display: none;
     }
 </style>
@@ -227,8 +227,8 @@
                                 <a class="layui-btn layui-btn-sm" lay-event="add">录入数据</a>
                                 <a class="layui-btn layui-btn-sm" style="margin-left: -3px;" id="dropdownBtn"><i class="layui-icon layui-icon-down layui-font-12"></i></a>
                             </div>
-                            <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="edit" id="edit">编辑选中的数据</a>
-                            <a class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="del" id="del">删除选中的数据</a>
+                            <a type="button" class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="edit" id="edit">编辑选中的数据</a>
+                            <a type="button" class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="del" id="del">删除选中的数据</a>
                             <div style="width: 400px;display: inline-block; height: 20px;margin-left: 15px;">
                                 <div class="layui-input-group">
                                     <div class="layui-input-split layui-input-prefix" style="width: 120px;padding: 0;height: 30px;border: none;" id="prefix">
@@ -273,7 +273,7 @@
                     { title: "导出表格", layEvent: "LAYTABLE_EXPORT", icon: "layui-icon-export" },
                     { title: "导入导出详情", layEvent: "LAYTABLE_DETAIL", icon: "layui-icon-time" }
                 ],
-                done: function () {
+                done: () => {
                     // select选择事件
                     form.on("select(utype)", (data) => {
                         let value = data.value;  // 获取选中的值
@@ -393,7 +393,7 @@
                                     <button type="button" class="layui-btn layui-btn-primary layui-border layui-btn-sm" id="downTempl">下载资产录入模板</button>
                                     <button type="button" class="layui-btn layui-btn-sm" style="margin-left: 0px;" id="importDataByExcel">导入资产录入模板</button>
                                   </div>`,
-                        ready: function () {
+                        ready: () => {
                             // 下载模板导入文件
                             $("#downTempl").on("click", () => {
                                 $.ajax({
@@ -562,7 +562,7 @@
                                 });
                                 $("#showkeyword").html(keyword_templ);
                                 $("#showkeyword").show();
-                                $("#showkeyword div").on("click", () => {
+                                $("#showkeyword div").on("click", function () {
                                     $("#tableName").val($(this).text());
                                     $("#showkeyword").hide();
                                 });
@@ -614,7 +614,9 @@
                 success: (res) => {
                     if (res.code === 0) {
                         res.message.forEach((item, index) => {
-                            $(`#chart${index}`).empty();  // 清除图片
+                            $(`#chart${index}`).empty();  // 清除内容
+                            $(`#chart${index}`).removeAttr("style");  // 清除div上样式
+                            $(`#chart${index}`).removeAttr("_echarts_instance_");  // 清除echarts实例标识
                             let chartDom = document.getElementById(`chart${index}`);
                             let myChart = echarts.init(chartDom);
                             myChart.setOption(item);

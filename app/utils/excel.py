@@ -66,15 +66,20 @@ def createExcel(filepath: str, filename: str, sheet_name: str, header: dict, dat
             dv = DataValidation(type="list", formula1=f'"{val["options"]}"', showDropDown=False, allow_blank=True)  # showDropDown-是否显示下拉箭头,allow_blank-是否允许空值
             ws.add_data_validation(dv)
             dv.add(f"{val['index']}2:{val['index']}{1000 if ws.max_row < 1000 else ws.max_row}")
-        # 给表格添加密码
-        if passwd:
-            # TODO: 密码加密待实现
-            wb.security.key = passwd
         # 保护工作表保护不被修改
         # ws.protection.sheet = True
         # ws.protection.enable()
         # 保存文件
         wb.save(os.path.join(filepath, f"{filename}.xlsx"))
+        # 给表格添加密码
+        # 仅支持在windows系统下使用
+        if passwd and os.name == "nt":
+            import win32com.client
+            xcl = win32com.client.Dispatch("Excel.Application")
+            xwb = xcl.Workbooks.Open(os.path.join(filepath, f"{filename}.xlsx"), False, False, None, "")
+            xcl.DisplayAlerts = False  # 关闭告警对话框
+            xwb.SaveAs(os.path.join(filepath, f"{filename}.xlsx"), None, passwd, "")  # 设置密码
+            xcl.Quit()
         return True
     except:
         crmLogger.error(f"写入表格时发生错误: {traceback.format_exc()}")

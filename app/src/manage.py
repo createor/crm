@@ -299,7 +299,7 @@ def queryTableByUuid(id):
         obj["_id"] = item._id
 
         for col in columns:
-            curr_value =  getattr(item, col.value)  # 获取对应属性值
+            curr_value = getattr(item, col.value) if getattr(item, col.value) else ""  # 获取对应属性值
             if col.value_type == 5:
                 curr_value = formatDate(curr_value)
             elif col.value_type == 6:
@@ -516,7 +516,7 @@ def downloadTableTemplate():
     if not table:  # 查询的表不存在
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
-    templ_file = redisClient.getData(f"crm:{id}:template")  # 如果redis有缓存,直接返回模板文件id
+    templ_file = redisClient.getData(f"crm:{table_uuid}:template")  # 如果redis有缓存,直接返回模板文件id
 
     if templ_file:  # 缓存存在则直接返回
 
@@ -568,7 +568,7 @@ def downloadTableTemplate():
         if not createExcel(TEMP_DIR, fileUuid, "导入模板", table_header, {}, table_styles, True):
             return jsonify({"code": -1, "message": "创建模板文件失败"}), 500
 
-        redisClient.setData(f"crm:{id}:template", fileUuid)   # 写入redis
+        redisClient.setData(f"crm:{table_uuid}:template", fileUuid)   # 写入redis
 
         try:  # 写入file表
             db_session.add(File(uuid=fileUuid, filename=f"{table.name}导入模板.xlsx", affix="xlsx", filepath=0))
@@ -1236,7 +1236,7 @@ def multDetectHost():
                 "code": 0, 
                 "message": {
                     "total": count,
-                    "data": [{"id": t.id, "name": t.name, "create_time": t.create_time, "status": t.status} for t in task_list]
+                    "data": [{"id": t.id, "name": t.name, "create_time": formatDate(t.create_time, 2), "status": t.status} for t in task_list]
                 }
             }), 200
 
@@ -1253,11 +1253,22 @@ def multDetectHost():
 
         if not all([table_uuid, task_name, ip_column]):
             return jsonify({"code": -1, "message": "缺少参数"}), 400
+        
+        if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
+            return jsonify({"code": -1, "message": "资产表不存在"}), 400
+        
+        try:
+            table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
+        finally:
+            db_session.close()
+        
+        if not table:
+            return jsonify({"code": -1, "message": "资产表不存在"}), 400
 
         task_id = getUuid()  # 生成任务uuid
 
         try:   # 插入数据库
-            task_data = Task(uuid=task_id, name=task_name, keyword=ip_column, table_name=table.table_name, status=0, create_user=g.username)
+            task_data = Task(id=task_id, name=task_name, keyword=ip_column, table_name=table.table_name, status=0, create_user=g.username)
             db_session.add(task_data)
             db_session.commit()
         except:
@@ -1538,7 +1549,7 @@ def progress(task_id):
     # sse推送进度
     def event_stream():
         while True:
-            time.sleep(1)
+            time.sleep(0.5)
             data = redisClient.getData(f"crm:task:{task_id}")  # done:total
             if not data:
                 yield "data: {\"error\":\"\", \"speed\": 0}\n\n"
@@ -1681,9 +1692,10 @@ def setEchartRule():
         finally:
             db_session.close()
 
-        redisClient.delData(f"crm:rule:{table.table_name}")  # 删除缓存规则
+        redisClient.delData(f"crm:rule:{table.table_name}")   # 删除缓存规则
+        redisClient.delData(f"crm:echart:{table.table_name}") # 删除缓存图表
 
-        return jsonify({"code": 0, "message": "创建成功"}), 200
+        return jsonify({"code": 0, "message": "规则创建成功"}), 200
 
 @manage.route("/echart", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="获取图表信息", check_ip=True)
@@ -1814,6 +1826,7 @@ def getEchart():
 
             elif rule.type == 3:  # 折线图
 
+                # TODO 待完善
                 try:  # 根据日期排序
                     line_result = db_session.query(getattr(manageTable.c, rule.keyword), func.date(getattr(manageTable.c, rule.date_keyword)), func.count(1)).group_by(getattr(manageTable.c, rule.keyword), func.date(getattr(manageTable.c, rule.date_keyword))).order_by(func.date(getattr(manageTable.c, rule.date_keyword)).asc()).all()
                 finally:

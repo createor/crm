@@ -24,11 +24,11 @@ def getConfig():
         db_session.commit()
     except:
         db_session.rollback()  # 发生异常事务回滚
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[getConfig]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功查询系统配置")  # 写入日志文件
+    crmLogger.info(f"[getConfig]用户{g.username}成功查询系统配置")  # 写入日志文件
 
     return jsonify({
         "code": 0,
@@ -56,7 +56,7 @@ def updateConfig():
     failed_count = reqData["failed_count"]
     enable_watermark = reqData["enable_watermark"]
 
-    if not all([enable_failed, enable_white, enable_single, failed_count, enable_watermark]):  # 校验参数是否有值
+    if not all(map(lambda x: x in [True, False], [enable_failed, enable_white, enable_single, enable_watermark])) or not failed_count:  # 校验参数是否有值
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
 
     if int(failed_count) < 1 or int(failed_count) > 10:  # 检测失败次数
@@ -71,7 +71,7 @@ def updateConfig():
         db_session.commit()
     except:
         db_session.rollback()  # 发生异常事务回滚
-        crmLogger.error(f"更新setting表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[updateConfig]更新setting表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -89,13 +89,13 @@ def updateConfig():
         db_session.commit()
     except:
         db_session.rollback()  # 发生异常事务回滚
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[updateConfig]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}修改系统配置成功")
+    crmLogger.info(f"[updateConfig]用户{g.username}修改系统配置成功")
 
-    crmLogger.debug(f"更新后的配置: enable_failed={enable_failed}, enable_white={enable_white}, enable_single={enable_single}, enable_watermark={enable_watermark}, failed_count={failed_count}")  # 写入日志文件
+    crmLogger.debug(f"[updateConfig]更新后的配置: enable_failed={enable_failed}, enable_white={enable_white}, enable_single={enable_single}, enable_watermark={enable_watermark}, failed_count={failed_count}")  # 写入日志文件
 
     return jsonify({"code": 0, "message": "配置更新成功"}), 200
 
@@ -110,7 +110,6 @@ def getWhiteList():
     limit = int(args.get("limit", 3))  # 每页数量
 
     if ip:  # 存在IP检索
-
         try:
             count = db_session.query(WhiteList).filter(WhiteList.ip.like(f"%{ip}%")).count()  # 模糊搜索
         finally:
@@ -130,12 +129,11 @@ def getWhiteList():
             db_session.commit()
         except:
             db_session.rollback()  # 发生异常事务回滚
-            crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[getWhiteList]写入log表发生异常: {traceback.format_exc()}")
         finally:
             db_session.close()
 
     else:  # 不存在IP检索
-
         try:
             count = db_session.query(WhiteList).count()
         finally:
@@ -155,11 +153,11 @@ def getWhiteList():
             db_session.commit()
         except:
             db_session.rollback()  # 发生异常事务回滚
-            crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[getWhiteList]写入log表发生异常: {traceback.format_exc()}")
         finally:
             db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功查询白名单信息,搜索IP: {ip}")  # 写入日志文件
+    crmLogger.info(f"[getWhiteList]用户{g.username}成功查询白名单信息,搜索IP: {ip}")  # 写入日志文件
 
     return jsonify({
         "code": 0,
@@ -195,12 +193,12 @@ def addWhiteList():
         db_session.close()
 
     try:  # 不存在则写入whitelist
-        white_list = WhiteList(ip=white_ip, description=description)
+        white_list = WhiteList(ip=white_ip, description=description, create_user=g.username)
         db_session.add(white_list)
         db_session.commit()
     except:
         db_session.rollback()  # 发生异常事务回滚
-        crmLogger.error(f"写入white_list表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[addWhiteList]写入white_list表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -211,13 +209,13 @@ def addWhiteList():
         db_session.commit()
     except:
         db_session.rollback()  # 发生异常事务回滚
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[addWhiteList]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
     redisClient.setSet("crm:system:white_ip_list", white_ip)  # 将白名单IP写入redis
 
-    crmLogger.info(f"用户{g.username}成功添加白名单IP({white_ip})")  # 写入日志文件
+    crmLogger.info(f"[addWhiteList]用户{g.username}成功添加白名单IP({white_ip})")  # 写入日志文件
 
     return jsonify({"code": 0, "message": "添加白名单IP成功"}), 200
 
@@ -243,7 +241,7 @@ def deleteWhiteList():
             db_session.commit()
     except:
         db_session.rollback()  # 发生异常事务回滚
-        crmLogger.error(f"删除white_list表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[deleteWhiteList]删除white_list表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -254,12 +252,12 @@ def deleteWhiteList():
         db_session.commit()
     except:
         db_session.rollback()  # 发生异常事务回滚
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[deleteWhiteList]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
     redisClient.delSet("crm:system:white_ip_list", white_ip)  # 从redis中删除白名单IP
 
-    crmLogger.info(f"用户{g.username}成功删除白名单IP({white_ip})")  # 写入日志文件
+    crmLogger.info(f"[deleteWhiteList]用户{g.username}成功删除白名单IP({white_ip})")  # 写入日志文件
 
     return jsonify({"code": 0, "message": "删除白名单IP成功"}), 200

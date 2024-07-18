@@ -79,7 +79,7 @@ var addNewTable = () => {
                             </div>
                         </div>
                     </div>
-                    <div class="stepContent layui-form">
+                    <div class="stepContent layui-form" lay-filter="methodForm">
                         <div style="text-align: left; margin: 5px 45px;">
                             <input type="radio" name="mode" value="1" title="表格导入数据" checked>
                         </div>
@@ -109,7 +109,7 @@ var addNewTable = () => {
                         <div style="text-align: center;margin-top: 10px;">
 	                        <button type="button" id="pre" class="layui-btn layui-btn-sm" style="margin-top: 10px;margin-left: -20px;">上一步</button>
 	                        <button type="button" id="next" class="layui-btn layui-btn-sm" style="margin: 0 20px;">下一步</button>
-                            <button type="button" id="rightUse" class="layui-btn layui-btn-sm" style="display: none; margin-left: 20px;">立即使用</button>
+                            <button type="button" id="rightUse" class="layui-btn layui-btn-sm" style="display: none; margin-left: 10px;">立即使用</button>
                         </div>
                     </div> 
                   </div>`,
@@ -129,7 +129,7 @@ var addNewTable = () => {
                     });
                 },
                 before: () => {
-                    layerIndex = layer.load();
+                    layerIndex = layer.load(2);
                 },
                 done: (res) => {
                     layer.close(layerIndex);
@@ -140,7 +140,7 @@ var addNewTable = () => {
                         $("#upload-preview").removeClass("layui-hide");
                         layer.msg("上传成功", {icon: 1});
                     } else {
-                        layer.msg(`上传失败: ${res.message}`, {icon: 2});
+                        layer.msg(`上传失败: ${res.message}`, { icon: 2 });
                     }
                 }
             });
@@ -154,6 +154,7 @@ var addNewTable = () => {
                 }
             });
             form.render(null, "stepFrom");      // 渲染表格
+            form.render(null, "methodForm");
             let currIndex = 0;                  // 定义当前步骤
             $("#pre").hide();                   // 隐藏上一步
             $(".stepContent").eq(0).show();    // 显示第一步
@@ -271,6 +272,11 @@ var addNewTable = () => {
     return false;
 }
 
+function refreshCharts () {
+    let win = window.frames["crm_manage"];
+    win.contentWindow.showCharts();
+}
+
 /**
  * @description 新增图表规则
  * @param {String} tableId 表uuid
@@ -361,7 +367,7 @@ var addNewRule = (tableId) => {
             element.render("tab", "ruleTab");
             // tab切换事件
             element.on("tab(ruleTab)", function (data) {
-                $(".layui-tab-content .layui-tab-item").each(() => {
+                $(".layui-tab-content .layui-tab-item").each(function () {
                     $(this).removeClass("layui-show");
                 });
                 $(".layui-tab-content .layui-tab-item").eq(data.index).addClass("layui-show");
@@ -404,7 +410,7 @@ var addNewRule = (tableId) => {
                         "rules": number.map((item) => {return {"name": field[`rule_${item}_name`], "type": field[`rule_${item}_type`], "keyword": field[`rule_${item}_value`], "date_keyword": field[`rule_${item}_date`]}})
                     }),
                     beforeSend: () => {
-                        loadIndex = layer.load();
+                        loadIndex = layer.load(2);
                     },
                     success: (res) => {
                         layer.close(loadIndex);
@@ -412,8 +418,7 @@ var addNewRule = (tableId) => {
                             layer.close(index);
                             layer.msg("更新成功", { icon: 1 });
                             // 刷新图表
-                            let win = window.frames["crm_manage"];
-                            win.contentWindow.showCharts();
+                            refreshCharts();
                         } else {
                             layer.msg(`更新失败: ${res.message}`, { icon: 2 });
                         }
@@ -434,8 +439,8 @@ var addNewRule = (tableId) => {
 
 /**
  * @description 删除选中行的数据
- * @param {*} tableId 
- * @param {*} data 
+ * @param {String} tableId 资产表uuid
+ * @param {Array} data 要删除的数据
  */
 var delColData = (tableId, data) => {
     let table_id = tableId || localStorage.getItem("tableUid");
@@ -457,7 +462,7 @@ var delColData = (tableId, data) => {
                         "data": id_array
                     }),
                     beforeSend: () => {
-                        layer.load(0);
+                        layer.load(2);
                     },
                     success: (res) => {
                         layer.closeAll();
@@ -772,6 +777,30 @@ var addOrAlterCol = (tableId) => {
 }
 
 /**
+ * 查看任务详情
+ * @param {String} task_id 
+ */
+function showTaskDeail (task_id) {
+    layer.open({
+        type: 1,
+        title: "任务详情",
+        area: ["500px", "300px"],
+        shade: 0.8,
+        shadeClose: false,
+        resize: false,
+        move: false,
+        maxmin: false,
+        content: `<div style="padding: 10px;">
+                    <table class="layui-hide" id="" lay-filter=""></table>  
+                  </div>`,
+        success: (_, index) => {}
+    })
+
+}
+
+window.showTaskDeail = window.showTaskDeail || showTaskDeail;
+
+/**
  * @description 批量检测
  * @param {String} tableId 表uuid
  */ 
@@ -819,7 +848,7 @@ var mulitDetect = (tableId) => {
                                             </div>
                                         </div>
                                         <div class="layui-form-item">
-                                            <button type="button" class="layui-btn" lay-submit lay-filter="createTask" style="margin-left: 200px;margin-top: 30px;">创建任务</button>
+                                            <button type="button" class="layui-btn" lay-submit lay-filter="createTask" style="margin-left: 200px;margin-top: 8px;">创建任务</button>
                                         </div>
                                     </form>
                                 </div>
@@ -830,7 +859,7 @@ var mulitDetect = (tableId) => {
                         </div>
                     </div>
                   </div>`,
-        success: function () {
+        success: (_, index) => {
             element.on("tab(pingTask)", (data) => {
                 if (data.index === 0) {
                     $("#showHistory").hide();
@@ -845,8 +874,8 @@ var mulitDetect = (tableId) => {
                         id: "historyTask",
                         url: `/crm/api/v1/manage/ping?id=${table_id}`,
                         page: true,
-                        limit: 5,
-                        limits: [5],
+                        limit: 2,
+                        limits: [2],
                         text: {none: "暂无数据,请先创建任务"},
                         defaultToolbar:[{title: "刷新", layEvent: "LAYTABLE_REFRESH", icon: "layui-icon-refresh"}],
                         parseData: (res) => {
@@ -860,12 +889,16 @@ var mulitDetect = (tableId) => {
                         cols:[[
                             {fidle: "id", title: "任务ID", hide: true},
                             {field: "name", title: "任务名称", width: 120},
-                            {field: "create_time", title: "创建时间", width: 140},
+                            {field: "create_time", title: "创建时间", width: 160},
                             {field: "status", title: "状态", width: 80, templet: (d) => {
-                            
+                                if (d.status === 0) return `<span class="layui-badge-rim">排队中</span>`;
+                                if (d.status === 1) return `<span class="layui-badge layui-bg-blue">执行中</span>`;
+                                if (d.status === 2) return `<span class="layui-badge layui-bg-green">成功</span>`;
+                                if (d.status === 3) return `<span class="layui-badge">失败</span>`;
                             }},
                             {field: "result", title: "结果", width: 100, templet: (d) => {
-
+                                if (d.status === 1) return `<button class="layui-btn layui-btn-sm" onclick="showProgress('${d.id}')">查看进度</button>`;
+                                if (d.status === 2) return `<button class="layui-btn layui-btn-sm" onclick="showTaskDeail('${d.id}')">查看详情</button>`;
                             }}
                         ]],
                         done: () => {
@@ -878,7 +911,8 @@ var mulitDetect = (tableId) => {
                 }
             });
             form.render(null, "taskForm");
-            form.on("submit(createTask)", function(){
+            form.on("submit(createTask)", (data) => {
+                let field = data.field;
                 if (!$("#ip_col").val()) {
                     layer.msg("请选择IP列", { icon: 2 });
                     return false;
@@ -888,8 +922,9 @@ var mulitDetect = (tableId) => {
                     type: "POST",
                     contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
-                        "name": "ping任务",
-                        "ip_col": $("#ip_col").val()
+                        "id": table_id,
+                        "name": field.task_name,
+                        "column": $("#ip_col").val()
                     }),
                     beforeSend: () => {
                         loadIndex = layer.load();
@@ -897,8 +932,8 @@ var mulitDetect = (tableId) => {
                     success: (res) => {
                         layer.close(loadIndex);
                         if (res.code === 0) {
+                            layer.close(index);
                             layer.msg("创建成功", { icon: 1 });
-                            table.reloadData("historyTask");
                         } else {
                             layer.msg(`创建失败: ${res.message}`, { icon: 2 });
                         }
@@ -964,10 +999,12 @@ var createNotify = (tableId) => {
     let table_id = tableId || localStorage.getItem("tableUid");
     let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
     let option_template = "";
+    let key2Word = new Object();
     header.forEach((item) => {  // 判断header中是否有date、datetime属性列
         if (item.value_type == 5 || item.value_type == 6) {
             option_template += `<option value="${item.field}">${item.title}</option>`;
         }
+        key2Word[item.field] = item.title;
     });
     layer.open({
         type: 1,
@@ -1043,11 +1080,7 @@ var createNotify = (tableId) => {
                             { field: "id", title: "任务ID", hide: true },
                             { field: "name", title: "任务名称", width: 125 },
                             { field: "keyword", title: "字段", width: 120, templet: (d) => {
-                                header.forEach((item) => {
-                                    if (item.field == d.keyword) {
-                                        return item.title;
-                                    }
-                                });
+                                return key2Word[d.keyword];
                             } },
                             { field: "create_time", title: "创建时间", width: 160 },
                             { field: "status", title: "操作", width: 80, templet: (d) => {
@@ -1303,6 +1336,7 @@ var showProgress = (task_id, callback) => {
                 element.progress("progress", `${data.speed}%`);  // 渲染进度
                 if (data.speed === 100) {
                     eventSource.close();  // 关闭连接
+                    time.sleep(1000);     // 睡眠一秒
                     if (data.error) {
                         layer.msg(`失败: ${data.error}`, { icon: 2 });
                     } else {

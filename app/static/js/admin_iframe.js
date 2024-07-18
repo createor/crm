@@ -62,6 +62,7 @@ var addNewWhiteIp = () => {
                         if (res.code === 0) {
                             layer.close(index);
                             layer.msg("添加IP成功", { icon: 1 });
+                            table.reloadData("myWhiteIp");
                         } else {
                             layer.msg(`添加IP失败: ${res.message}`, { icon: 2 });  
                         }

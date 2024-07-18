@@ -294,13 +294,14 @@ def editUser():
             return jsonify({"code": -1, "message": "请选择临时用户过期时间"}), 400
         
     try:  # 更新用户信息
-        result.name = nickname
-        result.type = int(user_type)
+        _update_user = db_session.query(User).filter(User.uid == user_id, User.username == username).first()
+        _update_user.name = nickname
+        _update_user.type = int(user_type)
         if expire_time:
-            result.expire_time = expire_time
-        result.company = company
+            _update_user.expire_time = expire_time
+        _update_user.company = company
         if userStatus:
-            result.status = userStatus
+            _update_user.status = userStatus
         db_session.commit()
     except:
         db_session.rollback()
@@ -566,12 +567,28 @@ def state():
             "is_first": bool(result.is_first),  # 是否首次登陆
             "expire": td.days,    # 密码有效天数
             "type": result.type,  # 用户类型
-            "expire_time": result.expire_time if result.expire_time else "",  # 临时用户过期时间
+            "expire_time": formatDate(result.expire_time) if result.expire_time else "",  # 临时用户过期时间
             "company": result.company,  # 公司、组织名称
-            "is_mark": bool(int(redisClient.getData("crm:system:enable_watermark"))),  # 是否显示水印
+            "is_mark": bool(int(redisClient.getData("crm:system:enable_watermark"))),     # 是否显示水印
             "ip": g.ip_addr  # 用户IP地址
         }
     }), 200
+
+@user.route("/first", methods=methods.ALL)
+@verify(allow_methods=["GET"], module_name="新手引导", check_ip=True)
+def firstLogin():
+    '''首次登陆'''
+    try:
+        db_session.query(User).filter(User.username == g.username).update({"is_first": 0})
+        db_session.commit()
+    except:
+        db_session.rollback()
+        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    finally:
+        db_session.close()
+
+    return jsonify({"code": 200, "message": "success"}), 200
 
 @user.route("/list", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="获取用户列表", is_admin=True, check_ip=True)

@@ -3,6 +3,10 @@ captcha == 0.5.0
 redis == 5.0.4
 PyMySQL == 0.9.3
 pandas == 2.2.2
-SQLAlchemy == 2.0.30
+openpyxl == 3.1.5
+SQLAlchemy == 1.4.52
 ping3 == 4.0.8
 pyClamd == 0.4.0
+configparser == 7.0.0
+pypinyin == 0.51.0
+APScheduler == 3.10.4

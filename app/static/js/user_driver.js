@@ -20,7 +20,8 @@ function user_driver($, fn) {
                 fn();
                 $.ajax({
                     url: "/crm/api/v1/user/first",
-                    type: "get"
+                    type: "GET",
+                    complete: () => {}
                 });
             },
             steps: [

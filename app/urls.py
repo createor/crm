@@ -168,7 +168,7 @@ def download_image(filename):
 def download_file(filename):
     '''下载资产表导出的表格文件或者错误详情文件'''
     try:
-        file = db_session.query(File.filename, File.affix).filter(File.uuid == filename).first()
+        file = db_session.query(File.filename, File.affix, File.filepath).filter(File.uuid == filename).first()
     finally:
         db_session.close()
 
@@ -191,7 +191,7 @@ def download_file(filename):
     if file.affix == "txt":  # 下载txt文件
         return send_file(os.path.join(TEMP_DIR, f"{filename}.{file.affix}"), mimetype="text/plain", as_attachment=True, download_name=file.filename)
     else:  # 下载xlsx文件
-        return send_file(os.path.join(TEMP_DIR, f"{filename}.{file.affix}"), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=file.filename)
+        return send_file(os.path.join(f"{TEMP_DIR if file.filepath == 0 else UPLOAD_EXCEL_DIR}", f"{filename}.{file.affix}"), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", as_attachment=True, download_name=file.filename)
 
 @app.route("/crm/api/v1/help", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="帮助手册")

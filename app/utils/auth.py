@@ -28,10 +28,10 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
         def inner_wrapper(*args, **kwargs):
 
             # 通过nginx转换则获取header的"X-Forwarded-For"字段
-            # ip_addr = request.headers.get("X-Forwarded-For") or "127.0.0.1"
+            ip_addr = request.headers.get("X-Forwarded-For") or "127.0.0.1"
 
             # 直接访问
-            ip_addr = request.remote_addr or "127.0.0.1" # 用户访问的IP地址
+            # ip_addr = request.remote_addr or "127.0.0.1" # 用户访问的IP地址
 
             g.ip_addr = ip_addr
 
