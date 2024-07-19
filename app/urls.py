@@ -43,25 +43,25 @@ def login():
         return jsonify({"code": -1, "message": "不支持的请求方法"}), 405
 
 @app.route("/crm/api/v1/crm_manage", methods=methods.ALL)
-@verify(allow_methods=["GET"], check_ip=True)
+@verify(allow_methods=["GET"])
 def crm_manage():
     '''资产管理页面'''
     return render_template("crm_manage.html")
 
 @app.route("/crm/api/v1/crm_user", methods=methods.ALL)
-@verify(allow_methods=["GET"], is_admin=True, check_ip=True)
+@verify(allow_methods=["GET"], is_admin=True)
 def crm_user():
     '''用户管理页面'''
     return render_template("crm_user.html")
 
 @app.route("/crm/api/v1/crm_system", methods=methods.ALL)
-@verify(allow_methods=["GET"], is_admin=True, check_ip=True)
+@verify(allow_methods=["GET"], is_admin=True)
 def crm_system():
     '''系统设置页面'''
     return render_template("crm_system.html")
 
 @app.route("/crm/api/v1/crm_log", methods=methods.ALL)
-@verify(allow_methods=["GET"], is_admin=True, check_ip=True)
+@verify(allow_methods=["GET"], is_admin=True)
 def crm_log():
     '''操作日志页面'''
     return render_template("crm_log.html")

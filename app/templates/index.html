@@ -321,8 +321,8 @@
                     });
                     form.render(null, "setPwdForm");  // 表单渲染
                     form.on("submit(changePwd)", (data) => {
-                        let field = data.field;  // 获取表单字段
-                        let loadIndex = "";      // loading层的索引
+                        let field = data.field;       // 获取表单字段
+                        let loadIndex = "";           // loading层的索引
                         if (field.new_password === field.old_password) {
                             layer.msg("新旧密码不能设置一样", { icon: 5 });
                             return false;
@@ -340,6 +340,8 @@
                                 if (res.code === 0) {
                                     layer.close(index);
                                     layer.msg("密码修改成功", { icon: 1 });
+                                } else if (res.code === 302) {
+                                    window.location.href = res.message;
                                 } else {
                                     layer.msg(`密码修改失败: ${res.message}`, { icon: 2 });
                                 }
@@ -411,6 +413,8 @@
                     if (res.code === 0) {
                         layer.msg("已标为已读", { icon: 1 });
                         $(that).hide();
+                    } else if (res.code === 302) {
+                        window.location.href = res.message;
                     } else {
                         layer.msg(`标为已读失败: ${res.message}`, { icon: 2 });
                     }
@@ -427,30 +431,42 @@
 
         window.markRead = window.markRead || markRead;
 
+        /**
+         * @description 获取通知按钮
+         * @param {String} id 通知id
+        */
+        function getBtns (id) {
+            return `<div><a style="color: #829bb4;cursor: pointer;" onclick="markRead(${id}, this)">标为已读</a></div>`;
+        }
+
         // 加载用户状态信息
         $.ajax({
             url: "/crm/api/v1/user/state",
             type: "GET",
             success: (res) => {
-                // 填充用户名
-                $("#name").text(`${res.message.name ? res.message.name : res.message.username}`);
-                // 填充头像
-                $("#avator").attr("src", res.message.avator);
-                // 判断是否显示水印
-                if (res.message.is_mark) {
-                    // 如果没有昵称则设置用户名
-                    setMark(`${res.message.name ? res.message.name : res.message.username}\n${res.message.ip}`);
-                }
-                // 判断是否第一次登录,第一次登录显示新手引导
-                if (res.message.is_first) {
-                    // 判断是否是管理员
-                    if (res.message.is_admin) {
-                        admin_driver($, getPwdState(res.message.expire));
-                    } else {
-                        user_driver($, getPwdState(res.message.expire));
+                if (res.code === 0) {
+                    // 填充用户名
+                    $("#name").text(`${res.message.name ? res.message.name : res.message.username}`);
+                    // 填充头像
+                    $("#avator").attr("src", res.message.avator);
+                    // 判断是否显示水印
+                    if (res.message.is_mark) {
+                        // 如果没有昵称则设置用户名
+                        setMark(`${res.message.name ? res.message.name : res.message.username}\n${res.message.ip}`);
                     }
-                } else {
-                    getPwdState(res.message.expire)();
+                    // 判断是否第一次登录,第一次登录显示新手引导
+                    if (res.message.is_first) {
+                        // 判断是否是管理员
+                        if (res.message.is_admin) {
+                            admin_driver($, getPwdState(res.message.expire));
+                        } else {
+                            user_driver($, getPwdState(res.message.expire));
+                        }
+                    } else {
+                        getPwdState(res.message.expire)();
+                    }
+                } else if (res.code === 302) {
+                    window.location.href = res.message;
                 }
                 return false;
             },
@@ -459,14 +475,6 @@
                 return false;
             }
         });
-
-        /**
-         * @description 获取通知按钮
-         * @param {String} id 通知id
-        */
-        function getBtns (id) {
-            return `<div><a style="color: #829bb4;cursor: pointer;" onclick="markRead(${id}, this)">标为已读</a></div>`;
-        }
 
         // 加载用户通知
         $.ajax({
@@ -508,6 +516,8 @@
                     } else {
                         notify_templ = `<div style="padding: 15px;">暂无未读信息</div>`;  // 无通知信息
                     }
+                } else if (res.code === 302) {
+                    window.location.href = res.message;
                 } else {
                     notify_templ = `<div style="padding: 15px;">${res.message}</div>`;   // 显示错误信息
                 }
@@ -541,17 +551,22 @@
                                                         url: `/crm/api/v1/user/mail?page=${obj.curr}&limit=${obj.limit}`,
                                                         type: "GET",
                                                         success: (res) => {
-                                                            let notify_templ = "";  //通知信息模板
-                                                            res.message.data.today.forEach((item) => {
-                                                                notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item.id)}</div></div>`;
-                                                            });
-                                                            res.message.data.history.forEach((item) => {
-                                                                notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item.id)}</div></div>`;
-                                                            });
-                                                            $("#showNotify").html(`<div class="layui-row">${notify_templ}</div>`);
+                                                            if (res.code === 0) {
+                                                                let notify_templ = "";  //通知信息模板
+                                                                res.message.data.today.forEach((item) => {
+                                                                    notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item.id)}</div></div>`;
+                                                                });
+                                                                res.message.data.history.forEach((item) => {
+                                                                    notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item.id)}</div></div>`;
+                                                                });
+                                                                $("#showNotify").html(`<div class="layui-row">${notify_templ}</div>`);
+                                                            } else if (res.code === 302) {
+                                                                window.location.href = res.message;
+                                                            }
                                                             return false;
                                                         },
                                                         error: (err) => {
+                                                            console.log(err);
                                                             return false;
                                                         }
                                                     });
@@ -566,7 +581,7 @@
                 });
                 return false;
             },
-            error: function (err) {
+            error: (err) => {
                 let errMsg = err.responseJSON || JSON.parse(err.responseText);
                 layer.msg(errMsg.message, { icon: 2 });
                 return false;
@@ -625,15 +640,20 @@
                         url: "/crm/api/v1/user/state",
                         type: "GET",
                         success: (res) => {
-                            // 填充用户信息表单
-                            $("#avator_view").attr("src", res.message.avator);
-                            form.val("user_info", {
-                                "type": res.message.type === 1 ? "永久用户" : `临时用户(有效期至${res.message.expire_time})`,
-                                "nickname": res.message.name,
-                                "company": res.message.company
-                            });
+                            if (res.code === 0) {
+                                // 填充用户信息表单
+                                $("#avator_view").attr("src", res.message.avator);
+                                form.val("user_info", {
+                                    "type": res.message.type === 1 ? "永久用户" : `临时用户(有效期至${res.message.expire_time})`,
+                                    "nickname": res.message.name,
+                                    "company": res.message.company
+                                });
+                            } else if (res.code === 302) {
+                                window.location.href = res.message;
+                            }
+                            return false;
                         },
-                        complete: () => {
+                        complete: (xhr) => {
                             // 上传头像
                             upload.render({
                                 elem: "#avator_img",
@@ -651,6 +671,8 @@
                                     if (data.code === 0) {
                                         layer.msg("图片上传成功", { icon: 1 });
                                         $("#avatar").val(data.message);
+                                    } else if (data.code === 302) {
+                                        window.location.href = res.message;
                                     } else {
                                         layer.msg(`图片上传失败: ${data.message}`, { icon: 2 });
                                     }
@@ -687,6 +709,8 @@
                                         $("#name").text(res.message.username);
                                         setMark(`${res.message.username}\n${res.message.ip}`);
                                     }
+                                } else if (res.code === 302) {
+                                    window.location.href = res.message;
                                 } else {
                                     layer.msg(`修改失败: ${res.message}`, { icon: 2 });
                                 }

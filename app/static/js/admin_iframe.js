@@ -63,6 +63,8 @@ var addNewWhiteIp = () => {
                             layer.close(index);
                             layer.msg("添加IP成功", { icon: 1 });
                             table.reloadData("myWhiteIp");
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
                         } else {
                             layer.msg(`添加IP失败: ${res.message}`, { icon: 2 });  
                         }
@@ -109,6 +111,8 @@ var delWhiteIp = (id, ip) => {
                     layer.close(index);
                     layer.msg("删除成功", { icon: 1 });
                     table.reloadData("myWhiteIp");
+                } else if (res.code === 302) {
+                    window.location.href = res.message;
                 } else {
                     layer.msg(`删除失败: ${res.message}`, { icon: 2 });
                 }
@@ -161,6 +165,10 @@ var showWhiteIp = () => {
                 limit: 3,
                 limits: [3],
                 parseData: (res) => {
+                    if (res.code === 302) {
+                        window.location.href = res.message;
+                        return false;
+                    }
                     return {
                         "code": res.code,
                         "msg": res.code === 0 ? "" : res.message,
@@ -177,7 +185,7 @@ var showWhiteIp = () => {
                     } }
                 ]]
             });
-            form.render(null, "showIpForm");
+            form.render(null, "showIpForm");  // 渲染表单
             // 搜索事件
             form.on("input-affix(ip)", (data) => {
                 let elem = data.elem;
@@ -311,6 +319,8 @@ var addNewUser = () => {
                             layer.close(index);
                             layer.msg("创建成功", { icon: 1 });
                             reloadUserData();  // 重载用户表格
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
                         } else {
                             layer.msg(`创建失败: ${res.message}`, { icon: 2 });
                        }
@@ -422,6 +432,8 @@ var showUserEdit = (userData) => {
                             layer.close(index);
                             layer.msg("更新成功", { icon: 1 });
                             reloadUserData();  // 重载用户表格
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
                         } else {
                             layer.msg(`更新失败: ${res.message}`, {icon: 2});
                         }
@@ -468,6 +480,8 @@ var showUserDel = (data) => {
                         layer.close(index);
                         layer.msg("删除成功", {icon: 1});
                         reloadUserData();
+                    } else if (res.code === 302) {
+                        window.location.href = res.message;
                     } else {
                         layer.msg(`删除失败: ${res.message}`, {icon: 2});
                     }
@@ -516,6 +530,8 @@ var showUserLock = (data) => {
                         layer.close(index);
                         layer.msg("已锁定", {icon: 1});
                         reloadUserData();
+                    } else if (res.code === 302) {
+                        window.location.href = res.message;
                     } else {
                         layer.msg("锁定失败: " + res.message, {icon: 2});
                     }
@@ -563,6 +579,8 @@ var showUserUnlock = (data) => {
                         layer.close(index);
                         layer.msg("解锁成功", {icon: 1});
                         reloadUserData();
+                    } else if (res.code === 302) {
+                        window.location.href = res.message;
                     } else {
                         layer.msg(`解锁失败: ${res.message}`, {icon: 2});
                     }
@@ -610,6 +628,8 @@ var showUserReset = (data) => {
                     if (res.code === 0) {
                         layer.close(index);
                         layer.msg("重置成功", { icon: 1 });
+                    } else if (res.code === 302) {
+                        window.location.href = res.message;
                     } else {
                         layer.msg(`重置失败: ${res.message}`, { icon: 2 });
                     }

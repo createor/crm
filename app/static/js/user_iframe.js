@@ -2,6 +2,14 @@
 // iframe调用父页面的方法集合
 
 /**
+ * @description 重定向页面
+ * @param {String} url 
+ */
+function redirectPage(url) {
+    window.parent.location.href = url;
+}
+
+/**
  * @description 绑定进度条步骤
  */
 var renderStepProgress = () => {
@@ -139,9 +147,12 @@ var addNewTable = () => {
                         $("#upload-preview span").text(uploadFilename);
                         $("#upload-preview").removeClass("layui-hide");
                         layer.msg("上传成功", {icon: 1});
+                    } else if (res.code === 302) {
+                        window.location.href = res.message;
                     } else {
                         layer.msg(`上传失败: ${res.message}`, { icon: 2 });
                     }
+                    return false;
                 }
             });
             form.verify({
@@ -240,6 +251,8 @@ var addNewTable = () => {
                                     </div> \
                                     <span style='margin-left: -10px;font-size: 20px;'>创建成功</span>");
                                 $("#rightUse").show();  // 显示立即使用按钮
+                            } else if (res.code === 302) {
+                                window.location.href = res.message;
                             } else {
                                 // 失败提示
                                 $(".stepContent").eq(3).html("<div style='padding: 35px 0;margin-left: -10px;'> \
@@ -272,9 +285,9 @@ var addNewTable = () => {
     return false;
 }
 
-function refreshCharts () {
+function refreshCharts (tableUid) {
     let win = window.frames["crm_manage"];
-    win.contentWindow.showCharts();
+    win.contentWindow.showCharts(tableUid);
 }
 
 function refreshManage () {
@@ -286,8 +299,8 @@ function refreshManage () {
  * @description 新增图表规则
  * @param {String} tableId 表uuid
  */
-var addNewRule = (tableId) => {
-    let table_id = tableId || localStorage.getItem("tableUid");
+var addNewRule = () => {
+    let table_id = localStorage.getItem("tableUid");
     let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
     let option_template = "";  // 字段选项模板
     let date_template = "";    // 时间选项模板
@@ -394,6 +407,8 @@ var addNewRule = (tableId) => {
                             form.val("ruleForm", hasValue);     // 存在规则则赋值表单
                             form.render("select", "ruleForm");  // 渲染表单的select元素
                         }
+                    } else if (res.code === 302) {
+                        window.location.href = res.message;
                     }
                     return false;
                 },
@@ -444,7 +459,9 @@ var addNewRule = (tableId) => {
                             layer.close(index);
                             layer.msg("更新成功", { icon: 1 });
                             // 刷新图表
-                            refreshCharts();
+                            refreshCharts(table_id);
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
                         } else {
                             layer.msg(`更新失败: ${res.message}`, { icon: 2 });
                         }
@@ -468,8 +485,8 @@ var addNewRule = (tableId) => {
  * @param {String} tableId 资产表uuid
  * @param {Array} data 要删除的数据
  */
-var delColData = (tableId, data) => {
-    let table_id = tableId || localStorage.getItem("tableUid");
+var delColData = (data) => {
+    let table_id = localStorage.getItem("tableUid");
     layer.confirm(`是否删除本页已选中的${data.length}条数据`, {
             title: "删除数据",
             btn: ["确定", "取消"]
@@ -496,6 +513,8 @@ var delColData = (tableId, data) => {
                             layer.msg("删除成功", { icon: 1 });
                             // reload数据
                             refreshManage();
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
                         } else {
                             layer.msg(`删除失败: ${res.message}`, { icon: 2 });
                         }
@@ -522,9 +541,9 @@ var delColData = (tableId, data) => {
  * @param {String} tableId 表uuid
  * @param {Object} colData 列数据
  */
-var addOrEditData = (tableId, colData) => {
-    let table_id = tableId || localStorage.getItem("tableUid");  // 资产表uuid
-    let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];  // 资产表header
+var addOrEditData = (colData) => {
+    let table_id = localStorage.getItem("tableUid");  // 资产表uuid
+    let header = JSON.parse(localStorage.getItem("header"))[table_id];  // 资产表header
     let formData = colData;
     let date_array = [];  // 日期数组
     let time_array = [];  // 时间数组
@@ -614,6 +633,8 @@ var addOrEditData = (tableId, colData) => {
                             success: (res) => {
                                 if (res.code === 0) {
                                     undeseData = res.message;
+                                } else if (res.code === 302) {
+                                    window.location.href = res.message;
                                 }
                                 return false;
                             },
@@ -651,6 +672,8 @@ var addOrEditData = (tableId, colData) => {
                                 layer.close(index);
                                 layer.msg("成功", { icon: 1 });
                                 refreshManage();
+                            } else if (res.code === 302) {
+                                window.location.href = res.message;
                             } else {
                                 layer.msg(`失败: ${res.message}`, { icon: 2 });
                             }
@@ -674,8 +697,8 @@ var addOrEditData = (tableId, colData) => {
  * @description 新增或修改列
  * @param {String} tableId 表uuid
  */ 
-var addOrAlterCol = (tableId) => {
-    let table_id = tableId || localStorage.getItem("tableUid");
+var addOrAlterCol = () => {
+    let table_id = localStorage.getItem("tableUid");
     layer.open({
         type: 1,
         title: "列操作",
@@ -850,6 +873,8 @@ var addOrAlterCol = (tableId) => {
                             layer.close(index);
                             layer.msg("新增列成功", { icon: 1 });
                             // TODO 刷新表格
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
                         } else {
                             layer.msg(`新增失败: ${res.message}`, { icon: 2 });
                         }
@@ -895,6 +920,10 @@ function showTaskDeail (id, task_id) {
                 elem: "#detail",
                 url: `/crm/api/v1/manage/ping?id=${id}&task_id=${task_id}`,
                 parseData: (res) => {
+                    if (res.code === 302) {
+                         window.location.href = res.message;
+                         return false;
+                    }
                     return {
                         "code": res.code,
                         "msg": res.code === 0 ? "" : res.message,
@@ -950,7 +979,7 @@ function showTaskDeail (id, task_id) {
                             }]
                         });
                     }
-                }
+                },
             });
         }
     })
@@ -963,9 +992,9 @@ window.showTaskDeail = window.showTaskDeail || showTaskDeail;
  * @description 批量检测
  * @param {String} tableId 表uuid
  */ 
-var mulitDetect = (tableId) => {
-    let table_id = tableId || localStorage.getItem("tableUid");
-    let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
+var mulitDetect = () => {
+    let table_id = localStorage.getItem("tableUid");
+    let header = JSON.parse(localStorage.getItem("header"))[table_id];
     let option_template = "";
     header.forEach((item) => {
         if (item.type !== 2 && item.col_type !== 4 && item.col_type !== 5) {
@@ -1036,8 +1065,13 @@ var mulitDetect = (tableId) => {
                         limit: 2,
                         limits: [2],
                         text: {none: "暂无数据,请先创建任务"},
+                        toolbar: true,
                         defaultToolbar:[{title: "刷新", layEvent: "LAYTABLE_REFRESH", icon: "layui-icon-refresh"}],
                         parseData: (res) => {
+                            if (res.code === 302) {
+                                window.location.href = res.message;
+                                return false;
+                            }
                             return {
                                 "code": res.code,
                                 "msg": res.code === 0 ? "" : res.message,
@@ -1046,19 +1080,19 @@ var mulitDetect = (tableId) => {
                             };
                         },
                         cols:[[
-                            {fidle: "id", title: "任务ID", hide: true},
-                            {field: "name", title: "任务名称", width: 120},
-                            {field: "create_time", title: "创建时间", width: 160},
-                            {field: "status", title: "状态", width: 80, templet: (d) => {
+                            { fidle: "id", title: "任务ID", hide: true },
+                            { field: "name", title: "任务名称", width: 120 },
+                            { field: "create_time", title: "创建时间", width: 160 },
+                            { field: "status", title: "状态", width: 80, templet: (d) => {
                                 if (d.status === 0) return `<span class="layui-badge-rim">排队中</span>`;
                                 if (d.status === 1) return `<span class="layui-badge layui-bg-blue">执行中</span>`;
                                 if (d.status === 2) return `<span class="layui-badge layui-bg-green">成功</span>`;
                                 if (d.status === 3) return `<span class="layui-badge">失败</span>`;
-                            }},
-                            {field: "result", title: "结果", width: 100, templet: (d) => {
+                            } },
+                            { field: "result", title: "结果", width: 100, templet: (d) => {
                                 if (d.status === 1) return `<button class="layui-btn layui-btn-xs" onclick="showProgress('${d.id}')">查看进度</button>`;
                                 if (d.status === 2) return `<button class="layui-btn layui-btn-xs" onclick="showTaskDeail('${table_id}','${d.id}')">查看详情</button>`;
-                            }}
+                            } }
                         ]],
                         done: () => {
                             table.on("tool(historyTask)", (obj) => {
@@ -1093,6 +1127,8 @@ var mulitDetect = (tableId) => {
                         if (res.code === 0) {
                             layer.close(index);
                             layer.msg("创建成功", { icon: 1 });
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
                         } else {
                             layer.msg(`创建失败: ${res.message}`, { icon: 2 });
                         }
@@ -1134,6 +1170,8 @@ function startOrStopNotify (mode, task_id) {
             if (res.code === 0) {
                 layer.msg("操作成功", { icon: 1 });
                 table.reloadData("historyNotify");
+            } else if (res.code === 302) {
+                window.location.href = res.message;
             } else {
                 layer.msg(`操作失败: ${res.message}`, { icon: 2 });
             }
@@ -1154,13 +1192,13 @@ window.startOrStopNotify = window.startOrStopNotify || startOrStopNotify;
  * @description 新建到期通知
  * @param {String} tableId 表uuid
  */
-var createNotify = (tableId) => {
-    let table_id = tableId || localStorage.getItem("tableUid");
-    let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
+var createNotify = () => {
+    let table_id = localStorage.getItem("tableUid");
+    let header = JSON.parse(localStorage.getItem("header"))[table_id];
     let option_template = "";
     let key2Word = new Object();
     header.forEach((item) => {  // 判断header中是否有date、datetime属性列
-        if (item.value_type == 5 || item.value_type == 6) {
+        if (item.value_type == 4 || item.value_type == 5) {
             option_template += `<option value="${item.field}">${item.title}</option>`;
         }
         key2Word[item.field] = item.title;
@@ -1226,13 +1264,18 @@ var createNotify = (tableId) => {
                         limit: 2,
                         limits: [2],
                         text: {none: "暂无数据,请先创建任务"},
+                        toolbar: true,
                         defaultToolbar:[{title: "刷新", layEvent: "LAYTABLE_REFRESH", icon: "layui-icon-refresh"}],
-                        parseData: (result) => {
+                        parseData: (res) => {
+                            if (res.code === 302) {
+                                window.location.href = res.message;
+                                return false;
+                            }
                             return {
-                                "code": result.code,
-                                "msg": result.code === 0 ? "" : result.message,
-                                "count": result.message.total,
-                                "data": result.message.data
+                                "code": res.code,
+                                "msg": res.code === 0 ? "" : res.message,
+                                "count": res.message.total,
+                                "data": res.message.data
                             }
                         },
                         cols: [[
@@ -1276,6 +1319,8 @@ var createNotify = (tableId) => {
                         if (res.code === 0) {
                             layer.close(index);
                             layer.msg("任务创建成功", { icon: 1 });
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
                         } else {
                             layer.msg(`创建失败: ${res.message}`, { icon: 2 });
                         }
@@ -1298,8 +1343,8 @@ var createNotify = (tableId) => {
  * @description 显示历史记录
  * @param {String} tableId
  */
-var showHistory = (tableId) => {
-    let table_id = tableId || localStorage.getItem("tableUid");
+var showHistory = () => {
+    let table_id = localStorage.getItem("tableUid");
     layer.open({
         type: 1,
         area: ["620px", "410px"],
@@ -1332,12 +1377,16 @@ var showHistory = (tableId) => {
                 page: true,
                 limit: 5,
                 limits: [5],
-                parseData: (result) => {
+                parseData: (res) => {
+                    if (res.code === 302) {
+                        window.location.href = res.message;
+                        return false;
+                    }
                     return {
-                        "code": result.code,
-                        "msg": result.code === 0 ? "" : result.message,
-                        "count": result.message.total,
-                        "data": result.message.data
+                        "code": res.code,
+                        "msg": res.code === 0 ? "" : res.message,
+                        "count": res.message.total,
+                        "data": res.message.data
                     }
                 },
                 cols: [[
@@ -1349,7 +1398,7 @@ var showHistory = (tableId) => {
                         return `<a href="/crm/api/v1/file/${d.file}" style="color: blue;">点此下载文件</a>`;
                     } },
                     { field: "create_user", title: "创建者", width: 120 },
-                    { field: "create_time", title: "创建时间", width:170},
+                    { field: "create_time", title: "创建时间", width: 170 },
                     { field: "status", title: "状态", width: 80, templet: (d) => {
                         if (d.status === 1) return `<span class="layui-badge layui-bg-blue">执行中</span>`;
                         if (d.status === 0) return `<span class="layui-badge-rim">排队中</span>`;
@@ -1383,8 +1432,8 @@ var showHistory = (tableId) => {
  * @description 导出表格数据
  * @param {String} tableId 表id 
  */
-var exportTableData = (tableId) => {
-    let table_id = tableId || localStorage.getItem("tableUid");
+var exportTableData = () => {
+    let table_id = localStorage.getItem("tableUid");
     layer.open({
         type: 1,
         title: "是否加密表格",
@@ -1425,7 +1474,7 @@ var exportTableData = (tableId) => {
                     }
                 }
                 $.ajax({
-                    url: `/crm/api/v1/manage/export?id=${table_id}${field.is_set === "1" ? `&passwd=${field.passwd}` : ""}`,
+                    url: `/crm/api/v1/manage/export?id=${table_id}${field.is_set === "1" ? `&passwd=${field.passwd}` : ""}${localStorage.getItem("condition") ? `&filter='${localStorage.getItem("condition")}'` : ""}`,
                     type: "GET",
                     beforeSend: () => {
                         loadIndex = layer.load(2);
@@ -1442,6 +1491,8 @@ var exportTableData = (tableId) => {
                                 target.click();
                                 document.body.removeChild(target);
                             });
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
                         } else {
                             layer.msg(`导出错误: ${res.message}`, { icon: 2 });
                         }

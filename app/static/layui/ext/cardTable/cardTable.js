@@ -44,6 +44,9 @@ layui.define(['table', 'laypage','jquery', 'element','laytpl'], function(exports
 		done: function (res, curr, count) {
 
 		},
+		complate: function (xhr) {
+
+		},
 		toolbar:null
 	};
 
@@ -324,26 +327,33 @@ layui.define(['table', 'laypage','jquery', 'element','laytpl'], function(exports
     }
 	/** 同步请求获取数据 */
 	function getData(url) {
-		$.ajaxSettings.async = false;
+		// $.ajaxSettings.async = false;
 		var redata = null;
-		$.getJSON(url, function (data) {
-			redata = data;
-		}).fail(function () {
-			redata = null;
+		// $.getJSON(url, function (data) {
+		// 	redata = data;
+		// }).fail(function () {
+		// 	redata = null;
+		// });
+		$.ajax({
+			url: url,
+			type: "GET",
+			dataType: "json",
+			async: false,
+			success: function (data) {
+				if (data.code === 0) {
+					redata = data;
+				} else if (data.code === 302) {
+                    window.parent.redirectPage(data.message);
+                }
+				return false;
+			},
+			error: function () {
+				redata = null;
+				return false;
+			}
 		});
 		return redata;
 	}
-	////卡片点击事件
-	//window.cardTableCheckedCard = function (elem,obj) {
-	//	$(obj).addClass('layui-table-click').siblings().removeClass('layui-table-click');
-	//	var item = {};
-	//	item.id = obj.id;
-	//	item.image = $(obj).find('.project-list-item-cover')[0].src;
-	//	item.title = $(obj).find('h2')[0].innerHTML;
-	//	item.remark = $(obj).find('.project-list-item-text')[0].innerHTML;
-	//	item.time = $(obj).find('.time')[0].innerHTML;
-	//	_instances[elem.id].option.checkedItem = item;
-	//}
 	/** 对外提供的方法 */
 	var tt = {
 		/* 渲染 */

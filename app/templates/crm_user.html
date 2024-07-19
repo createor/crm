@@ -46,12 +46,16 @@
             },
             limit: 10,
             limits: [10],
-            parseData: (result) => {
+            parseData: (res) => {
+                if (res.code === 302) {
+                    window.parent.redirectPage(res.message);
+                    return false;
+                }
                 return {
-                    "code": result.code,
-                    "msg": result.code === 0 ? "" : result.message,
-                    "count": result.message.total,
-                    "data": result.message.data
+                    "code": res.code,
+                    "msg": res.code === 0 ? "" : res.message,
+                    "count": res.message.total,
+                    "data": res.message.data
                 }
             },
             cols: [[

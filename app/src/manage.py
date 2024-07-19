@@ -13,9 +13,9 @@ import json
 import traceback
 from flask import Blueprint, request, jsonify, g, Response
 from app.utils import UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, methods, crmLogger, readExcel, createExcel, getUuid, verify, redisClient, converWords, job, undesense, formatDate
-from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, DetectResult, File, Notify, History, initManageTable, generateManageTable, addColumn, alterColumn, MyHeader
+from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, DetectResult, File, Notify, History, initManageTable, generateManageTable, addColumn, alterColumn, refreshMeta, MyHeader
 from app.src.task import startExportTableTask, startImportTableTask, startPingTask
-from sqlalchemy import or_, func, Column, String, Text, Date, DateTime
+from sqlalchemy import or_, func, Column, String
 from sqlalchemy.sql import insert
 from sqlalchemy.orm import mapper
 from datetime import datetime, date
@@ -248,24 +248,24 @@ def queryTableByUuid(id):
             if key_type == 1:
                 compare = args.get("c", None)
                 if compare and compare == "eq":
-                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) == value)).count()
+                    count = db_session.query(manageTable).filter(getattr(manageTable.c, key) == value).count()
                 else:
-                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key).like(f"%{value}%"))).count()
+                    count = db_session.query(manageTable).filter(getattr(manageTable.c, key).like(f"%{value}%")).count()
             elif key_type == 2:
-                count = db_session.query(manageTable).filter((getattr(manageTable.c, key) == value)).count()
+                count = db_session.query(manageTable).filter(getattr(manageTable.c, key) == value).count()
             elif key_type == 3:
                 if compare == "eq":
-                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) == value)).count()
+                    count = db_session.query(manageTable).filter(getattr(manageTable.c, key) == value).count()
                 elif compare == "gt":
-                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) > value)).count()
+                    count = db_session.query(manageTable).filter(getattr(manageTable.c, key) > value).count()
                 elif compare == "lt":
-                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) < value)).count()
+                    count = db_session.query(manageTable).filter(getattr(manageTable.c, key) < value).count()
                 elif compare == "ge":
-                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) >= value)).count()
+                    count = db_session.query(manageTable).filter(getattr(manageTable.c, key) >= value).count()
                 elif compare == "le":
-                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) <= value)).count()
+                    count = db_session.query(manageTable).filter(getattr(manageTable.c, key) <= value).count()
                 elif compare == "ne":
-                    count = db_session.query(manageTable).filter((getattr(manageTable.c, key) != value)).count()
+                    count = db_session.query(manageTable).filter(getattr(manageTable.c, key) != value).count()
         finally:
             db_session.close()
 
@@ -276,24 +276,24 @@ def queryTableByUuid(id):
             if key_type == 1:
                 compare = args.get("c", None)
                 if compare and compare == "eq":
-                     result = db_session.query(manageTable).filter((getattr(manageTable.c, key) == value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                     result = db_session.query(manageTable).filter(getattr(manageTable.c, key) == value).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
                 else:
-                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key).like(f"%{value}%"))).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                    result = db_session.query(manageTable).filter(getattr(manageTable.c, key).like(f"%{value}%")).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
             elif key_type == 2:
-                result = db_session.query(manageTable).filter((getattr(manageTable.c, key) == value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                result = db_session.query(manageTable).filter(getattr(manageTable.c, key) == value).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
             elif key_type == 3:
                 if compare == "eq":
-                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) == value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                    result = db_session.query(manageTable).filter(getattr(manageTable.c, key) == value).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
                 elif compare == "gt":
-                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) > value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                    result = db_session.query(manageTable).filter(getattr(manageTable.c, key) > value).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
                 elif compare == "lt":
-                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) < value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                    result = db_session.query(manageTable).filter(getattr(manageTable.c, key) < value).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
                 elif compare == "ge":
-                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) >= value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                    result = db_session.query(manageTable).filter(getattr(manageTable.c, key) >= value).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
                 elif compare == "le":
-                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) <= value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                    result = db_session.query(manageTable).filter(getattr(manageTable.c, key) <= value).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
                 elif compare == "ne":
-                    result = db_session.query(manageTable).filter((getattr(manageTable.c, key) != value)).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                    result = db_session.query(manageTable).filter(getattr(manageTable.c, key) != value).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
         finally:
             db_session.close()
     
@@ -980,16 +980,12 @@ def addOrAlterTableColumn():
                     return jsonify({"code": -1, "message": "该列已存在,请勿重复创建"}), 400
 
                 add_col_type = "VARCHAR(255)"
-                add_column = Column(String(255))
                 if int(col_type) == 3:
                     add_col_type = "TEXT"
-                    add_column = Column(Text)
                 elif int(col_type) == 4:
                     add_col_type = "DATE"
-                    add_column = Column(Date)
                 elif int(col_type) == 5:
                     add_col_type = "DATETIME"
-                    add_column = Column(DateTime)
 
                 # 不存在重复则创建新列
                 if not addColumn(table.table_name, col_alias, add_col_type):  # 添加列
@@ -1029,8 +1025,7 @@ def addOrAlterTableColumn():
                     finally:
                         db_session.close()
 
-                manageTable = initManageTable(table.table_name)
-                setattr(manageTable, col_alias, add_column)
+                refreshMeta()
 
                 redisClient.delData(f"crm:header:{table.table_name}")  # 从redis中删除缓存
 
@@ -1180,6 +1175,8 @@ def addOrAlterTableColumn():
                 crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
             finally:    
                 db_session.close()
+
+            refreshMeta()
 
             crmLogger.info(f"用户{g.username}{_method}列{col_alias}成功")
 

@@ -105,6 +105,8 @@
                         $("input[name=single_enable]").prop("checked", res.message.enable_single);
                         $("input[name=watermark_enable]").prop("checked", res.message.enable_watermark);
                         form.render("checkbox", "system");  // 渲染开关按钮
+                    } else if (res.code === 302) {
+                        window.parent.redirectPage(res.message);
                     } else {
                         layer.msg(res.message, { icon: 2 });
                     }
@@ -178,6 +180,8 @@
                     if (res.code === 0) {
                         layer.msg("更新配置成功", { icon: 1 });
                         getConfig();
+                    } else if (res.code === 302) {
+                        window.parent.redirectPage(res.message);
                     } else {
                         layer.msg(`配置更新失败: ${res.message}`, { icon: 2 });
                     }

@@ -92,9 +92,7 @@ def init_cache():
     crmLogger.info("缓存初始化完成")
 
 def init_db():
-    '''
-    初始化数据库
-    '''
+    '''初始化数据库'''
     crmLogger.info("正在初始化数据库")
     Base.metadata.create_all(bind=engine)  # 手册启动创建所有表
     crmLogger.info("数据库初始化完成")
@@ -273,6 +271,15 @@ class MyHeader:
     def __getattr__(self, name):
         return self.__data.get(name)
 
+def refreshMeta():
+    '''刷新元数据'''
+    Base.metadata.clear()  # 清空元数据
+    Base.metadata.reflect(bind=engine)  # 重新缓存表映射
+    global db_session
+    db_session.remove()  # 删除session
+    db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))  # 重新创建session
+    Base.query = db_session.query_property()
+
 def generateManageTable(table_name: str="", cols=[]) -> Union[Table, None]:
     '''
     生成新资产表
@@ -346,27 +353,20 @@ def alterColumn(table_name: str, col_name: str, dist_type: str) -> bool:
     date_pattern = re.compile(r'^DATE$', re.IGNORECASE)
     datetime_pattern = re.compile(r'^DATETIME$', re.IGNORECASE)
 
-    create_index = None
-
+    # 校验类型
     if not (varchar_pattern.match(dist_type) or text_pattern.match(dist_type) or date_pattern.match(dist_type) or datetime_pattern.match(dist_type)):
         return False
 
     try:
         alter_column_sql = f"ALTER TABLE {table_name} MODIFY COLUMN {col_name} {dist_type}"
         db_session.execute(text(alter_column_sql))
-        
-        if create_index:
-            db_session.execute(text(create_index))
-
         db_session.commit()
-        return True   
+        return True
     except:
         db_session.rollback()
         crmLogger.error(f"资产表{table_name}修改字段{col_name}属性失败,原因: {traceback.format_exc()}")
         return False
-    
     finally:
-
         db_session.close()
 
 init_db()

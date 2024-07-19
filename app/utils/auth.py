@@ -60,7 +60,8 @@ def verify(allow_methods: list = ["GET"], module_name: str = "", auth_login: boo
                         if check_ip and bool(int(redisClient.getData("crm:system:enable_single"))):  # 判断是否需要校验IP以及是否开启单点登陆
 
                             if ip_addr != redisClient.getData(f"crm:{username}:ip"):  # 访问IP和redis中记录不一致
-                                return redirect(url_for("login", errMsg="账号已在其他地方登陆"))
+                                session.pop("username", None)
+                                return jsonify({"code": 302, "message": "/login?errMsg=账号已在其他地方登陆"}), 200
                             
                     return func(*args, **kwargs)
                 

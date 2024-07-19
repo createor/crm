@@ -164,6 +164,8 @@
             image: false,
             layout: ["count", "prev", "page", "next", "limit", "skip"],
             response: {
+                statusName: "code",
+                statusCode: 0,
                 msgName: "message",
                 countName: "message.total",
                 dataName: "message.data"
@@ -186,6 +188,8 @@
          * @param {Object} jumpCondition 跳转条件
         */
         function loadManageTable (tableUid, jumpCondition) {
+            localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
+            localStorage.setItem("condition", null);     // 清空筛选条件
             // 获取header
             $.ajax({
                 url: `/crm/api/v1/manage/header?id=${tableUid}`,
@@ -193,10 +197,11 @@
                 success: (res) => {
                     if (res.code === 0) {
                         header = res.message;
-                        // 本地存储header信息
                         let obj = new Object();
                         obj[tableUid] = header;
-                        localStorage.setItem("header", JSON.stringify(obj));
+                        localStorage.setItem("header", JSON.stringify(obj));  // 本地存储header信息
+                    } else if (res.code === 302) {
+                        window.parent.redirectPage(res.message);
                     } else {
                         layer.msg(res.message, { icon: 2 });
                     }
@@ -228,9 +233,9 @@
                             </div>
                             <a type="button" class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="edit" id="edit">编辑选中的数据</a>
                             <a type="button" class="layui-btn layui-btn-sm layui-btn-disabled" lay-event="del" id="del">删除选中的数据</a>
-                            <div style="width: 400px;display: inline-block; height: 20px;margin-left: 15px;">
+                            <div style="width: 530px;display: inline-block; height: 20px;margin-left: 15px;">
                                 <div class="layui-input-group">
-                                    <div class="layui-input-split layui-input-prefix" style="width: 120px;padding: 0;height: 30px;border: none;" id="prefix">
+                                    <div class="layui-input-split layui-input-prefix" style="width: 140px;padding: 0;height: 30px;border: none;" id="prefix">
                                         <select name="utype" id="utype" lay-filter="utype">
                                             ${option_templ}    
                                         </select>
@@ -240,6 +245,9 @@
                                     </div>
                                     <div class="layui-input-split layui-input-suffix" style="cursor: pointer;width: 30px;height: 30px;" id="searchData">
                                         <i class="layui-icon layui-icon-search"></i>
+                                    </div>
+                                    <div class="layui-input-split layui-input-suffix" style="cursor: pointer;width: 30px;height: 30px;" id="refreshData">
+                                        <i class="layui-icon layui-icon-refresh"></i>
                                     </div>
                                 </div>
                             </div>
@@ -255,18 +263,23 @@
                 limit: 8,
                 limits: [8],
                 totalRow: true,
-                where: jumpCondition || {},
-                parseData: (result) => {
+                where: jumpCondition || {},  // 筛选条件
+                parseData: (res) => {
+                    if (res.code === 302) {
+                        window.parent.redirectPage(res.message);
+                        return false;
+                    }
                     return {
-                        "code": result.code,
-                        "msg": result.code === 0 ? "" : result.message,
-                        "count": result.message.total,
-                        "data": result.message.data
+                        "code": res.code,
+                        "msg": res.code === 0 ? "" : res.message,
+                        "count": res.message.total,
+                        "data": res.message.data
                     }
                 },
                 cols: [[{ checkbox: true, fixed: true }].concat(header)],
                 defaultToolbar: [
                     "filter",
+                    { title: "绑定IP列", layEvent: "LAYTABLE_BIND", icon: "layui-icon-link" },
                     { title: "批量探测", layEvent: "LAYTABLE_PROBE", icon: "layui-icon-wifi" },
                     { title: "到期提醒", layEvent: "LAYTABLE_NOTICE", icon: "layui-icon-notice" },
                     { title: "编辑|新增字段", layEvent: "LAYTABLE_TIPS", icon: "layui-icon-edit" },
@@ -281,7 +294,7 @@
                             $("#select_group").html(`
                                 <div class="layui-input-inline" style="width: 120px;height: 34px;">
                                     <select name="${value}" id="${value}">
-                                        ${select_header[value].options.map((item) => { return `<option value="${item.value}">${item.title}</option>`; })}
+                                        ${Object.keys(select_header[value].options).map((item) => { return `<option value="${item}">${select_header[value].options[item]}</option>`; }).join("")}
                                     </select>
                                 </div>
                             `);
@@ -290,7 +303,8 @@
                                 let u = $("#utype").val();
                                 let k = $(`#${value}`).val();
                                 if (k.length > 0) {
-                                    // localStorage.setItem("condition", JSON.stringify({"type": 2, "key": u,}));
+                                    k = select_header[value].options[k];
+                                    localStorage.setItem("condition", JSON.stringify({ "type": 2, "key": u, "value": k }));
                                     table.reloadData("manage", {
                                         where: {
                                             "type": 2,
@@ -300,7 +314,7 @@
                                     });
                                 }
                             });
-                        } else if (select_header[value].value_type === 5) {
+                        } else if (select_header[value].value_type === 4) {
                             $("#select_group").html(`
                                 <div class="layui-input-inline" style="width: 225px;">
                                     <div style="width: 100px;height: 34px;" class="layui-input-inline">
@@ -324,6 +338,7 @@
                                 let u = $("#utype").val();
                                 let k = $("#select_group_date").val();
                                 if (k.length > 0) {
+                                    localStorage.setItem("condition", JSON.stringify({ "type": 3, "key": u, "value": k, "c": $("#compare").val() }));
                                     table.reloadData("manage", {
                                         where: {
                                             "type": 3,
@@ -334,7 +349,7 @@
                                     });
                                 }
                             });
-                        } else if (select_header[value].value_type === 6) {
+                        } else if (select_header[value].value_type === 5) {
                             $("#select_group").html(`
                                 <div class="layui-input-inline" style="width: 305px;">
                                     <div style="width: 100px;height: 34px;" class="layui-input-inline">
@@ -359,6 +374,7 @@
                                 let u = $("#utype").val();
                                 let k = $("#select_group_time").val();
                                 if (k.length > 0) {
+                                    localStorage.setItem("condition", JSON.stringify({ "type": 3, "key": u, "value": k, "c": $("#compare").val() }));
                                     table.reloadData("manage", {
                                         where: {
                                             "type": 3,
@@ -377,6 +393,7 @@
                                 let u = $("#utype").val();
                                 let k = $("input[name='keywords']").val();
                                 if (k.length > 0) {
+                                    localStorage.setItem("condition", JSON.stringify({ "type": 1, "key": u, "value": k }));
                                     table.reloadData("manage", {
                                         where: {
                                             "key": u,
@@ -405,13 +422,15 @@
                                     },
                                     success: (res) => {
                                         layer.close(loadIndex);
-                                        if (res.code == 0) {
+                                        if (res.code === 0) {
                                             let target = document.createElement("a");
                                             target.href = `/crm/api/v1/file/${res.message.fileuuid}`;
                                             target.download = res.message.filename;
                                             document.body.appendChild(target);
                                             target.click();
                                             document.body.removeChild(target);
+                                        } else if (res.code === 302) {
+                                            window.parent.redirectPage(res.message);
                                         } else {
                                             layer.msg(res.message, { icon: 2 });
                                         }
@@ -446,6 +465,8 @@
                                                 if (r.code === 0) {
                                                     // 显示导入进度
                                                     window.parent.showProgress(r.message);
+                                                } else if (r.code === 302) {
+                                                    window.parent.redirectPage(res.message);
                                                 }
                                                 return false;
                                             },
@@ -454,6 +475,8 @@
                                                 return false;
                                             }
                                         });
+                                    } else if (res.code === 302) {
+                                        window.parent.redirectPage(res.message);
                                     } else {
                                         layer.msg(`失败: ${res.message}`, { icon: 2 });
                                     }
@@ -469,7 +492,7 @@
                 }
             });
 
-            showCharts();           // 展示图表
+            showCharts(tableUid);           // 展示图表
 
             return false;
         }
@@ -480,8 +503,6 @@
             $("#showManage").show();    // 显示具体资产表表格
 
             tableUid = obj.value.id;    // 表格的id
-            localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
-            localStorage.setItem("condition", null);     // 清空筛选条件
 
             loadManageTable(tableUid);
         });
@@ -510,7 +531,14 @@
                                 }
                             }
                         });
+                    } else if (res.code === 302) {
+                        window.parent.redirectPage(res.message);
                     }
+                    return false;
+                },
+                error: (err) => {
+                    console.log(err);
+                    return false;
                 }
             });
         });
@@ -534,33 +562,36 @@
             let checkStatus = table.checkStatus(id);
             switch (obj.event) {
                 case "add":   // 录入数据
-                    window.parent.addOrEditData(tableUid, null);
+                    window.parent.addOrEditData(null);
                     break;
                 case "edit":  // 行编辑
                     if (checkStatus.data.length > 1) {
                         layer.msg("不支持批量编辑", { icon: 2 });
                         return false;
                     }
-                    window.parent.addOrEditData(tableUid, checkStatus.data[0]);
+                    window.parent.addOrEditData(checkStatus.data[0]);
                     break;
                 case "del":              // 删除数据
-                    window.parent.delColData(tableUid, checkStatus.data);
+                    window.parent.delColData(checkStatus.data);
                     break;
                 case "LAYTABLE_PROBE":   // 批量ping
-                    window.parent.mulitDetect(tableUid);
+                    window.parent.mulitDetect();
                     break;
                 case "LAYTABLE_NOTICE":  // 新建通知
-                    window.parent.createNotify(tableUid);
+                    window.parent.createNotify();
                     break;
                 case "LAYTABLE_TIPS":    // 新增或修改列属性
-                    window.parent.addOrAlterCol(tableUid);
+                    window.parent.addOrAlterCol();
                     break;
                 case "LAYTABLE_EXPORT":  // 导出表格
                     // 判断当前是否有筛选
-                    window.parent.exportTableData(tableUid);
+                    window.parent.exportTableData();
                     break;
                 case "LAYTABLE_DETAIL":  // 查询历史记录
-                    window.parent.showHistory(tableUid);
+                    window.parent.showHistory();
+                    break;
+                case "LAYTABLE_BIND":    // 绑定IP列
+                    window.parent.bindIP();
                     break;
             }
         });
@@ -611,6 +642,8 @@
                             } else {
                                 $("#showkeyword").hide();
                             }
+                        } else if (res.code === 302) {
+                            window.parent.redirectPage(res.message);
                         }
                         return false;
                     },
@@ -648,7 +681,7 @@
         /**
          * @description 显示图表
         */
-        function showCharts () {
+        function showCharts (tableUid) {
             // 请求图表配置
             $.ajax({
                 url: `/crm/api/v1/manage/echart?id=${tableUid}`,
@@ -663,7 +696,10 @@
                             let myChart = echarts.init(chartDom);
                             myChart.setOption(item);
                         });
+                    } else if (res.code === 302) {
+                        window.parent.redirectPage(res.message);
                     }
+                    return false;
                 },
                 error: (err) => {
                     console.log(err);
@@ -690,7 +726,7 @@
 
         // 新建或者编辑规则
         $("#newRule").on("click", () => {
-            window.parent.addNewRule(tableUid);
+            window.parent.addNewRule();
             return false;
         });
 

@@ -328,8 +328,27 @@ def exportTableTask(table_name: str):
 
                 if task_data["filter"]:  # 如果存在筛选条件
                     try:
-                        # TODO 待实现筛选条件
-                        export_data = db_session.query(manageTable).filter(eval(filter)).all()
+                        filter = json.loads(task_data["filter"].replace("'",""))
+                        if filter["type"] == 1:
+                            if "c" in filter and filter["c"] and filter["c"] == "eq":
+                                export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]) == filter["value"]).all()
+                            else:
+                                export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]).like(f"%{filter['value']}%")).all()
+                        elif filter["type"] == 2:
+                            export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]) == filter["value"]).all()
+                        elif filter["type"] == 3:
+                            if filter["c"] == "eq":
+                                export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]) == filter["value"]).all()
+                            elif filter["c"] == "gt":
+                                export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]) > filter["value"]).all()
+                            elif filter["c"] == "lt":
+                                export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]) < filter["value"]).all()
+                            elif filter["c"] == "ge":
+                                export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]) >= filter["value"]).all()
+                            elif filter["c"] == "le":
+                                export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]) <= filter["value"]).all()
+                            elif filter["c"] == "ne":
+                                export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]) != filter["value"]).all()
                     finally:
                         db_session.close()
                 else:  # 全量导出
