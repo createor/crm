@@ -180,13 +180,12 @@
 
         window.reloadCardTable = window.reloadCardTable || reloadCardTable;
 
-        currentTable.on("row(manageTable)", (obj) => {
-            $("#showAllManage").hide(); // 隐藏资产表列表
-            $("#showManage").show();    // 显示具体资产表表格
-
-            tableUid = obj.value.id;    // 表格的id
-            localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
-
+        /**
+         * @description 渲染资产表
+         * @param {String} tableUid 资产表id
+         * @param {Object} jumpCondition 跳转条件
+        */
+        function loadManageTable (tableUid, jumpCondition) {
             // 获取header
             $.ajax({
                 url: `/crm/api/v1/manage/header?id=${tableUid}`,
@@ -256,6 +255,7 @@
                 limit: 8,
                 limits: [8],
                 totalRow: true,
+                where: jumpCondition || {},
                 parseData: (result) => {
                     return {
                         "code": result.code,
@@ -290,6 +290,7 @@
                                 let u = $("#utype").val();
                                 let k = $(`#${value}`).val();
                                 if (k.length > 0) {
+                                    // localStorage.setItem("condition", JSON.stringify({"type": 2, "key": u,}));
                                     table.reloadData("manage", {
                                         where: {
                                             "type": 2,
@@ -471,6 +472,47 @@
             showCharts();           // 展示图表
 
             return false;
+        }
+
+        // 点击表格显示资产表详情
+        currentTable.on("row(manageTable)", (obj) => {
+            $("#showAllManage").hide(); // 隐藏资产表列表
+            $("#showManage").show();    // 显示具体资产表表格
+
+            tableUid = obj.value.id;    // 表格的id
+            localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
+            localStorage.setItem("condition", null);     // 清空筛选条件
+
+            loadManageTable(tableUid);
+        });
+
+        // 2024/07/10功能需求: 右键跳转到指定资产表数据
+        // 表格右键事件
+        table.on("rowContextmenu(manage)", (obj) => {
+            let data = obj.data;
+            document.addEventListener("contextmenu", (e) => {
+                e.preventDefault();  // 阻止默认的右键菜单
+            });
+            $.ajax({
+                url: "/crm/api/v1/manage/all",
+                type: "GET",
+                success: (res) => {
+                    if (res.code === 0) {
+                        // 鼠标右键操作
+                        dropdown.render({
+                            trigger: "contextmenu",
+                            show: true,
+                            style: "width: 200px;height:232.55px;overflow:auto;",
+                            data: res.message,
+                            click: (obj) => {
+                                if (obj.id) {
+                                    loadManageTable(obj.id, { "key": "IPdizhi", "value": data["IPdizhi"], "c": "eq" });
+                                }
+                            }
+                        });
+                    }
+                }
+            });
         });
 
         // 表格复选框触发事件
@@ -631,6 +673,20 @@
         }
 
         window.showCharts = window.showCharts || showCharts;
+
+        // 获取echarts方法
+        function getEchartMethod () {
+            return echarts;
+        }
+
+        window.getEchartMethod = window.getEchartMethod || getEchartMethod;
+
+        // 刷新数据
+        function refreshData () {
+            table.reloadData("manage");
+        }
+
+        window.refreshData = window.refreshData || refreshData;
 
         // 新建或者编辑规则
         $("#newRule").on("click", () => {

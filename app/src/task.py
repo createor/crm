@@ -74,7 +74,7 @@ def writeError(task_id: str, error: str):
         crmLogger.error(f"[writeError]写入file表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
-        redisClient.setData(f"crm:task:{task_id}", json.dumps({"error": f"{error}", "speed": 100}))
+        redisClient.setData(f"crm:task:{task_id}", json.dumps({"error": f"{error}", "speed": 100}), 300)
 
     try:  # 更新history表状态和错误文件
         db_session.query(History).filter(History.id == task_id).update({"status": 3, "err_file": filename})
@@ -84,7 +84,7 @@ def writeError(task_id: str, error: str):
         crmLogger.error(f"[writeError]更新history表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
-        redisClient.setData(f"crm:task:{task_id}", json.dumps({"error": f"{error}", "speed": 100}))
+        redisClient.setData(f"crm:task:{task_id}", json.dumps({"error": f"{error}", "speed": 100}), 300)
 
 def importTableTask(table_name: str):
     '''
@@ -114,7 +114,7 @@ def importTableTask(table_name: str):
 
                 crmLogger.debug(f"[importTableTask]正在执行导入任务: {task_data}")
 
-                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 5}))  # 设置进度为5%
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 5}), 300)  # 设置进度为5%
                 
                 temp_table = readExcel(os.path.join(UPLOAD_EXCEL_DIR, task_data["file"]))  # 读取表格
 
@@ -130,7 +130,7 @@ def importTableTask(table_name: str):
                     writeError(task_data["task_id"], "读取表格表头为空")
                     continue
 
-                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 15}))  # 设置进度为15%
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 15}), 300)  # 设置进度为15%
 
                 templ_header = redisClient.getData(f"crm:header:{task_data['table']}")  # 从redis中读取缓存
 
@@ -220,7 +220,7 @@ def importTableTask(table_name: str):
                 if is_continue:
                     continue
 
-                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 50}))  # 设置进度为50%
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 50}), 300)  # 设置进度为50%
                                 
                 insert_data = temp_table.to_dict(orient="records")
 
@@ -258,7 +258,7 @@ def importTableTask(table_name: str):
                                         new_data = new_data.strftime("%Y-%m-%d")
                             i.update({c.value: new_data})
 
-                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 80})) # 设置进度为80%
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 80}), 300) # 设置进度为80%
 
                 try:
                     with engine.begin() as conn:  # 开启事务,批量插入数据        
@@ -280,7 +280,7 @@ def importTableTask(table_name: str):
 
                 crmLogger.info(f"[importTableTask]{table_name}导入成功")
                 
-                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 100}))   # 设置进度为100%
+                redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 100}), 300)   # 设置进度为100%
 
         except:
             crmLogger.error(f"[importTableTask]{table_name}表导入失败: {traceback.format_exc()}")

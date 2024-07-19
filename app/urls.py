@@ -98,7 +98,7 @@ def upload():
     file = request.files["file"]  # 获取文件
 
     if "." in file.filename and file.filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS:  # 判断文件格式
-        filename = secure_filename(file.filename)   # 文件名
+        filename = secure_filename(file.filename)   # 文件名, bugfix: werkzeug/utils.py: line 432修复中文文件名识别错误问题
         affix = filename.rsplit(".", 1)[1].lower()  # 文件后缀
         file_uuid = getUuid()  # 文件uuid
         path_type = 1          # 默认文件上传路径
