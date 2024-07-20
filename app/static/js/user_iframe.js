@@ -308,15 +308,15 @@ function refreshManage () {
 var addNewRule = () => {
     let table_id = localStorage.getItem("tableUid");
     let header = JSON.parse(localStorage.getItem("header"))[table_id];
-    let option_template = null;  // 字段选项模板
-    let date_template = null;    // 时间选项模板
+    let option_template = "";  // 字段选项模板
+    let date_template = "";    // 时间选项模板
     header.forEach((item) => {
         option_template += `<option value="${item.field}">${item.title}</option>`;
         if (item.value_type === 4 || item.value_type === 5) {
             date_template += `<option value="${item.field}">${item.title}</option>`;
         }
     });
-    let tab_template = null;     // tab页模板
+    let tab_template = "";     // tab页模板
     let number = new Array(0, 1, 2);
     number.forEach((item) => {
         tab_template += `<div class="layui-tab-item${item === 0 ? " layui-show" : ""}"}>
@@ -704,7 +704,7 @@ var addOrEditData = (colData) => {
 var addOrAlterCol = () => {
     let table_id = localStorage.getItem("tableUid");
     let header = JSON.parse(localStorage.getItem("header"))[table_id];
-    let all_header_options = null;
+    let all_header_options = "";
     header.forEach((item) => {
         all_header_options += `<option value="${item.field}">${item.title}</option>`;
     });
@@ -770,7 +770,7 @@ var addOrAlterCol = () => {
                             </div>
                         </div>
                         <div class="layui-form-item">
-                            <button type="button" class="layui-btn" lay-submit lay-filter="addNewCol" style="margin: 0 210px;">新增</button>
+                            <button type="button" class="layui-btn" lay-submit lay-filter="addNewCol" style="margin: 0 210px;" id="colMethod">新增</button>
                         </div>
                     </form>
                   </div>`,
@@ -861,6 +861,7 @@ var addOrAlterCol = () => {
                 })
             });
             form.on("radio(mode)", (data) =>{
+                $("#colMethod").text("新增");
                 let elem = data.elem
                 let value = elem.value;
                 if (value === "add") {
@@ -878,6 +879,7 @@ var addOrAlterCol = () => {
                     has_options = {};
                     form.render("select", "column");
                 } else if (value === "alter") {
+                    $("#colMethod").text("修改");
                     if ($("[name='hasColumn']").val() !== "") {
                         let c_o = $("[name='hasColumn']").val();
                         console.log(c_o);
@@ -934,25 +936,18 @@ var addOrAlterCol = () => {
             });
             form.on("submit(addNewCol)", (data) => {
                 let field = data.field;
-                let loadIndex = null;
-                let option = [];
+                let loadIndex = "";
                 // 校验数据
-                let curr_type = $("input[name='data_type']").val();
+                let curr_type = field.data_type;
                 if (curr_type === "2") {
                     // 校验长度设置
-                    let curr_length = $("input[name='length']").val();
+                    let curr_length = field.length;
                     if (parseInt(curr_length) > 50 || parseInt(curr_length) < 1) {
                         layer.msg("长度取值范围是1-50", { icon: 2 });
                         return false;
                     }
                 } else if (curr_type === "6") {
-                    // 获取select下列列表元素
-                    $("#down_options").each(function () {
-                        $("option", this).each(function () {
-                            option.push({"name": $(this).text(), "value": $(this).val()});
-                        });
-                    });
-                    if (option.length === 0) {
+                    if (has_options.length === 0) {
                         layer.msg("请添加下拉选项", { icon: 2 });
                         return false;
                     }
@@ -967,7 +962,7 @@ var addOrAlterCol = () => {
                         "col_name": field.col_name,
                         "col_alias": field.col_name_en,
                         "type": field.data_type,
-                        "options": option,
+                        "options": Object.keys(has_options).map((k) => {return {"name": has_options[k], "value": k}}),
                         "must_input": field.is_required,
                         "is_desence": field.is_mask,
                         "is_unique": field.is_unique,
@@ -1670,7 +1665,7 @@ var bindIP = () => {
     let table_id = localStorage.getItem("tableUid");
     let header = JSON.parse(localStorage.getItem("header"))[table_id];
     let option_obj = new Object();
-    let option_templ = null;
+    let option_templ = "";
     header.forEach((item) => {
         if (item.col_type !== 2 && item.value_type !== 4 && item.value_type !== 5) {
             if (checkIPCol && item.field === checkIPCol["field"]) {
@@ -1705,7 +1700,7 @@ var bindIP = () => {
                     </div>
                   </div>`,
         success: (_, index) => {
-            let loadIndex = null;
+            let loadIndex = "";
             form.render(null, "bindIpForm");
             form.on("submit(bindIp)", (data) => {
                 $.ajax({

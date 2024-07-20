@@ -189,10 +189,10 @@
         */
         function loadManageTable (tableUid, jumpCondition) {
             localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
-            localStorage.setItem("condition", null);     // 清空筛选条件
-            localStorage.setItem("ip_col", null);        // 清空IP列信息
-            localStorage.setItem("header", null);        // 清空header信息
-            let header = null;                           // 初始化header
+            localStorage.setItem("condition", "");     // 清空筛选条件
+            localStorage.setItem("ip_col", "");        // 清空IP列信息
+            localStorage.setItem("header", "");        // 清空header信息
+            let header = [];                           // 初始化header
             // 获取header
             $.ajax({
                 url: `/crm/api/v1/manage/header?id=${tableUid}`,
@@ -218,7 +218,7 @@
                 }
             });
 
-            let option_templ = null;          // 选项模板
+            let option_templ = "";          // 选项模板
             let select_header = new Object(); // 下拉列表信息
             header.forEach((item) => {
                 option_templ += `<option value="${item.field}">${item.title}</option>`;
@@ -417,7 +417,7 @@
                         table.reloadData("manage", {
                             where: {}
                         });
-                        localStorage.setItem("condition", null);
+                        localStorage.setItem("condition", "");
                     });
                     // 下拉按钮选项
                     dropdown.render({
@@ -527,7 +527,7 @@
         // 2024/07/10功能需求: 右键跳转到指定资产表数据
         // 表格右键事件
         table.on("rowContextmenu(manage)", (obj) => {
-            if (localStorage.getItem("ip_col") && localStorage.getItem("ip_col") !== "null") {
+            if (localStorage.getItem("ip_col")) {
                 let data = obj.data;
                 document.addEventListener("contextmenu", (e) => {
                     e.preventDefault();  // 阻止浏览器默认的右键菜单事件

@@ -1034,8 +1034,16 @@ def addOrAlterTableColumn():
     if not redisClient.getSet("crm:manage:table_uuid", table_uuid):  # 查询表uuid是否存在
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
     
-    if col_type == 2 and length == "":
-        return jsonify({"code": -1, "message": "长度不能为空"}), 400
+    col_type = int(col_type)
+    if col_type not in [1, 2, 3, 4, 5, 6]:  # 校验列类型
+        return jsonify({"code": -1, "message": "数据类型错误"}), 400
+    must_input = int(must_input)
+    is_desence = int(is_desence)
+    is_unique = int(is_unique)
+    length = int(length)
+    
+    if col_type == 2 and length > 50 and length < 1:
+        return jsonify({"code": -1, "message": "长度范围是1~50"}), 400
     
     if col_type == 6 and len(options) == 0:
         return jsonify({"code": -1, "message": "下拉选项不能为空"}), 400
@@ -1063,11 +1071,11 @@ def addOrAlterTableColumn():
                     return jsonify({"code": -1, "message": "该列已存在,请勿重复创建"}), 400
 
                 add_col_type = "VARCHAR(255)"
-                if int(col_type) == 3:
+                if col_type == 3:
                     add_col_type = "TEXT"
-                elif int(col_type) == 4:
+                elif col_type == 4:
                     add_col_type = "DATE"
-                elif int(col_type) == 5:
+                elif col_type == 5:
                     add_col_type = "DATETIME"
 
                 # 不存在重复则创建新列
@@ -1081,8 +1089,8 @@ def addOrAlterTableColumn():
 
                 try:  # 写入header表
                     _col_type = 1
-                    _value_type = int(col_type)
-                    if int(col_type) == 6:
+                    _value_type = col_type
+                    if col_type == 6:
                         _col_type = 2
                         _value_type = 1
 
@@ -1099,7 +1107,7 @@ def addOrAlterTableColumn():
                 if col_type == 6:  # 如果是下拉列表,则需要写入下拉列表数据
                 
                     try:
-                        new_options = [Options(options_name=o.name, options_value=o.value, header_value=col_alias, table_name=table.table_name) for o in options]
+                        new_options = [Options(option_name=o["name"], option_value=o["value"], header_value=col_alias, table_name=table.table_name) for o in options]
                         db_session.add_all(new_options)
                         db_session.commit()
                     except:
@@ -1158,40 +1166,42 @@ def addOrAlterTableColumn():
                         crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为固定长度: 此列存在不满足长度的值")
                         return jsonify({"code": -1, "message": "存在不满足长度的值,不允许修改"}), 400
 
-                try:  # 首先查询此列中所有不为空的数据
-                    query_not_null_sql = f"SELECT {col_alias} FROM {table.table_name} WHERE {col_alias} IS NOT NULL"
-                    query_not_null_data = db_session.execute(query_not_null_sql).fetchall()
-                finally:
-                     db_session.close()
+                if curr_header.value_type != col_type and col_type in [4, 5]:
 
-                # 校验列数据是否可以被转换为时间
-                if curr_header.value_type != col_type and col_type == 4:
-                
-                    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+                    try:  # 首先查询此列中所有不为空的数据
+                        query_not_null_sql = f"SELECT {col_alias} FROM {table.table_name} WHERE {col_alias} IS NOT NULL"
+                        query_not_null_data = db_session.execute(query_not_null_sql).fetchall()
+                    finally:
+                         db_session.close()
 
-                    for row in query_not_null_data:
-                        if not bool(date_pattern.match(row[0])):
-                            crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为日期: 此列存在日期格式错误")
-                            crmLogger.debug(f"[addOrAlterTableColumn]错误数据: {row}")
-                            return jsonify({"code": -1, "message": "存在日期格式错误,不允许修改"}), 400
+                    # 校验列数据是否可以被转换为时间
+                    if col_type == 4:
+                    
+                        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
-                if curr_header.value_type != col_type and col_type == 5:
-                
-                    datetime_pattern = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
+                        for row in query_not_null_data:
+                            if not bool(date_pattern.match(row[0])):
+                                crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为日期: 此列存在日期格式错误")
+                                crmLogger.debug(f"[addOrAlterTableColumn]错误数据: {row}")
+                                return jsonify({"code": -1, "message": "存在日期格式错误,不允许修改"}), 400
 
-                    for row in query_not_null_data:
-                        if not bool(datetime_pattern.match(row[0])):
-                            crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为时间: 此列存在时间格式错误")
-                            crmLogger.debug(f"[addOrAlterTableColumn]错误数据: {row}")
-                            return jsonify({"code": -1, "message": "存在时间格式错误,不允许修改"}), 400
+                    elif col_type == 5:
+                    
+                        datetime_pattern = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
+
+                        for row in query_not_null_data:
+                            if not bool(datetime_pattern.match(row[0])):
+                                crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为时间: 此列存在时间格式错误")
+                                crmLogger.debug(f"[addOrAlterTableColumn]错误数据: {row}")
+                                return jsonify({"code": -1, "message": "存在时间格式错误,不允许修改"}), 400
 
                 # 如果修改列是从下拉列表取值
                 if curr_header.value_type != col_type and col_type == 6:
                 
-                    new_option_name = [o.name for o in options]
+                    new_option_name = [o["name"] for o in options]
 
                     try: # 存在则判断数据是否取值与下拉列表中
-                        is_all_in_options = db_session.query(getattr(Manage.c, col_alias)).filter(getattr(Manage.c, col_alias).notin_(new_option_name)).first()
+                        is_all_in_options = db_session.query(getattr(manageTable.c, col_alias)).filter(getattr(manageTable.c, col_alias).notin_(new_option_name)).first()
                     finally:
                         db_session.close()
 
@@ -1200,10 +1210,8 @@ def addOrAlterTableColumn():
                         return jsonify({"code": -1, "message": "存在部分数据不在下拉列表中,不允许修改"}), 400
 
                     try:  # 如果type是下拉列表则更新option表             
-                        _opt = db_session.query(Options).filter(Options.header_value == col_alias, Options.table_name == table.table_name).all()
-                        if _opt:  # 如果有option则删除             
-                            db_session.delete(_opt)
-                            db_session.commit()
+                        db_session.query(Options).filter(Options.header_value == col_alias, Options.table_name == table.table_name).delete()
+                        db_session.commit()
                     except:            
                         db_session.rollback()
                         crmLogger.error(f"[addOrAlterTableColumn]删除options表发生异常: {traceback.format_exc()}")
@@ -1212,7 +1220,7 @@ def addOrAlterTableColumn():
                         db_session.close()
 
                     try:  # 重新添加选项值
-                        new_options = [Options(options_name=o.name, options_value=o.value, header_value=col_alias, table_name=table.table_name) for o in options]
+                        new_options = [Options(option_name=o["name"], option_value=o["value"], header_value=col_alias, table_name=table.table_name) for o in options]
                         db_session.add_all(new_options)
                         db_session.commit()
                     except:
@@ -1240,9 +1248,9 @@ def addOrAlterTableColumn():
                         "type": 1 if col_type != 6 else 2,
                         "name": col_name,
                         "value_type": 1 if col_type == 6 else col_type,
-                        "is_desence": int(is_desence),
-                        "is_desence": int(is_desence),
-                        "must_input": int(must_input),
+                        "is_desence": is_desence,
+                        "is_unique": is_unique,
+                        "must_input": must_input,
                         "length": length if col_type == 2 else 0,
                         "update_user": g.username
                     })

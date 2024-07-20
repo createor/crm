@@ -645,7 +645,7 @@ def modifyUser():
 
     crmLogger.info(f"[modifyUser]用户{g.username}更新了个人资料")
 
-    return jsonify({"code": 0, "message": {"ip": g.ip_addr, "name": _user.name, "username": g.username}}), 200
+    return jsonify({"code": 0, "message": {"ip": g.ip_addr, "name": reqData["nickname"], "username": g.username}}), 200
 
 @user.route("/mail", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="用户通知信息", check_ip=True)
