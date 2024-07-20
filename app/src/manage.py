@@ -94,6 +94,93 @@ def getAllTable():
     
     return jsonify({"code": 0, "message": [{"id": item.uuid, "title": item.name} for item in result]}), 200
 
+@manage.route("/ip_col", methods=methods.ALL)
+@verify(allow_methods=["GET"], module_name="查询资产表IP列", check_ip=True)
+def getTableIpCol():
+    '''查询资产表IP列'''
+    args = request.args                # 获取请求参数
+
+    table_uuid = args.get("id", None)
+    ip_col_name = args.get("ip_col", None)
+
+    if not table_uuid or not ip_col_name:
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
+    if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+    
+    try:
+        table = db_session.query(Manage.table_name).filter(Manage.uuid == table_uuid).first()
+    finally:
+        db_session.close()
+
+    if not table:
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+    
+    try:
+        col_name = db_session.query(Header.value).filter(Header.table_name == table.table_name, Header.name == ip_col_name).first()
+    finally:
+        db_session.close()
+
+    if not col_name:
+        return jsonify({"code": -1, "message": "IP列不存在"}), 400
+    
+    # 删除缓存的header
+    redisClient.delData(f"crm:header:{table.table_name}")
+    
+    return jsonify({"code": 0, "message": col_name.value}), 200
+
+@manage.route("/bind", methods=methods.ALL)
+@verify(allow_methods=["POST"], module_name="绑定资产表IP列", check_ip=True)
+def bindTableIpCol():
+    '''绑定资产表IP列'''
+    reqData = request.get_json()
+
+    if not all(key in reqData for key in ["table_id", "ip_col"]):  # 校验参数
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
+    table_uuid = reqData["table_id"]
+    ip_column = reqData["ip_col"]
+
+    if not all([table_uuid, ip_column]):
+        return jsonify({"code": -1, "message": "请求参数不完整"}), 400
+    
+    if not redisClient.getSet("crm:manage:table_uuid", table_uuid):  # 校验资产表是否存在
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+    
+    try:
+        table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
+    finally:
+        db_session.close()
+
+    if not table:
+        return jsonify({"code": -1, "message": "资产表不存在"}), 400
+
+    try:
+        exist_col = db_session.query(Header.value).filter(Header.table_name == table.table_name, Header.is_ip == 1).first()
+        if exist_col and exist_col.value != ip_column:
+            exist_col.is_ip = 0
+    except:
+        db_session.rollback()
+        crmLogger.error(f"[bindTableIpCol]更新header表发生异常: {traceback.format_exc()}")
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    finally:
+        db_session.close()
+
+    try:
+        db_session.query(Header).filter(Header.table_name == table.table_name, Header.value == ip_column).update({"is_ip": 1})
+        db_session.commit()
+    except:
+        db_session.rollback()
+        crmLogger.error(f"[bindTableIpCol]更新header表发生异常: {traceback.format_exc()}")
+        return jsonify({"code": -1, "message": "数据库异常"}), 500
+    finally:
+        db_session.close()
+     
+    crmLogger.info(f"[bindTableIpCol]用户{g.username}成功绑定了资产表{table.name}的IP列{ip_column}")
+
+    return jsonify({"code": 0, "message": "绑定成功"}), 200
+
 @manage.route("/title", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="查询资产表标题", check_ip=True)
 def queryTableTitle():
@@ -168,7 +255,7 @@ def getTableHeader():
             "length": item.length,               # 值长度
             "is_unique": bool(item.is_unique),   # 是否唯一
             "is_mark": bool(item.is_desence),    # 是否加密
-            "ip_ip": bool(item.is_ip),           # 是否ip
+            "is_ip": bool(item.is_ip),           # 是否ip
             "must_input": bool(item.must_input)  # 是否必填
         }
 
@@ -316,12 +403,13 @@ def queryTableByUuid(id):
 
         for col in columns:
             curr_value = getattr(item, col.value) if getattr(item, col.value) else ""  # 获取对应属性值
-            if col.value_type == 4:
-                curr_value = formatDate(curr_value)
-            elif col.value_type == 5:
-                curr_value = formatDate(curr_value, 2)
-            if bool(col.is_desence):                # 数据脱敏展示
-                curr_value = undesense(curr_value)
+            if curr_value:
+                if col.value_type == 4:
+                    curr_value = formatDate(curr_value)
+                elif col.value_type == 5:
+                    curr_value = formatDate(curr_value, 2)
+                if bool(col.is_desence):                # 数据脱敏展示
+                    curr_value = undesense(curr_value)
             obj[col.value] = curr_value
 
         data.append(obj)
@@ -910,6 +998,9 @@ def deleteTableData():
         crmLogger.error(f"[deleteTableData]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
+
+    # 删除数据也要清除图表缓存
+    redisClient.delData(f"crm:echart:{table.table_name}")
 
     crmLogger.info(f"[deleteTableData]用户{g.username}删除{table.name}数据成功")
 

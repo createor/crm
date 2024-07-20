@@ -285,11 +285,18 @@ var addNewTable = () => {
     return false;
 }
 
+/**
+ * @description 在创建、修改图表规则后刷新图表
+ * @param {String} tableUid 表uuid
+ */
 function refreshCharts (tableUid) {
     let win = window.frames["crm_manage"];
     win.contentWindow.showCharts(tableUid);
 }
 
+/**
+ * @description 在录入数据或者修改数据后刷新数据
+ */
 function refreshManage () {
     let win = window.frames["crm_manage"];
     win.contentWindow.refreshData();
@@ -297,20 +304,19 @@ function refreshManage () {
 
 /**
  * @description 新增图表规则
- * @param {String} tableId 表uuid
  */
 var addNewRule = () => {
     let table_id = localStorage.getItem("tableUid");
-    let header = JSON.parse(localStorage.getItem("header"))[table_id] || [];
-    let option_template = "";  // 字段选项模板
-    let date_template = "";    // 时间选项模板
+    let header = JSON.parse(localStorage.getItem("header"))[table_id];
+    let option_template = null;  // 字段选项模板
+    let date_template = null;    // 时间选项模板
     header.forEach((item) => {
         option_template += `<option value="${item.field}">${item.title}</option>`;
-        if (item.value_type === 5 || item.value_type === 6) {
+        if (item.value_type === 4 || item.value_type === 5) {
             date_template += `<option value="${item.field}">${item.title}</option>`;
         }
     });
-    let tab_template = "";     // tab页模板
+    let tab_template = null;     // tab页模板
     let number = new Array(0, 1, 2);
     number.forEach((item) => {
         tab_template += `<div class="layui-tab-item${item === 0 ? " layui-show" : ""}"}>
@@ -482,7 +488,6 @@ var addNewRule = () => {
 
 /**
  * @description 删除选中行的数据
- * @param {String} tableId 资产表uuid
  * @param {Array} data 要删除的数据
  */
 var delColData = (data) => {
@@ -513,6 +518,7 @@ var delColData = (data) => {
                             layer.msg("删除成功", { icon: 1 });
                             // reload数据
                             refreshManage();
+                            refreshCharts(table_id);
                         } else if (res.code === 302) {
                             window.location.href = res.message;
                         } else {
@@ -538,171 +544,174 @@ var delColData = (data) => {
 
 /**
  * @description 录入或者编辑数据
- * @param {String} tableId 表uuid
  * @param {Object} colData 列数据
  */
 var addOrEditData = (colData) => {
-    let table_id = localStorage.getItem("tableUid");  // 资产表uuid
+    let table_id = localStorage.getItem("tableUid");                    // 资产表uuid
     let header = JSON.parse(localStorage.getItem("header"))[table_id];  // 资产表header
     let formData = colData;
-    let date_array = [];  // 日期数组
-    let time_array = [];  // 时间数组
-    let mark_array = [];  // 脱敏的数组
-    if (header) {
-        let form_item_templ = "";  // 表单模板
-        header.forEach((item) => {
-            if (item.is_mark) {
-                mark_array.push(item.field);
-            }
-            if (item.col_type === 2) {      // 设置下列列表
+    let date_array = [];       // 日期数组
+    let time_array = [];       // 时间数组
+    let mark_array = [];       // 脱敏的数组
+    let form_item_templ = "";  // 表单模板
+    header.forEach((item) => {
+        if (item.is_mark) {
+            mark_array.push(item.field);
+        }
+        if (item.col_type === 2) {      // 设置下列列表
+            form_item_templ += `<div class="layui-form-item">
+                                    <label class="layui-form-label">${item.title}</label>
+                                    <div class="layui-input-block" style="width: 250px;">
+                                        <select name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""}>
+                                            <option value="">请选择</option>
+                                            ${Object.keys(item.option).map((key) => {
+                                                return `<option value="${key}">${item.option[key]}</option>`;
+                                            }).join("")}
+                                        </select>
+                                    </div>
+                                </div>`;
+        } else {
+            if (item.value_type === 4) {  // 设置选择日期
                 form_item_templ += `<div class="layui-form-item">
                                         <label class="layui-form-label">${item.title}</label>
                                         <div class="layui-input-block" style="width: 250px;">
-                                            <select name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""}>
-                                                <option value="">请选择</option>
-                                                ${Object.keys(item.option).map((key) => {
-                                                    return `<option value="${key}">${item.option[key]}</option>`;
-                                                }).join("")}
-                                            </select>
+                                            <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} id="date_${item.field}" placeholder="yyyy-MM-dd" autocomplete="off" class="layui-input">
                                         </div>
                                     </div>`;
+                date_array.push(item.field);
+            } else if (item.value_type === 5) {  // 设置选择时间
+                form_item_templ += `<div class="layui-form-item">
+                                        <label class="layui-form-label">${item.title}</label>
+                                        <div class="layui-input-block" style="width: 250px;">
+                                            <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} id="time_${item.field}" placeholder="yyyy-MM-dd HH:mm:ss" autocomplete="off" class="layui-input">
+                                        </div>
+                                    </div>`;
+                time_array.push(item.field);
             } else {
-                if (item.value_type === 4) {  // 设置选择日期
-                    form_item_templ += `<div class="layui-form-item">
-                                            <label class="layui-form-label">${item.title}</label>
-                                            <div class="layui-input-block" style="width: 250px;">
-                                                <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} id="date_${item.field}" placeholder="yyyy-MM-dd" autocomplete="off" class="layui-input">
-                                            </div>
-                                        </div>`;
-                    date_array.push(item.field);
-                } else if (item.value_type === 5) {  // 设置选择时间
-                    form_item_templ += `<div class="layui-form-item">
-                                            <label class="layui-form-label">${item.title}</label>
-                                            <div class="layui-input-block" style="width: 250px;">
-                                                <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} id="time_${item.field}" placeholder="yyyy-MM-dd HH:mm:ss" autocomplete="off" class="layui-input">
-                                            </div>
-                                        </div>`;
-                    time_array.push(item.field);
-                } else {
-                    form_item_templ += `<div class="layui-form-item">
-                                            <label class="layui-form-label">${item.title}${item.must_input ? `<span style="color: red;">*</span>` : ""}</label>
-                                            <div class="layui-input-block" style="width: 250px;">
-                                                <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} autocomplete="off" class="layui-input"></input>
-                                            </div>
-                                        </div>`;
-                }
+                form_item_templ += `<div class="layui-form-item">
+                                        <label class="layui-form-label">${item.title}${item.must_input ? `<span style="color: red;">*</span>` : ""}</label>
+                                        <div class="layui-input-block" style="width: 250px;">
+                                            <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} autocomplete="off" class="layui-input"></input>
+                                        </div>
+                                    </div>`;
             }
-        });
-        layer.open({
-            type: 1,
-            title: "数据操作",
-            area: ["500px", "auto"],
-            maxHeight: 680,
-            shade: 0.6,
-            shadeClose: false,
-            move: false,
-            resize: false,
-            maxmin: false,
-            content: `<div style="max-height: 680px;overflow-y: auto;padding-top: 5px;">
-                        <form class="layui-form" lay-filter="tableData">
-                            ${form_item_templ}
-                            <div class="layui-form-item">
-                                <button type="button" class="layui-btn" lay-submit lay-filter="add" style="margin-left: 200px;">${formData ? "修改" : "新增"}数据</button>
-                            </div>
-                        </form>
-                      </div>`,
-            success: (_, index) => {
-                form.render(null, "tableData");   // 渲染表格
-                date_array.forEach((item) => {
-                    laydate.render({ // 渲染日期
-                        elem: `#date_${item}`
-                    });
+        }
+    });
+    layer.open({
+        type: 1,
+        title: "数据操作",
+        area: ["500px", "auto"],
+        maxHeight: 680,
+        shade: 0.6,
+        shadeClose: false,
+        move: false,
+        resize: false,
+        maxmin: false,
+        content: `<div style="max-height: 680px;overflow-y: auto;padding-top: 5px;">
+                    <form class="layui-form" lay-filter="tableData">
+                        ${form_item_templ}
+                        <div class="layui-form-item">
+                            <button type="button" class="layui-btn" lay-submit lay-filter="add" style="margin-left: 200px;">${formData ? "修改" : "新增"}数据</button>
+                        </div>
+                    </form>
+                  </div>`,
+        success: (_, index) => {
+            form.render(null, "tableData");   // 渲染表格
+            date_array.forEach((item) => {
+                laydate.render({ // 渲染日期
+                    elem: `#date_${item}`
                 });
-                time_array.forEach((item) => {
-                    laydate.render({ // 渲染时间
-                        elem: `#time_${item}`,
-                        type: "datetime"
-                    });
+            });
+            time_array.forEach((item) => {
+                laydate.render({ // 渲染时间
+                    elem: `#time_${item}`,
+                    type: "datetime"
                 });
-                if (formData) {  // 填充表单
-                    if (mark_array.length > 0) {  // 脱敏数据要展示全
-                        let undeseData = new Object();
-                        $.ajax({
-                            url: `/crm/api/v1/manage/undesense?table_id=${table_id}&row_id=${formData._id}&key=${mark_array.toString()}`,
-                            type: "GET",
-                            success: (res) => {
-                                if (res.code === 0) {
-                                    undeseData = res.message;
-                                } else if (res.code === 302) {
-                                    window.location.href = res.message;
-                                }
-                                return false;
-                            },
-                            error: (err) => {
-                                console.log(err);
-                                return false;
-                            },
-                            complete: () => {
-                                formData = Object.assign({}, formData, undeseData);  // 合并对象
-                                form.val("tableData", formData);
-                            }
-                        });
-                    } else {
-                        form.val("tableData", formData);
-                    }
-                }
-                form.on("submit(add)", (data) => {
-                    let field = data.field;
-                    let loadIndex = "";
+            });
+            if (formData) {  // 填充表单
+                if (mark_array.length > 0) {  // 脱敏数据要展示全
+                    let undeseData = new Object();
                     $.ajax({
-                        url: `/crm/api/v1/manage/add_or_edit`,
-                        type: "POST",
-                        contentType: "application/json;charset=utf-8",
-                        data: JSON.stringify(Object.assign({}, {
-                            "mode": formData ? "edit" : "add",
-                            "id": formData ? formData._id : "",
-                            "table_id": table_id  
-                        }, field)),
-                        beforeSend: () => {
-                            loadIndex = layer.load(2);
-                        },
+                        url: `/crm/api/v1/manage/undesense?table_id=${table_id}&row_id=${formData._id}&key=${mark_array.toString()}`,
+                        type: "GET",
                         success: (res) => {
-                            layer.close(loadIndex);
                             if (res.code === 0) {
-                                layer.close(index);
-                                layer.msg("成功", { icon: 1 });
-                                refreshManage();
+                                undeseData = res.message;
                             } else if (res.code === 302) {
                                 window.location.href = res.message;
-                            } else {
-                                layer.msg(`失败: ${res.message}`, { icon: 2 });
                             }
                             return false;
                         },
                         error: (err) => {
-                            layer.close(loadIndex);
-                            let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                            layer.msg(errMsg.message, { icon: 2 });
+                            console.log(err);
                             return false;
+                        },
+                        complete: () => {
+                            formData = Object.assign({}, formData, undeseData);  // 合并对象
+                            form.val("tableData", formData);
                         }
-                    })
-                    return false;
-                });
+                    });
+                } else {
+                    form.val("tableData", formData);
+                }
             }
-        });
-    }
+            form.on("submit(add)", (data) => {
+                let field = data.field;
+                let loadIndex = "";
+                $.ajax({
+                    url: `/crm/api/v1/manage/add_or_edit`,
+                    type: "POST",
+                    contentType: "application/json;charset=utf-8",
+                    data: JSON.stringify(Object.assign({}, {
+                        "mode": formData ? "edit" : "add",
+                        "id": formData ? formData._id : "",
+                        "table_id": table_id  
+                    }, field)),
+                    beforeSend: () => {
+                        loadIndex = layer.load(2);
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
+                        if (res.code === 0) {
+                            layer.close(index);
+                            layer.msg("成功", { icon: 1 });
+                            refreshManage();
+                            refreshCharts(table_id);
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
+                        } else {
+                            layer.msg(`失败: ${res.message}`, { icon: 2 });
+                        }
+                        return false;
+                    },
+                    error: (err) => {
+                        layer.close(loadIndex);
+                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                        layer.msg(errMsg.message, { icon: 2 });
+                        return false;
+                    }
+                })
+                return false;
+            });
+        }
+    });
+    
 }
 
 /**
  * @description 新增或修改列
- * @param {String} tableId 表uuid
  */ 
 var addOrAlterCol = () => {
     let table_id = localStorage.getItem("tableUid");
+    let header = JSON.parse(localStorage.getItem("header"))[table_id];
+    let all_header_options = null;
+    header.forEach((item) => {
+        all_header_options += `<option value="${item.field}">${item.title}</option>`;
+    });
     layer.open({
         type: 1,
         title: "列操作",
-        area: ["500px", "630px"],
+        area: ["510px", "670px"],
         shade: 0.6,
         shadeClose: false,
         resize: false,
@@ -710,6 +719,12 @@ var addOrAlterCol = () => {
         maxmin: false,
         content: `<div>
                     <form class="layui-form" style="margin-top: 10px;" lay-filter="column">
+                        <div class="layui-form-item">
+                            <div class="layui-input-block">
+                                <input type="radio" name="mode" lay-filter="mode" value="add" title="新增列" checked>
+                                <input type="radio" name="mode" lay-filter="mode" value="alter" title="修改列"><div style="width: 150px;display: inline-block;"><select name="hasColumn" lay-filter="hasColumn"><option value="">选择要修改的列</option>${all_header_options}</select></div>
+                            </div>
+                        </div>
                         <div class="layui-form-item">
                             <label class="layui-form-label" style="width: 85px;">列名</label>
                             <div class="layui-input-block">
@@ -830,30 +845,124 @@ var addOrAlterCol = () => {
                     maxmin: false,
                     content: `<div>
                                 ${Object.keys(has_options).map((k) => {
-                                    return `<div><span>${has_options[k]}</span><button onclick="()=>{console.log('1');}"><i class="layui-icon layui-icon-close"></i></button></div>`;
+                                    return `<div style="width: 80%;margin: 5px 5px 5px 15px;border: 1px solid #eee;line-height: 30px;"><span style="margin-left: 10px;">${has_options[k]}</span><button class="layui-btn layui-btn-primary layui-border layui-btn-xs" style="position: absolute;right: 50px;margin: 4px;border: none;" onclick="delMap('${k}', this)"><i class="layui-icon layui-icon-close"></i></button></div>`;
                                 }).join("")}
                               </div>`,
-                    success: (_, dindex) => {
-
+                    success: () => {
+                        // 删除字段
+                        function delMap(k, that) {
+                            $(that).parent().remove();
+                            delete has_options[k];
+                            $("#down_options").find(`option[value="${k}"]`).remove();
+                            form.render("select", "column");
+                        }
+                        window.delMap = window.delMap || delMap;
                     }
                 })
             });
+            form.on("radio(mode)", (data) =>{
+                let elem = data.elem
+                let value = elem.value;
+                if (value === "add") {
+                    // 清空表单
+                    form.val("column", {
+                        "col_name": "",
+                        "col_name_en": "",
+                        "data_type": 1,
+                        "length": 10,
+                        "is_unique": 0,
+                        "is_required": 0,
+                        "is_mask": 0
+                    });
+                    $("#down_options").empty();
+                    has_options = {};
+                    form.render("select", "column");
+                } else if (value === "alter") {
+                    if ($("[name='hasColumn']").val() !== "") {
+                        let c_o = $("[name='hasColumn']").val();
+                        console.log(c_o);
+                        header.forEach((item) => {
+                            if (item.field === c_o) {
+                                // 表单赋值
+                                form.val("column", {
+                                    "col_name": item.title,
+                                    "col_name_en": item.field,
+                                    "data_type": item.col_type === 2 ? 6 : item.value_type,
+                                    "length": item.length === 0 ? 10 : item.length,
+                                    "is_unique": item.is_unique ? 1 : 0,
+                                    "is_required": item.must_input ? 1 : 0,
+                                    "is_mask": item.is_mark ? 1 : 0
+                                });
+                                if (item.col_type === 2) {
+                                    has_options = item.option;
+                                    $("#down_options").empty();
+                                    Object.keys(item.option).forEach((k) => {
+                                        $("#down_options").append(`<option value="${k}">${item.option[k]}</option>`);
+                                    });
+                                }
+                                form.render("select", "column");
+                            }
+                        });
+                    }
+                }
+            });
+            form.on("select(hasColumn)", (data) => {
+                if ($("input[name='mode']:checked").val() === "alter") {
+                    let value = data.value;
+                    header.forEach((item) => {
+                        if (item.field === value) {
+                            form.val("column", {
+                                "col_name": item.title,
+                                "col_name_en": item.field,
+                                "data_type": item.col_type === 2 ? 6 : item.value_type,
+                                "length": item.length === 0 ? 10 : item.length,
+                                "is_unique": item.is_unique ? 1 : 0,
+                                "is_required": item.must_input ? 1 : 0,
+                                "is_mask": item.is_mark ? 1 : 0
+                            });
+                            if (item.col_type === 2) {
+                                has_options = item.option;
+                                $("#down_options").empty();
+                                Object.keys(item.option).forEach((k) => {
+                                    $("#down_options").append(`<option value="${k}">${item.option[k]}</option>`);
+                                });
+                            }
+                            form.render("select", "column");
+                        }
+                    })
+                }
+            });
             form.on("submit(addNewCol)", (data) => {
                 let field = data.field;
-                let loadIndex = "";
-                // 获取select下列列表元素
+                let loadIndex = null;
                 let option = [];
-                $("#down_options").each(function () {
-                    $("option", this).each(function () {
-                        option.push({"name": $(this).text(), "value": $(this).val()});
+                // 校验数据
+                let curr_type = $("input[name='data_type']").val();
+                if (curr_type === "2") {
+                    // 校验长度设置
+                    let curr_length = $("input[name='length']").val();
+                    if (parseInt(curr_length) > 50 || parseInt(curr_length) < 1) {
+                        layer.msg("长度取值范围是1-50", { icon: 2 });
+                        return false;
+                    }
+                } else if (curr_type === "6") {
+                    // 获取select下列列表元素
+                    $("#down_options").each(function () {
+                        $("option", this).each(function () {
+                            option.push({"name": $(this).text(), "value": $(this).val()});
+                        });
                     });
-                });
+                    if (option.length === 0) {
+                        layer.msg("请添加下拉选项", { icon: 2 });
+                        return false;
+                    }
+                }
                 $.ajax({
                     url: "/crm/api/v1/manage/add_or_alter_column",
                     type: "POST",
                     contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
-                        "mode": "add",
+                        "mode": $("input[name='mode']:checked").val(),
                         "table_uuid": table_id,
                         "col_name": field.col_name,
                         "col_alias": field.col_name_en,
@@ -865,18 +974,20 @@ var addOrAlterCol = () => {
                         "length": field.length
                     }),
                     beforeSend: () => {
-                        loadIndex = layer.load(1);
+                        loadIndex = layer.load(2);
                     },
                     success: (res) => {
                         layer.close(loadIndex);
                         if (res.code === 0) {
                             layer.close(index);
-                            layer.msg("新增列成功", { icon: 1 });
-                            // TODO 刷新表格
+                            layer.msg("成功", { icon: 1 });
+                            // 刷新界面
+                            let win = window.frames["crm_manage"];
+                            win.contentWindow.loadManageTable(table_id);
                         } else if (res.code === 302) {
                             window.location.href = res.message;
                         } else {
-                            layer.msg(`新增失败: ${res.message}`, { icon: 2 });
+                            layer.msg(`失败: ${res.message}`, { icon: 2 });
                         }
                         return false;
                     },
@@ -990,7 +1101,6 @@ window.showTaskDeail = window.showTaskDeail || showTaskDeail;
 
 /**
  * @description 批量检测
- * @param {String} tableId 表uuid
  */ 
 var mulitDetect = () => {
     let table_id = localStorage.getItem("tableUid");
@@ -1065,8 +1175,6 @@ var mulitDetect = () => {
                         limit: 2,
                         limits: [2],
                         text: {none: "暂无数据,请先创建任务"},
-                        toolbar: true,
-                        defaultToolbar:[{title: "刷新", layEvent: "LAYTABLE_REFRESH", icon: "layui-icon-refresh"}],
                         parseData: (res) => {
                             if (res.code === 302) {
                                 window.location.href = res.message;
@@ -1093,13 +1201,7 @@ var mulitDetect = () => {
                                 if (d.status === 1) return `<button class="layui-btn layui-btn-xs" onclick="showProgress('${d.id}')">查看进度</button>`;
                                 if (d.status === 2) return `<button class="layui-btn layui-btn-xs" onclick="showTaskDeail('${table_id}','${d.id}')">查看详情</button>`;
                             } }
-                        ]],
-                        done: () => {
-                            table.on("tool(historyTask)", (obj) => {
-                                console.log(obj);
-                                table.reloadData("");
-                            });
-                        }
+                        ]]
                     });
                 }
             });
@@ -1120,7 +1222,7 @@ var mulitDetect = () => {
                         "column": $("#ip_col").val()
                     }),
                     beforeSend: () => {
-                        loadIndex = layer.load();
+                        loadIndex = layer.load(2);
                     },
                     success: (res) => {
                         layer.close(loadIndex);
@@ -1163,7 +1265,7 @@ function startOrStopNotify (mode, task_id) {
             "task_id": task_id
         }),
         beforeSend: () => {
-            loadIndex = layer.load();
+            loadIndex = layer.load(2);
         },
         success: (res) => {
             layer.close(loadIndex);
@@ -1190,7 +1292,6 @@ window.startOrStopNotify = window.startOrStopNotify || startOrStopNotify;
 
 /**
  * @description 新建到期通知
- * @param {String} tableId 表uuid
  */
 var createNotify = () => {
     let table_id = localStorage.getItem("tableUid");
@@ -1264,8 +1365,6 @@ var createNotify = () => {
                         limit: 2,
                         limits: [2],
                         text: {none: "暂无数据,请先创建任务"},
-                        toolbar: true,
-                        defaultToolbar:[{title: "刷新", layEvent: "LAYTABLE_REFRESH", icon: "layui-icon-refresh"}],
                         parseData: (res) => {
                             if (res.code === 302) {
                                 window.location.href = res.message;
@@ -1312,7 +1411,7 @@ var createNotify = () => {
                         "keyword": field.date_col
                     }),
                     beforeSend: () => {
-                        loadIndex = layer.load(1);
+                        loadIndex = layer.load(2);
                     },
                     success: (res) => {
                         layer.close(loadIndex);
@@ -1341,7 +1440,6 @@ var createNotify = () => {
 
 /**
  * @description 显示历史记录
- * @param {String} tableId
  */
 var showHistory = () => {
     let table_id = localStorage.getItem("tableUid");
@@ -1430,7 +1528,6 @@ var showHistory = () => {
 
 /**
  * @description 导出表格数据
- * @param {String} tableId 表id 
  */
 var exportTableData = () => {
     let table_id = localStorage.getItem("tableUid");
@@ -1561,6 +1658,88 @@ var showProgress = (task_id, callback) => {
             eventSource.onerror = () => {
                 eventSource.close();
             };
+        }
+    });
+}
+
+/**
+ * @description 绑定IP列
+ */
+var bindIP = () => {
+    let checkIPCol = JSON.parse(localStorage.getItem("ip_col")) || {};
+    let table_id = localStorage.getItem("tableUid");
+    let header = JSON.parse(localStorage.getItem("header"))[table_id];
+    let option_obj = new Object();
+    let option_templ = null;
+    header.forEach((item) => {
+        if (item.col_type !== 2 && item.value_type !== 4 && item.value_type !== 5) {
+            if (checkIPCol && item.field === checkIPCol["field"]) {
+                option_templ += `<option value="${item.field}" selected>${item.title}</option>`;
+            } else {
+                option_templ += `<option value="${item.field}">${item.title}</option>`;
+            }
+            option_obj[item.field] = item.title;
+        }
+    });
+    layer.open({
+        type: 1,
+        title: "绑定IP列",
+        area: ["360px", "200px"],
+        shade: 0.6,
+        shadeClose: false,
+        move: false,
+        resize: false,
+        maxmin: false,
+        content: `<div class="layui-form" lay-filter="bindIpForm">
+                    <div class="layui-form-item" id="tableForIp" style="margin-top: 5px;">
+                        <label class="layui-form-label">IP列</label>
+                        <div class="layui-input-block" style="width: 200px;">
+                            <select name="ip_column" lay-verify="required">
+                                <option value="">请选择IP列</option>
+                                ${option_templ}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <button class="layui-btn" style="margin-left: 140px;margin-top: 10px;" lay-submit lay-filter="bindIp">绑定</button>
+                    </div>
+                  </div>`,
+        success: (_, index) => {
+            let loadIndex = null;
+            form.render(null, "bindIpForm");
+            form.on("submit(bindIp)", (data) => {
+                $.ajax({
+                    url: "/crm/api/v1/manage/bind",
+                    type: "POST",
+                    contentType: "application/json;charset=utf-8",
+                    data: JSON.stringify({
+                        "table_id": table_id,
+                        "ip_col": data.field.ip_column
+                    }),
+                    beforeSend: () => {
+                        loadIndex = layer.load(2);
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
+                        if (res.code === 0) {
+                            layer.close(index)
+                            layer.msg("绑定成功", { icon: 1 });
+                        } else if (res.code === 302) {
+                            window.location.href = res.message;
+                        } else {
+                            layer.msg(`绑定失败: ${res.message}`, { icon: 2 });
+                        }
+                        return false;
+                    },
+                    error: (err) => {
+                        layer.close(loadIndex);
+                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                        layer.msg(errMsg.message, { icon: 2 });
+                        return false;
+                    }
+                })
+                localStorage.setItem("ip_col", JSON.stringify({"field": data.field.ip_column, "title": option_obj[data.field.ip_column]}));
+            });
         }
     });
 }

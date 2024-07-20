@@ -52,6 +52,8 @@
         const tree = layui.tree;
         const $ = layui.jquery;
 
+        localStorage.setItem("filter", null);  // 初始化筛选条件
+
         // 渲染日志表格
         table.render({
             elem: "#log",
