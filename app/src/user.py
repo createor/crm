@@ -49,8 +49,8 @@ def userLogin():
     finally:
         db_session.close()
 
-    if result is None:  # 用户名不存在
-        crmLogger.error(f"用户{username}登陆失败: 用户名不存在")
+    if not result:  # 用户名不存在
+        crmLogger.error(f"[userLogin]用户{username}登陆失败: 用户名不存在")
         return jsonify({"code": -1, "message": "用户名或密码错误"}), 200
     
     if result.password != hashlib.md5((password.upper() + SALE).encode()).hexdigest().lower():  # 密码错误
@@ -63,23 +63,23 @@ def userLogin():
                         db_session.commit()
                 except:
                     db_session.rollback()  # 发生异常则回滚数据
-                    crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")  # 日志记录
+                    crmLogger.error(f"[userLogin]更新user表发生异常: {traceback.format_exc()}")  # 日志记录
                     return jsonify({"code": -1, "message": "数据库异常"}), 500     
                 finally:
                     db_session.close()
-                crmLogger.error(f"用户{username}登陆失败: 用户失败次数过多,已被锁定")
+                crmLogger.error(f"[userLogin]用户{username}登陆失败: 用户失败次数过多,已被锁定")
                 return jsonify({"code": -1, "message": "用户已被锁定"}), 200  
             else:
-                redisClient.setIncr("crm:{}:failed".format(username))  # 没有超过次数则在redis中记录加1
-        crmLogger.error(f"用户{username}登陆失败: 密码错误")
+                redisClient.setIncr(f"crm:{username}:failed")  # 没有超过次数则在redis中记录加1
+        crmLogger.error(f"[userLogin]用户{username}登陆失败: 密码错误")
         return jsonify({"code": -1, "message": "用户名或密码错误"}), 200
 
     # 判断用户状态
     if result.status == 0:
-        crmLogger.error(f"用户{username}登陆失败: 用户失败次数过多,已被锁定")
+        crmLogger.error(f"[userLogin]用户{username}登陆失败: 用户失败次数过多,已被锁定")
         return jsonify({"code": -1, "message": "用户已被锁定"}), 200
     elif result.status == 2:
-        crmLogger.error(f"用户{username}登陆失败: 用户已过期")
+        crmLogger.error(f"[userLogin]用户{username}登陆失败: 用户已过期")
         return jsonify({"code": -1, "message": "用户已过期"}), 200
     
     if result.type == 2 and result.expire_time < date.today():  # 判断用户是否是临时用户且授权是否过期
@@ -89,16 +89,16 @@ def userLogin():
             db_session.commit()
         except:
             db_session.rollback()
-            crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[userLogin]更新user表发生异常: {traceback.format_exc()}")
             return jsonify({"code": -1, "message": "数据库异常"}), 500
         finally:
             db_session.close()
     
-        crmLogger.error(f"用户{username}登陆失败: 用户已过期")
+        crmLogger.error(f"[userLogin]用户{username}登陆失败: 用户已过期")
         return jsonify({"code": -1, "message": "用户已过期"}), 200
     
     if result.pwd_expire_time < date.today():  # 判断密码是否过期
-        crmLogger.error(f"用户{username}登陆失败: 密码已过期")
+        crmLogger.error(f"[userLogin]用户{username}登陆失败: 密码已过期")
         return jsonify({"code": -1, "message": "用户密码已过期"}), 200
 
     # 登录成功
@@ -113,7 +113,7 @@ def userLogin():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[userLogin]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
@@ -129,7 +129,7 @@ def userLogin():
 
 @user.route("/logout", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="用户登出", check_ip=True)
-def UserLogout():
+def userLogout():
     '''用户登出'''
     session.pop("username", None)  # 清除session
 
@@ -139,11 +139,11 @@ def UserLogout():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[userLogout]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功登出系统")  # 写入日志文件
+    crmLogger.info(f"[userLogout]用户{g.username}成功登出系统")  # 写入日志文件
 
     return jsonify({"code": 0, "message": "登出成功"}), 200
 
@@ -175,11 +175,11 @@ def queryUser():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[queryUser]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功查询所有用户")
+    crmLogger.info(f"[queryUser]用户{g.username}成功查询所有用户")
 
     return jsonify({
         "code": 0,
@@ -213,6 +213,7 @@ def addUser():
         db_session.close()
 
     if is_exist_user:
+        crmLogger.error(f"[addUser]用户{g.username}创建用户失败: {username}用户已存在,请勿重复创建")
         return jsonify({"code": -1, "message": f"{username}用户已存在,请勿重复创建"}), 200
     
     if int(user_type) == 2:
@@ -234,7 +235,7 @@ def addUser():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入user表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[addUser]写入user表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -245,12 +246,12 @@ def addUser():
         db_session.commit()  # 提交事务
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[addUser]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功创建了用户{username}")
-    crmLogger.debug(f"创建用户信息: name={name}, username={username}, type={user_type}, expire_time={expire_time}, company={company}")
+    crmLogger.info(f"[addUser]用户{g.username}成功创建了用户{username}")
+    crmLogger.debug(f"[addUser]创建用户信息: name={name}, username={username}, type={user_type}, expire_time={expire_time}, company={company}")
 
     return jsonify({"code": 0, "message": "用户创建成功"}), 200
 
@@ -279,7 +280,7 @@ def editUser():
         db_session.close()
 
     if not result:  # 判断用户是否存在
-        crmLogger.error(f"编辑用户{username}失败: 该用户不存在")
+        crmLogger.error(f"[editUser]用户{g.username}编辑用户{username}失败: 该用户不存在")
         return jsonify({"code": -1, "message": "用户不存在"}), 400
 
     userStatus = None
@@ -290,7 +291,7 @@ def editUser():
         if expire_time and datetime.strptime(expire_time, "%Y-%m-%d").date() > date.today():  # 如果用户是临时用户且授权时间大于今天则将过期状态改为正常
             userStatus = 1 if result.status == 2 else result.status
         else:
-            crmLogger.error(f"编辑用户{username}失败: 临时用户未选择过期时间")
+            crmLogger.error(f"[editUser]用户{g.username}编辑用户{username}失败: 临时用户未选择过期时间")
             return jsonify({"code": -1, "message": "请选择临时用户过期时间"}), 400
         
     try:  # 更新用户信息
@@ -305,7 +306,7 @@ def editUser():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[editUser]更新user表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -316,12 +317,12 @@ def editUser():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[editUser]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功编辑了用户{username}的信息")
-    crmLogger.debug(f"用户{username}更新信息: name={nickname}, type={user_type}, expire_time={expire_time}, status={userStatus}, company={company}")
+    crmLogger.info(f"[editUser]用户{g.username}成功编辑了用户{username}的信息")
+    crmLogger.debug(f"[editUser]用户{username}更新信息: name={nickname}, type={user_type}, expire_time={expire_time}, status={userStatus}, company={company}")
 
     return jsonify({"code": 0, "message": "用户编辑成功"}), 200
 
@@ -347,7 +348,7 @@ def deleteUser():
             db_session.commit()
     except:
         db_session.rollback()  # 回滚数据
-        crmLogger(f"删除user表发生异常: {traceback.format_exc()}")  # 日志记录
+        crmLogger(f"[deleteUser]删除user表发生异常: {traceback.format_exc()}")  # 日志记录
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -358,11 +359,11 @@ def deleteUser():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[deleteUser]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功删除了用户{username}")
+    crmLogger.info(f"[deleteUser]用户{g.username}成功删除了用户{username}")
 
     return jsonify({"code": 0, "message": "删除用户成功"}), 200
 
@@ -385,14 +386,14 @@ def lockUser():
         _user = db_session.query(User).filter(User.uid == user_id, User.username == username).first()
         if _user:
             if _user.status == 2:
-                crmLogger.error(f"锁定用户{username}失败: 用户已过期")
+                crmLogger.error(f"[lockUser]用户{g.username}锁定用户{username}失败: 用户已过期")
                 return jsonify({"code": -1, "message": "无法锁定已过期用户"}), 400
             elif _user.status == 1:
                 _user.status = 0
                 db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[lockUser]更新user表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -403,11 +404,11 @@ def lockUser():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[lockUser]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功锁定了用户{username}")
+    crmLogger.info(f"[lockUser]用户{g.username}成功锁定了用户{username}")
 
     return jsonify({"code": 0, "message": "用户锁定成功"}), 200
 
@@ -430,14 +431,14 @@ def unlockUser():
         _user = db_session.query(User).filter(User.uid == user_id, User.username == username).first()
         if _user:
             if _user.status == 2:
-                crmLogger.error(f"用户{username}解锁失败: 用户已过期")
+                crmLogger.error(f"[unlockUser]用户{g.username}解锁用户{username}失败: 用户已过期")
                 return jsonify({"code": -1, "message": "无法解锁已过期用户"}), 400
             elif _user.status == 0:
                 _user.status = 1
                 db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[unlockUser]更新user表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -448,11 +449,11 @@ def unlockUser():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[unlockUser]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功解锁了用户{username}")
+    crmLogger.info(f"[unlockUser]用户{g.username}成功解锁了用户{username}")
 
     return jsonify({"code": 0, "message": "用户解锁成功"}), 200
 
@@ -477,7 +478,7 @@ def setPassword():
         db_session.close()
 
     if not is_right_old_passwd:
-        crmLogger.error(f"用户{g.username}更新密码失败: 旧密码不正确")
+        crmLogger.error(f"[setPassword]用户{g.username}更新密码失败: 旧密码不正确")
         return jsonify({ "code": -1, "message": "旧密码不正确"}), 200
     
     try:  # 更新数据库中用户的密码和密码过期时间
@@ -485,7 +486,7 @@ def setPassword():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[setPassword]更新user表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -496,11 +497,11 @@ def setPassword():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表异常: {traceback.format_exc()}")
+        crmLogger.error(f"[setPassword]写入log表异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功修改了密码")
+    crmLogger.info(f"[setPassword]用户{g.username}成功修改了密码")
 
     return jsonify({"code": 0, "message": "密码更新成功"}), 200
 
@@ -524,7 +525,7 @@ def resetPwd():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[resetPwd]更新user表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -535,11 +536,11 @@ def resetPwd():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[resetPwd]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功重置了用户{username}的密码")
+    crmLogger.info(f"[resetPwd]用户{g.username}成功重置了用户{username}的密码")
 
     return jsonify({"code": 0, "message": "密码重置成功"}), 200
 
@@ -583,7 +584,7 @@ def firstLogin():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[firstLogin]更新user表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -599,7 +600,7 @@ def listUser():
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}查询所有用户列表信息")
+    crmLogger.info(f"[listUser]用户{g.username}查询所有用户列表信息")
 
     return jsonify({
         "code": 0,
@@ -627,7 +628,7 @@ def modifyUser():
             db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"更新user表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[modifyUser]更新user表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -638,11 +639,11 @@ def modifyUser():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"更新log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[modifyUser]更新log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}更新了个人资料")
+    crmLogger.info(f"[modifyUser]用户{g.username}更新了个人资料")
 
     return jsonify({"code": 0, "message": {"ip": g.ip_addr, "name": _user.name, "username": g.username}}), 200
 
@@ -697,7 +698,7 @@ def readMail():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"更新notice表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[readMail]更新notice表发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -708,10 +709,10 @@ def readMail():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[readMail]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}将通知{msg_id}标为已读")
+    crmLogger.info(f"[readMail]用户{g.username}将通知{msg_id}标为已读")
 
     return jsonify({"code": 0, "message": "已标为已读"}), 200

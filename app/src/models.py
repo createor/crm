@@ -35,7 +35,7 @@ db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind
 Base = declarative_base()
 Base.query = db_session.query_property()
 
-def init_cache():
+def init_cache() -> None:
     '''
     初始化redis缓存
     '''
@@ -87,15 +87,15 @@ def init_cache():
                 _r_dicts = [
                     {c.name: getattr(u, c.name) for c in u.__table__.columns} for u in _r
                 ]
-                redisClient.setData(f"crm:rule:{item.table_name}", json.dumps(_r_dicts))  # 缓存资产表图表规则
+                redisClient.setData(f"crm:rule:{item.table_name}", json.dumps(_r_dicts))    # 缓存资产表图表规则
 
     crmLogger.info("缓存初始化完成")
 
-def init_db():
+def init_db() -> None:
     '''初始化数据库'''
-    crmLogger.info("正在初始化数据库")
-    Base.metadata.create_all(bind=engine)  # 手册启动创建所有表
-    crmLogger.info("数据库初始化完成")
+    # crmLogger.info("正在初始化数据库")
+    # Base.metadata.create_all(bind=engine)  # 启动创建所有表
+    # crmLogger.info("数据库初始化完成")
     init_cache()
 
 class User(Base):
@@ -188,6 +188,7 @@ class Header(Base):
     table_name = Column(String(20), nullable=False)       # 归属哪个资产表
     is_unique = Column(Integer, default=0)                # 是否唯一: 1-是,0-否
     is_desence = Column(Integer, default=0)               # 是否脱敏: 1-是,0-否
+    is_ip = Column(Integer, default=0)                    # 是否为ip: 1-是,0-否
     must_input = Column(Integer, default=0)               # 是否必填: 1-是,0-否
     length = Column(Integer, default=0)                   # 长度,如果value_type为2时,该字段才有意义
     order = Column(Integer, default=0)                    # 排序
@@ -271,7 +272,7 @@ class MyHeader:
     def __getattr__(self, name):
         return self.__data.get(name)
 
-def refreshMeta():
+def refreshMeta() -> None:
     '''刷新元数据'''
     Base.metadata.clear()  # 清空元数据
     Base.metadata.reflect(bind=engine)  # 重新缓存表映射

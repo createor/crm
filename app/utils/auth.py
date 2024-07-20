@@ -3,7 +3,6 @@
 '''
 @File    :  auth.py
 @Time    :  2024/05/04 20:02:42
-@Author  :  createor@github.com
 @Version :  1.0
 @Desc    :  鉴权模块
 '''

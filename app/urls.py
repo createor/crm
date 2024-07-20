@@ -117,7 +117,7 @@ def upload():
             
             if not scan_file(filepath):
                 os.remove(filepath)  # 移除文件
-                crmLogger.error(f"用户{g.username}上传文件{filename}失败: 含有不安全的内容")
+                crmLogger.error(f"[upload]用户{g.username}上传文件{filename}失败: 含有不安全的内容")
                 return jsonify({"code": -1, "message": "文件含有不安全的内容" }), 400
 
         try:  # 写入数据库
@@ -126,7 +126,7 @@ def upload():
             db_session.commit()
         except:
             db_session.rollback()
-            crmLogger.error(f"写入file表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[upload]写入file表发生异常: {traceback.format_exc()}")
             return jsonify({"code": -1, "message": "数据库异常"}), 500
         finally:
             db_session.close()
@@ -137,15 +137,15 @@ def upload():
             db_session.commit()
         except:
             db_session.rollback()
-            crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[upload]写入log表发生异常: {traceback.format_exc()}")
         finally:
             db_session.close()
         
-        crmLogger.info(f"用户{g.username}成功上传文件{filename}")
+        crmLogger.info(f"[upload]用户{g.username}成功上传文件{filename},文件uuid为{file_uuid}")
 
         return jsonify({"code": 0, "message": file_uuid}), 200
     
-    crmLogger.error(f"用户{g.username}上传文件失败: 不支持的文件格式")
+    crmLogger.error(f"[upload]用户{g.username}上传文件失败: 不支持的文件格式")
 
     return jsonify({"code": -1, "message": "不支持的文件格式"}), 400
 
@@ -173,7 +173,7 @@ def download_file(filename):
         db_session.close()
 
     if not file:
-        crmLogger.error(f"用户{g.username}下载文件(文件id为{filename})失败, 原因: 文件不存在")
+        crmLogger.error(f"[download_file]用户{g.username}下载文件(文件id为{filename})失败, 原因: 文件不存在")
         return jsonify({"code": -1, "message": "文件不存在"}), 400
     
     try:
@@ -182,11 +182,11 @@ def download_file(filename):
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[download_file]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功下载文件{file.filename}")
+    crmLogger.info(f"[download_file]用户{g.username}成功下载文件{file.filename}")
     
     if file.affix == "txt":  # 下载txt文件
         return send_file(os.path.join(TEMP_DIR, f"{filename}.{file.affix}"), mimetype="text/plain", as_attachment=True, download_name=file.filename)
@@ -205,11 +205,11 @@ def download_help():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[download_help]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功下载使用手册{filename}")
+    crmLogger.info(f"[download_help]用户{g.username}成功下载使用手册{filename}")
 
     return send_file(os.path.join(TEMP_DIR, filename), mimetype="application/pdf", as_attachment=True, download_name=filename)
 

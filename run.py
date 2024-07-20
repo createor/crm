@@ -9,5 +9,5 @@
 from app import app, SERVER_HOST, SERVER_PORT
 
 
-if __name__ == '__main__':
-    app.run(port=int(SERVER_PORT), host=SERVER_HOST, debug=True)  # 运行项目
+if __name__ == "__main__":
+    app.run(port=int(SERVER_PORT), host=SERVER_HOST, debug=False)  # 运行项目

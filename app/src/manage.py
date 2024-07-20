@@ -11,9 +11,9 @@ import re
 import time
 import json
 import traceback
-from flask import Blueprint, request, jsonify, g, Response
-from app.utils import UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, methods, crmLogger, readExcel, createExcel, getUuid, verify, redisClient, converWords, job, undesense, formatDate
-from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, DetectResult, File, Notify, History, initManageTable, generateManageTable, addColumn, alterColumn, refreshMeta, MyHeader
+from flask import Blueprint, Response, request, g, jsonify
+from app.utils import UPLOAD_EXCEL_DIR, TEMP_DIR, SYSTEM_DEFAULT_TABLE, methods, crmLogger, redisClient, job, readExcel, createExcel, getUuid, verify, converWords, undesense, formatDate
+from app.src.models import engine, db_session, Manage, Header, Log, Options, Echart, Task, DetectResult, File, Notify, History, MyHeader, initManageTable, generateManageTable, addColumn, alterColumn, refreshMeta
 from app.src.task import startExportTableTask, startImportTableTask, startPingTask
 from sqlalchemy import or_, func, Column, String
 from sqlalchemy.sql import insert
@@ -69,11 +69,11 @@ def queryTable():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[queryTable]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功查询了资产表,title={title},page={page},limit={limit}")  # 写入日志文件
+    crmLogger.info(f"[queryTable]用户{g.username}成功查询了资产表,title={title},page={page},limit={limit}")  # 写入日志文件
 
     return jsonify({
         "code": 0,
@@ -93,7 +93,6 @@ def getAllTable():
         db_session.close()
     
     return jsonify({"code": 0, "message": [{"id": item.uuid, "title": item.name} for item in result]}), 200
-
 
 @manage.route("/title", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="查询资产表标题", check_ip=True)
@@ -139,9 +138,7 @@ def getTableHeader():
     result = redisClient.getData(f"crm:header:{table.table_name}")  # 从redis中查询
 
     if result:
-
         result = [MyHeader(i) for i in json.loads(result)]
-
     else:  # 不存在,查询数据库
 
         try:  # 查询数据,按order升序
@@ -171,6 +168,7 @@ def getTableHeader():
             "length": item.length,               # 值长度
             "is_unique": bool(item.is_unique),   # 是否唯一
             "is_mark": bool(item.is_desence),    # 是否加密
+            "ip_ip": bool(item.is_ip),           # 是否ip
             "must_input": bool(item.must_input)  # 是否必填
         }
 
@@ -182,13 +180,10 @@ def getTableHeader():
                 db_session.close()
 
             _obj = {}
-            # _templ = ""
 
             for opt in options:
                 _obj[opt.option_value] = opt.option_name
-                # _templ += f"<option value='{opt.option_value}'>{opt.option_name}</option>"
             obj["option"] = _obj
-            # obj["templet"] = f"<select name='{item.value}'><option value=''>请选择</option>" + _templ + "</select>"  # layui table的templet模板
         
         data.append(obj)
 
@@ -232,8 +227,8 @@ def queryTableByUuid(id):
 
     # 根据用户搜索关键字返回数据
     key_type = int(args.get("type", default=1)) # 字段类型:1-字符串,2-下列列表,3-日期
-    key = args.get("key", None)      # 用户查找的字段
-    value = args.get("value", None)  # 用户查找的值
+    key = args.get("key", None)                 # 用户查找的字段
+    value = args.get("value", None)             # 用户查找的值
 
     if key_type == 3:
         compare = args.get("c", None)
@@ -341,6 +336,8 @@ def queryTableByUuid(id):
     finally:
         db_session.close()
 
+    crmLogger.info(f"用户{g.username}访问资产表({table.name})")
+
     return jsonify({"code": 0, "message": {"total": count, "data": data}}), 200
 
 @manage.route("/undesense", methods=methods.ALL)
@@ -353,7 +350,7 @@ def getDesenseField():
     row_id = args.get("row_id", None)
     key_arr = args.get("key", None)
 
-    if not table_uuid or not row_id or not key_arr:  # 校验参数
+    if not all([table_uuid, row_id, key_arr]):  # 校验参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
     
     if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
@@ -427,7 +424,7 @@ def addTableData():
         table_headers = temp_table.columns.tolist()  # 表头字段
 
         if len(table_headers) == 0:
-            crmLogger.error(f"读取表格文件{filename}失败: 原因: 表头读取为空")
+            crmLogger.error(f"[addTableData]读取表格文件{filename}失败: 原因: 表头读取为空")
             return jsonify({"code": -1, "message": "读取表格失败"}), 400
 
         column_header = converWords(table_headers)  # 中文拼音转换
@@ -438,7 +435,7 @@ def addTableData():
             db_session.commit()
         except:
             db_session.rollback()
-            crmLogger.error(f"写入header表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[addTableData]写入header表发生异常: {traceback.format_exc()}")
             return jsonify({"code": -1, "message": "数据库异常"}), 500
         finally:
             db_session.close()
@@ -455,7 +452,7 @@ def addTableData():
             db_session.commit()
         except:
             db_session.rollback()
-            crmLogger.error(f"写入manage表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[addTableData]写入manage表发生异常: {traceback.format_exc()}")
             return jsonify({"code": -1,"message": "数据库异常"}), 500
         finally:
             db_session.close()
@@ -467,17 +464,22 @@ def addTableData():
                 for i in insert_data:
                     for c, v in column_header.items():
                         new_data = i.pop(c)  # c-中文字段名
-                        if isinstance(new_data, datetime):  # 如果数据格式是时间,格式化为字符串
-                            new_data = new_data.strftime("%Y-%m-%d %H:%M:%S")
-                        elif isinstance(new_data, date):    # 如果数据格式是日期,格式化为字符串
-                            new_data = new_data.strftime("%Y-%m-%d")
+                        if new_data:
+                            if isinstance(new_data, datetime):  # 如果数据格式是时间,格式化为字符串
+                                new_data = new_data.strftime("%Y-%m-%d %H:%M:%S")
+                            elif isinstance(new_data, date):    # 如果数据格式是日期,格式化为字符串
+                                new_data = new_data.strftime("%Y-%m-%d")
+                            else:
+                                new_data = str(new_data)
+                        else:
+                            new_data = ""
                         i.update({v["pinyin"]: new_data})   # 将中文k1更新为拼音
                 stmt = insert(manageTable)
                 conn.execute(stmt, insert_data)
 
         except:
 
-            crmLogger.error(f"写入{table_name}表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[addTableData]批量写入资产表{table_name}发生异常: {traceback.format_exc()}")
             return jsonify({"code": -1,"message": "数据库异常"}), 500
         
     else:  # 直接创建资产表,后面创建列方式
@@ -494,7 +496,7 @@ def addTableData():
             db_session.commit()
         except:
             db_session.rollback()
-            crmLogger.error(f"写入manage表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[addTableData]写入manage表发生异常: {traceback.format_exc()}")
             return jsonify({"code": -1, "message": "数据库异常"}), 500
         finally:
             db_session.close()
@@ -504,14 +506,14 @@ def addTableData():
         db_session.add(create_log)
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[addTableData]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
     redisClient.setSet("crm:manage:table_name", table_name)  # 将标题写入缓存
     redisClient.setSet("crm:manage:table_uuid", table_uuid)  # 将表id写入缓存
      
-    crmLogger.info(f"用户{g.username}创建资产表{table_name}成功")  # 日志文件记录
+    crmLogger.info(f"[addTableData]用户{g.username}创建资产表{table_name}成功")  # 日志文件记录
 
     return jsonify({"code": 0, "message": table_uuid}), 200
 
@@ -579,7 +581,7 @@ def downloadTableTemplate():
                 finally:
                     db_session.close()
 
-                table_styles[f"{h.name}"] = {
+                table_styles[h.name] = {
                     "index": get_column_letter(h.order + 1),
                     "options": ",".join([o.option_name for o in opt])
                 }
@@ -600,7 +602,7 @@ def downloadTableTemplate():
         finally:
             db_session.close()
 
-        crmLogger.info(f"生成资产表<{table.name}>导入模板文件完成")
+        crmLogger.info(f"[downloadTableTemplate]生成资产表<{table.name}>导入模板文件完成")
 
         return jsonify({"code": 0, "message": {"filename": f"{table.name}导入模板.xlsx", "fileuuid": fileUuid}}), 200
 
@@ -616,7 +618,7 @@ def importTableFromExcel():
     file_uuid = reqData["file_uuid"]    # 获取上传的文件uuid
     table_id = reqData["table_id"]      # 获取导入的资产表id
 
-    if not file_uuid or not table_id:   # 必填参数值为空情况
+    if not all([file_uuid, table_id]):   # 必填参数值为空情况
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
     
     if not redisClient.getSet("crm:manage:table_uuid", table_id):     # 如果资产表不存在
@@ -646,16 +648,17 @@ def importTableFromExcel():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入history表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[importTableFromExcel]写入history表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
     try:
-        import_log = Log(ip=g.ip_addr, operate_type="导入表格", operate_content="", operate_user=g.username)
+        import_log = Log(ip=g.ip_addr, operate_type="导入表格", operate_content=f"模板导入资产表{table.name}", operate_user=g.username)
         db_session.add(import_log)
         db_session.commit()
     except:
         db_session.rollback()
+        crmLogger.error(f"[importTableFromExcel]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
     
@@ -670,6 +673,8 @@ def importTableFromExcel():
 
     startImportTableTask(table.table_name)
 
+    crmLogger.info(f"[importTableFromExcel]用户{g.username}创建模板导入资产表{table.name}任务{task_id}")
+
     return jsonify({"code": 0, "message": task_id}), 200
 
 @manage.route("/add_or_edit", methods=methods.ALL)
@@ -682,7 +687,6 @@ def addOrEditTableData():
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
 
     mode = reqData["mode"]
-
     table_id = reqData["table_id"]
 
     if not mode or not table_id:
@@ -703,9 +707,7 @@ def addOrEditTableData():
 
     if all_header:
         all_header = [MyHeader(i) for i in json.loads(all_header)]
-
     else:  # 如果header为空,则从数据库中获取
-
         try:
             all_header = db_session.query(Header).filter(Header.table_name == table.table_name).all()
         finally:
@@ -727,21 +729,17 @@ def addOrEditTableData():
     # 校验数据
     for h in all_header:
 
-        if h.must_input == 1 and reqData[h.value] == "":  # 校验必填项
-
+        if h.must_input == 1 and not reqData[h.value]:  # 校验必填项
             return jsonify({"code": -1, "message": f"{h.name}字段为必填项"}), 400
 
         if h.value_type == 2:  # 校验数据长度
 
-            if reqData[h.value] == "":
-
+            if not reqData[h.value]:
                 return jsonify({"code": -1, "message": f"{h.name}字段长度应为{h.length}"}), 400
-            
-            elif reqData[h.value] != "" and len(reqData[h.value]) != h.length:
+            elif reqData[h.value] and len(reqData[h.value]) != h.length:
                 return jsonify({"code": -1, "message": f"{h.name}字段长度不符合要求"}), 400
 
         if h.type == 2:  # 校验是否从选项中取值
-
             if reqData[h.value]:
                 try:
                     _opt = db_session.query(Options.option_name, Options.option_value).filter(Options.table_name == table.table_name, Options.header_value == h.value).all()
@@ -751,12 +749,10 @@ def addOrEditTableData():
                 if reqData[h.value] not in [o.option_value for o in _opt]:
                     return jsonify({"code": -1, "message": f"{h.name}字段值不在固定选项中"}), 400
             
-        if h.is_unique == 1:  # 校验是否唯一
-            
-            if reqData[h.value] != "":
+        if h.is_unique == 1:  # 校验是否唯一         
+            if reqData[h.value]:
 
-                if mode == "add":
-
+                if mode == "add":    # 插入数据
                     try:
                         _data = db_session.query(manageTable).filter(getattr(manageTable.c, h.value) == reqData[h.value]).first()
                         if _data:
@@ -764,18 +760,14 @@ def addOrEditTableData():
                     finally:
                        db_session.close()
 
-                elif mode == "edit":
+                elif mode == "edit": # 编辑数据
 
                     if "id" not in reqData:
                         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
-
                     try:
-
                         _data = db_session.query(manageTable).filter(getattr(manageTable.c, h.value) == reqData[h.value], manageTable.c._id != reqData["id"]).first()
-
                         if _data:
-                            return jsonify({"code": -1, "message": f"{h.name}字段值重复"}), 400
-                        
+                            return jsonify({"code": -1, "message": f"{h.name}字段值重复"}), 400 
                     finally:
 
                         db_session.close()
@@ -801,7 +793,7 @@ def addOrEditTableData():
             db_session.commit()
         except:
             db_session.rollback()
-            crmLogger.error(f"[addOrEditTableData]写入{table.table_name}表发生异常: {traceback.format_exc()}")
+            crmLogger.error(f"[addOrEditTableData]写入资产表{table.table_name}发生异常: {traceback.format_exc()}")
             return jsonify({"code": -1, "message": "数据库异常"}), 500
         finally:
             db_session.close()
@@ -846,7 +838,7 @@ def addOrEditTableData():
             db_session.commit()
         except:
             db_session.rollback()
-            crmLogger.error(f"更新资产表{table.name}数据失败: {traceback.format_exc()}")
+            crmLogger.error(f"[addOrEditTableData]更新资产表{table.name}数据失败: {traceback.format_exc()}")
             return jsonify({"code": -1, "message": "数据库异常"}), 500
         finally:
             db_session.close()
@@ -860,11 +852,14 @@ def addOrEditTableData():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[addOrEditTableData]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"{g.username}用户{_method}{table.name}数据成功")
+    # 新增或者修改数据成功要删除图表缓存
+    redisClient.delData(f"crm:echart:{table.table_name}")
+
+    crmLogger.info(f"[addOrEditTableData]用户{g.username}{_method}资产表{table.name}数据成功")
 
     return jsonify({"code": 0, "message": f"{_method}数据成功"}), 200
 
@@ -901,7 +896,7 @@ def deleteTableData():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"删除{table.table_name}表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[deleteTableData]删除资产表{table.table_name}发生异常: {traceback.format_exc()}")
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
@@ -912,20 +907,18 @@ def deleteTableData():
         db_session.commit()
     except:
         db_session.rollback()
-        crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+        crmLogger.error(f"[deleteTableData]写入log表发生异常: {traceback.format_exc()}")
     finally:
         db_session.close()
 
-    crmLogger.info(f"{g.username}用户删除{table.name}数据成功")
+    crmLogger.info(f"[deleteTableData]用户{g.username}删除{table.name}数据成功")
 
     return jsonify({"code": 0, "message": "删除成功"}), 200
 
 @manage.route("/add_or_alter_column", methods=methods.ALL)
 @verify(allow_methods=["POST"], module_name="添加或修改列", check_ip=True)
 def addOrAlterTableColumn():
-    '''
-    添加或修改资产表列信息
-    '''
+    '''添加或修改资产表列信息'''
     reqData = request.get_json()  # 获取请求数据
 
     # 校验body参数
@@ -969,7 +962,6 @@ def addOrAlterTableColumn():
     if lock.acquire(blocking=False):
 
         try:
-
             if mode == "add":
                 try:  # 判断要新增的列是否有重复
                     is_exist_col = db_session.query(Header).filter(Header.table_name == table.table_name, or_(Header.name == col_name, Header.value == col_alias)).first()
@@ -1021,13 +1013,10 @@ def addOrAlterTableColumn():
                         db_session.commit()
                     except:
                         db_session.rollback()
+                        crmLogger.error(f"[addOrAlterTableColumn]写入options表发生异常: {traceback.format_exc()}")
                         return jsonify({"code": -1, "message": "数据库异常"}), 500
                     finally:
                         db_session.close()
-
-                refreshMeta()
-
-                redisClient.delData(f"crm:header:{table.table_name}")  # 从redis中删除缓存
 
             elif mode == "alter":
             
@@ -1037,38 +1026,45 @@ def addOrAlterTableColumn():
                     db_session.close()
 
                 if not curr_header:
+                    crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}要修改的列{col_alias}不存在")
                     return jsonify({"code": -1, "message": "要修改的列不存在"}), 400
 
                 manageTable = initManageTable(table.table_name)   # 实例化已存在的资产表
 
+                # 如果将列设置为必填,查询此列是否存在空值
                 if curr_header.must_input != must_input and must_input == 1:
                 
-                    try:  # 如果将列设置为必填,查询此列是否存在空值
+                    try:
                         is_exist_null = db_session.query(manageTable).filter(getattr(manageTable.c, col_alias) == None).all()
                     finally:
                         db_session.close()
 
                     if len(is_exist_null) > 0:  # 如果存在空值则不允许修改
+                        crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为必填: 此列存在空值")
                         return jsonify({"code": -1, "message": "该列存在空值,不允许修改"}), 400
 
+                # 如果将列值设置为唯一,查询此列是否存在重复值
                 if curr_header.is_unique != is_unique and is_unique == 1:
                 
-                    try:  # 如果将列值设置为唯一,查询此列是否存在重复值
+                    try:
                         is_exist_duplicate = db_session.query(getattr(manageTable.c, col_alias), func.count(getattr(manageTable.c, col_alias)).label("count")).group_by(getattr(manageTable.c, col_alias)).having(func.count(getattr(manageTable.c, col_alias)) > 1).all()
                     finally:   
                         db_session.close()
 
                     if len(is_exist_duplicate) > 0:
+                        crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为唯一: 此列存在重复值")
                         return jsonify({"code": -1, "message": "该列存在重复值,不允许修改"}), 400
 
+                # 如果设置列值长度为固定长度,查询此列数据长度是否满足要求
                 if curr_header.value_type != col_type and col_type == 2:
                 
-                    try:  # 如果设置列值长度为固定长度,查询此列数据长度是否满足要求
+                    try:
                         is_exist_unlength = db_session.query(func.count()).filter(func.length(getattr(manageTable.c, col_alias)) != length).scalar()
                     finally:
                         db_session.close()
 
                     if is_exist_unlength > 0:  # 如果存在不满足长度的值则不允许修改
+                        crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为固定长度: 此列存在不满足长度的值")
                         return jsonify({"code": -1, "message": "存在不满足长度的值,不允许修改"}), 400
 
                 try:  # 首先查询此列中所有不为空的数据
@@ -1077,12 +1073,15 @@ def addOrAlterTableColumn():
                 finally:
                      db_session.close()
 
-                if curr_header.value_type != col_type and col_type == 4:  # 校验列数据是否可以被转换为时间
+                # 校验列数据是否可以被转换为时间
+                if curr_header.value_type != col_type and col_type == 4:
                 
                     date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
                     for row in query_not_null_data:
                         if not bool(date_pattern.match(row[0])):
+                            crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为日期: 此列存在日期格式错误")
+                            crmLogger.debug(f"[addOrAlterTableColumn]错误数据: {row}")
                             return jsonify({"code": -1, "message": "存在日期格式错误,不允许修改"}), 400
 
                 if curr_header.value_type != col_type and col_type == 5:
@@ -1091,9 +1090,12 @@ def addOrAlterTableColumn():
 
                     for row in query_not_null_data:
                         if not bool(datetime_pattern.match(row[0])):
+                            crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为时间: 此列存在时间格式错误")
+                            crmLogger.debug(f"[addOrAlterTableColumn]错误数据: {row}")
                             return jsonify({"code": -1, "message": "存在时间格式错误,不允许修改"}), 400
 
-                if curr_header.value_type != col_type and col_type == 6:  # 如果修改列是从下拉列表取值
+                # 如果修改列是从下拉列表取值
+                if curr_header.value_type != col_type and col_type == 6:
                 
                     new_option_name = [o.name for o in options]
 
@@ -1103,48 +1105,36 @@ def addOrAlterTableColumn():
                         db_session.close()
 
                     if is_all_in_options:
+                        crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为下拉列表: 此列存在数据不在下拉列表中")
                         return jsonify({"code": -1, "message": "存在部分数据不在下拉列表中,不允许修改"}), 400
 
-                    try:  # 如果type是下拉列表则更新option表
-                    
+                    try:  # 如果type是下拉列表则更新option表             
                         _opt = db_session.query(Options).filter(Options.header_value == col_alias, Options.table_name == table.table_name).all()
-
-                        if _opt:  # 如果有option则删除
-                        
+                        if _opt:  # 如果有option则删除             
                             db_session.delete(_opt)
-
                             db_session.commit()
-
-                    except:
-                    
+                    except:            
                         db_session.rollback()
-
+                        crmLogger.error(f"[addOrAlterTableColumn]删除options表发生异常: {traceback.format_exc()}")
                         return jsonify({"code": -1, "message": "数据库异常"}), 500
-
-                    finally:
-                    
+                    finally:  
                         db_session.close()
 
                     try:  # 重新添加选项值
-                    
-                        db_session.add_all()
+                        new_options = [Options(options_name=o.name, options_value=o.value, header_value=col_alias, table_name=table.table_name) for o in options]
+                        db_session.add_all(new_options)
                         db_session.commit()
-
                     except:
-                    
                         db_session.rollback()
-
+                        crmLogger.error(f"[addOrAlterTableColumn]写入options表发生异常: {traceback.format_exc()}")
+                        return jsonify({"code": -1, "message": "数据库异常"}), 500
                     finally:
-                    
                         db_session.close()
 
                 # 校验通过后更新值或者修改列属性
-                if curr_header.type == 2 and col_type == 6:
-                    pass
-                elif curr_header.value_type != col_type:
-                    if col_type in [1, 2]:
-                        new_col_type = "VARCHAR(255)"
-                    elif col_type == 3:
+                new_col_type = "VARCHAR(255)"
+                if curr_header.value_type != col_type:
+                    if col_type == 3:
                         new_col_type = "TEXT"
                     elif col_type == 4:
                         new_col_type = "DATE"
@@ -1155,11 +1145,20 @@ def addOrAlterTableColumn():
                     return jsonify({"code": -1, "message": "修改列失败"}), 400
 
                 try:  # 最后更新Header表中列的信息
-                    db_session.query(Header).filter(Header.table_name == table.table_name, Header.value == col_alias).update({"name": col_name, "must_input": int(must_input), "_update_user": g.username})
+                    db_session.query(Header).filter(Header.table_name == table.table_name, Header.value == col_alias).update({
+                        "type": 1 if col_type != 6 else 2,
+                        "name": col_name,
+                        "value_type": 1 if col_type == 6 else col_type,
+                        "is_desence": int(is_desence),
+                        "is_desence": int(is_desence),
+                        "must_input": int(must_input),
+                        "length": length if col_type == 2 else 0,
+                        "update_user": g.username
+                    })
                     db_session.commit()
                 except:
                     db_session.rollback()
-                    crmLogger.error(f"更新header表发生异常: {traceback.format_exc()}")
+                    crmLogger.error(f"[addOrAlterTableColumn]更新header表发生异常: {traceback.format_exc()}")
                     return jsonify({"code": -1, "message": "数据库异常"}), 500
                 finally:
                     db_session.close()
@@ -1167,26 +1166,26 @@ def addOrAlterTableColumn():
             _method = "新增" if mode == "add" else "修改"
             
             try:  # 写入log表
-                add_or_alter_log = Log(ip=g.ip_addr, operate_type=f"{_method}列", operate_content=f"{_method}列{col_alias}", operate_user=g.username)      
+                add_or_alter_log = Log(ip=g.ip_addr, operate_type=f"{_method}列", operate_content=f"{_method}资产表{table.name}列{col_alias}", operate_user=g.username)      
                 db_session.add(add_or_alter_log)
                 db_session.commit()       
             except:
                 db_session.rollback()
-                crmLogger.error(f"写入log表发生异常: {traceback.format_exc()}")
+                crmLogger.error(f"[addOrAlterTableColumn]写入log表发生异常: {traceback.format_exc()}")
             finally:    
                 db_session.close()
 
             refreshMeta()
 
-            crmLogger.info(f"用户{g.username}{_method}列{col_alias}成功")
+            redisClient.delData(f"crm:header:{table.table_name}")  # 从redis中删除缓存
+
+            crmLogger.info(f"[addOrAlterTableColumn]用户{g.username}{_method}资产表{table.name}列{col_alias}成功")
 
             return jsonify({"code": 0, "message": f"{_method}列成功"}), 200
 
         finally:
-
             lock.release()
     else:
-
         return jsonify({"code": -1, "message": "当前有用户正在修改/新增列,请稍后再试"}), 400
 
 @manage.route("/ping", methods=methods.ALL)
@@ -1247,7 +1246,7 @@ def multDetectHost():
             finally:
                 db_session.close()
 
-            crmLogger.info(f"用户{g.username}查看ping探测任务{task_uuid}结果详情")
+            crmLogger.info(f"[multDetectHost]用户{g.username}查看ping探测任务{task_uuid}结果详情")
 
             return jsonify({
                 "code": 0, 
@@ -1281,7 +1280,7 @@ def multDetectHost():
             finally:
                 db_session.close()
 
-            crmLogger.info(f"用户{g.username}查看资产表{table.name}的ping探测任务列表")
+            crmLogger.info(f"[multDetectHost]用户{g.username}查看资产表{table.name}的ping探测任务列表")
 
             return jsonify({
                 "code": 0, 
@@ -1349,7 +1348,7 @@ def multDetectHost():
 
         startPingTask()
 
-        crmLogger.info(f"用户{g.username}成功创建ping任务,任务id: {task_id}")
+        crmLogger.info(f"[multDetectHost]用户{g.username}成功创建ping任务,任务id: {task_id}")
 
         return jsonify({"code": 0, "message": task_id}), 200
 
@@ -1392,7 +1391,7 @@ def notifyExpireData():
         finally:
             db_session.close()
 
-        crmLogger.info(f"用户{g.username}查询了{table.name}到期通知信息")
+        crmLogger.info(f"[notifyExpireData]用户{g.username}查询了{table.name}到期通知信息")
 
         return jsonify({
             "code": 0,
@@ -1469,9 +1468,9 @@ def notifyExpireData():
             finally:
                 db_session.close()
 
-            crmLogger.info(f"用户{g.username}创建定时任务{name}成功")
+            crmLogger.info(f"[notifyExpireData]用户{g.username}创建定时任务{name}成功")
 
-            crmLogger.debug(f"定时任务{name}详情: task_id={task_id}, table_name={table.table_name}, keyword={date_keyword}")
+            crmLogger.debug(f"[notifyExpireData]定时任务{name}详情: task_id={task_id}, table_name={table.table_name}, keyword={date_keyword}")
 
             return jsonify({"code": 0, "message": task_id}), 200
             
@@ -1538,7 +1537,7 @@ def notifyExpireData():
             finally:
                 db_session.close()
             
-            crmLogger.info(f"用户{g.username}{'开启' if operate == 'start' else '停止'}定时任务{task_id}成功")
+            crmLogger.info(f"[notifyExpireData]用户{g.username}{'开启' if operate == 'start' else '停止'}定时任务{task_id}成功")
 
             return jsonify({"code": 0, "message": f"{'开启' if operate == 'start' else '停止'}任务成功"}), 200
 
@@ -1601,7 +1600,7 @@ def exportTableData():
 
     startExportTableTask(table.table_name)
 
-    crmLogger.info(f"用户{g.username}创建了导出资产表{table.name}任务{task_id}")
+    crmLogger.info(f"[exportTableData]用户{g.username}创建了导出资产表{table.name}任务{task_id}")
 
     return jsonify({"code": 0, "message": task_id}), 200
 
@@ -1661,7 +1660,7 @@ def queryHistory():
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}查询了资产表{table.name}的{'导入' if mode == 1 else '导出'}历史记录")
+    crmLogger.info(f"[queryHistory]用户{g.username}查询了资产表{table.name}的{'导入' if mode == 1 else '导出'}历史记录")
 
     return jsonify({"code": 0, "message": {"total": count, "data": [{"id": u.id, "file": u.file_uuid, "status": u.status, "create_user": u.create_user, "create_time": formatDate(u.create_time, 2), "error": u.err_file} for u in result]}}), 200
 
@@ -1708,7 +1707,7 @@ def setEchartRule():
         if not rules:  # 查无规则
             return jsonify({"code": 0, "message": []}), 200
         
-        crmLogger.info(f"用户{g.username}查询了资产表{table.name}的图表规则")
+        crmLogger.info(f"[setEchartRule]用户{g.username}查询了资产表{table.name}的图表规则")
 
         return jsonify({
             "code": 0,
@@ -1779,7 +1778,7 @@ def setEchartRule():
         redisClient.delData(f"crm:rule:{table.table_name}")   # 删除缓存规则
         redisClient.delData(f"crm:echart:{table.table_name}") # 删除缓存图表
 
-        crmLogger.info(f"用户{g.username}创建了资产表{table.name}的图表规则")
+        crmLogger.info(f"[setEchartRule]用户{g.username}创建了资产表{table.name}的图表规则")
 
         return jsonify({"code": 0, "message": "规则创建成功"}), 200
 
@@ -1909,23 +1908,26 @@ def getEchart():
 
             elif rule.type == 3:  # 折线图
 
-                # TODO 待完善
-                try:  # 根据日期排序
+                # key,   date,  count
+                # 测试1  2021-01-01, 1
+                # 测试2  2021-01-02, 2
+                # 测试1  2021-01-02, 3
+                try:  # 根据日期升序, 时间转换成date格式
                     line_result = db_session.query(getattr(manageTable.c, rule.keyword), func.date(getattr(manageTable.c, rule.date_keyword)), func.count(1)).group_by(getattr(manageTable.c, rule.keyword), func.date(getattr(manageTable.c, rule.date_keyword))).order_by(func.date(getattr(manageTable.c, rule.date_keyword)).asc()).all()
                 finally:
                     db_session.close()
                 
-                legend_set = set()
-                date_set = set()
+                legend_set = []
+                date_set = []
                 for l in line_result:
-                    legend_set.add(l[0])
-                    date_set.add(l[1])
-                legend_set = list(legend_set)
-                date_set = list(date_set)
+                    if l[0] not in legend_set:
+                        legend_set.push(l[0])
+                    if l[1] not in date_set:
+                        date_set.push(l[1])
 
                 data = {}
                 for i in legend_set:
-                    data[i] = {"name": i, "type": "line", "stack": "total", "data":["null" for _ in date_set]}
+                    data[i] = {"name": i, "type": "line", "stack": "total", "data":["null" for _ in date_set]}  # 根据日期初始化都为null
 
                 for m in line_result:
                     data[m[0]]["data"][date_set.index(m[1])] = m[2]
@@ -1964,6 +1966,6 @@ def getEchart():
 
         redisClient.setData(f"crm:echart:{table.table_name}", json.dumps(result))  # 将结果写入缓存
 
-    crmLogger.info(f"用户{g.username}查询了{table.name}的图表数据")
+    crmLogger.info(f"[getEchart]用户{g.username}查询了{table.name}的图表数据")
 
     return jsonify({"code": 0, "message": result}), 200

@@ -64,9 +64,9 @@ def queryLog():
         finally:
             db_session.close()
 
-    crmLogger.info(f"用户{g.username}成功查询日志: 结果total={count}") # 写入日志文件
+    crmLogger.info(f"[queryLog]用户{g.username}成功查询日志: 结果total={count}") # 写入日志文件
     
-    crmLogger.debug(f"日志查询条件: operate_user={operate_user}, operate_start={operate_start}, operate_end={operate_end}, page={page}, limit={limit}")
+    crmLogger.debug(f"[queryLog]日志查询条件: operate_user={operate_user}, operate_start={operate_start}, operate_end={operate_end}, page={page}, limit={limit}")
     
     return jsonify({
         "code": 0,

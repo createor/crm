@@ -15,11 +15,11 @@ def undesense(source: str) -> str:
     '''
     if len(source) == 2:
         return source[:1] + "*"
-    if len(source) == 3:
+    elif len(source) == 3:
         return source[:1] + "*" + source[2:]
-    if len(source) == 4:
+    elif len(source) == 4:
         return source[:1] + "**" + source[3:]
-    if len(source) >= 5:
+    elif len(source) >= 5:
         temp = int((len(source) - 3) / 2)
         return source[:temp] + "***" + source[temp + 3:]
     return source

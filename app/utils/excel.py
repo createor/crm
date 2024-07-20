@@ -23,9 +23,9 @@ def readExcel(filePath: str) -> Union[pd.DataFrame, None]:
     :return:
     '''
     try:
-        return pd.read_excel(filePath).fillna(value="")  # 替换表中的空值nan
+        return pd.read_excel(filePath).fillna(value=None)  # bugfix:替换表中的空值nan
     except:
-        crmLogger.error(f"读取表格时发生错误: {traceback.format_exc()}")
+        crmLogger.error(f"[readExcel]读取表格时发生错误: {traceback.format_exc()}")
         return None
 
 
@@ -82,5 +82,5 @@ def createExcel(filepath: str, filename: str, sheet_name: str, header: dict, dat
             xcl.Quit()
         return True
     except:
-        crmLogger.error(f"写入表格时发生错误: {traceback.format_exc()}")
+        crmLogger.error(f"[createExcel]写入表格时发生错误: {traceback.format_exc()}")
         return False

@@ -27,10 +27,10 @@ def scan_file(filename: str) -> bool:
         else:
             return False        
     except pyclamd.ScanError:
-        crmLogger.error(f"扫描文件时发生错误: {traceback.format_exc()}")
+        crmLogger.error(f"[scan_file]扫描文件时发生错误: {traceback.format_exc()}")
         return True
     except pyclamd.ConnectionError:
-        crmLogger.error(f"连接到clamav时发生错误: {traceback.format_exc()}")
+        crmLogger.error(f"[scan_file]连接到clamav时发生错误: {traceback.format_exc()}")
         return True
 
 def scan_ip(ip: str) -> bool:
@@ -45,6 +45,6 @@ def scan_ip(ip: str) -> bool:
             return True
         else:
             return False
-    except Exception:
-        crmLogger.error(f"ping {ip} 时出现错误: {traceback.format_exc()}")
+    except:
+        crmLogger.error(f"[scan_ip]ping {ip} 时出现错误: {traceback.format_exc()}")
         return False
