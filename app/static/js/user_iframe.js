@@ -409,6 +409,9 @@ var addNewRule = () => {
                                 hasValue[`rule_${index}_name`] = item.name;
                                 hasValue[`rule_${index}_type`] = item.type;
                                 hasValue[`rule_${index}_value`] = item.keyword;
+                                if (item.date_keyword) {
+                                    hasValue[`rule_${index}_date`] = item.date_keyword;
+                                }
                             });
                             form.val("ruleForm", hasValue);     // 存在规则则赋值表单
                             form.render("select", "ruleForm");  // 渲染表单的select元素
@@ -453,7 +456,7 @@ var addNewRule = () => {
                     type: "POST",
                     contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
-                        "table_uuid": tableId,
+                        "table_uuid": table_id,
                         "rules": number.map((item) => {return {"name": field[`rule_${item}_name`], "type": field[`rule_${item}_type`], "keyword": field[`rule_${item}_value`], "date_keyword": field[`rule_${item}_date`]}})
                     }),
                     beforeSend: () => {

@@ -2008,10 +2008,13 @@ def getEchart():
 
             elif rule.type == 3:  # 折线图
 
-                # key,   date,  count
-                # 测试1  2021-01-01, 1
-                # 测试2  2021-01-02, 2
-                # 测试1  2021-01-02, 3
+                # key    date     count
+                # None   2021-01-01  0
+                # 测试1  2021-01-01  1
+                # 测试2  2021-01-02  2
+                # 测试1  2021-01-02  3
+                # 测试3  None        4
+                # bugfix: 2024/07/21,date为"", key为null的情况
                 try:  # 根据日期升序, 时间转换成date格式
                     line_result = db_session.query(getattr(manageTable.c, rule.keyword), func.date(getattr(manageTable.c, rule.date_keyword)), func.count(1)).group_by(getattr(manageTable.c, rule.keyword), func.date(getattr(manageTable.c, rule.date_keyword))).order_by(func.date(getattr(manageTable.c, rule.date_keyword)).asc()).all()
                 finally:
@@ -2020,17 +2023,18 @@ def getEchart():
                 legend_set = []
                 date_set = []
                 for l in line_result:
-                    if l[0] not in legend_set:
-                        legend_set.push(l[0])
-                    if l[1] not in date_set:
-                        date_set.push(l[1])
+                    if l[0] and l[0] not in legend_set:
+                        legend_set.append(l[0])
+                    if l[1] and l[1] not in date_set:
+                        date_set.append(l[1])
 
                 data = {}
                 for i in legend_set:
-                    data[i] = {"name": i, "type": "line", "stack": "total", "data":["null" for _ in date_set]}  # 根据日期初始化都为null
+                    data[i] = {"name": i, "type": "line", "stack": "Total", "data":[None for _ in date_set]}  # 根据日期初始化都为null
 
                 for m in line_result:
-                    data[m[0]]["data"][date_set.index(m[1])] = m[2]
+                    if m[0] and m[1]:
+                        data[m[0]]["data"][date_set.index(m[1])] = m[2]
 
                 result.append({
                     "title": {
