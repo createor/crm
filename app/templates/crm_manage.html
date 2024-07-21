@@ -189,9 +189,9 @@
         */
         function loadManageTable (tableUid, jumpCondition) {
             localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
-            localStorage.setItem("condition", "");     // 清空筛选条件
-            localStorage.setItem("ip_col", "");        // 清空IP列信息
-            localStorage.setItem("header", "");        // 清空header信息
+            localStorage.setItem("condition", null);     // 清空筛选条件
+            localStorage.setItem("ip_col", null);        // 清空IP列信息
+            localStorage.setItem("header", null);        // 清空header信息
             let header = [];                           // 初始化header
             // 获取header
             $.ajax({
