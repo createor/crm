@@ -103,7 +103,7 @@ def getTableIpCol():
     table_uuid = args.get("id", None)
     ip_col_name = args.get("ip_col", None)
 
-    if not table_uuid or not ip_col_name:
+    if not all([table_uuid, ip_col_name]):
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
     
     if not redisClient.getSet("crm:manage:table_uuid", table_uuid):
@@ -123,10 +123,7 @@ def getTableIpCol():
         db_session.close()
 
     if not col_name:
-        return jsonify({"code": -1, "message": "IP列不存在"}), 400
-    
-    # 删除缓存的header
-    redisClient.delData(f"crm:header:{table.table_name}")
+        return jsonify({"code": -1, "message": "要跳转的资产表没有相同名称的IP列"}), 400
     
     return jsonify({"code": 0, "message": col_name.value}), 200
 
@@ -159,7 +156,8 @@ def bindTableIpCol():
     try:
         exist_col = db_session.query(Header.value).filter(Header.table_name == table.table_name, Header.is_ip == 1).first()
         if exist_col and exist_col.value != ip_column:
-            exist_col.is_ip = 0
+            db_session.query(Header.value).filter(Header.table_name == table.table_name, Header.is_ip == 1).update({"is_ip": 0})
+            db_session.commit()
     except:
         db_session.rollback()
         crmLogger.error(f"[bindTableIpCol]更新header表发生异常: {traceback.format_exc()}")
@@ -176,6 +174,9 @@ def bindTableIpCol():
         return jsonify({"code": -1, "message": "数据库异常"}), 500
     finally:
         db_session.close()
+
+    # 删除缓存的header
+    redisClient.delData(f"crm:header:{table.table_name}")
      
     crmLogger.info(f"[bindTableIpCol]用户{g.username}成功绑定了资产表{table.name}的IP列{ip_column}")
 
@@ -267,11 +268,10 @@ def getTableHeader():
                 db_session.close()
 
             _obj = {}
-
             for opt in options:
                 _obj[opt.option_value] = opt.option_name
             obj["option"] = _obj
-        
+
         data.append(obj)
 
     return jsonify({"code": 0,"message": data}), 200
@@ -424,7 +424,7 @@ def queryTableByUuid(id):
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{g.username}访问资产表({table.name})")
+    crmLogger.info(f"[queryTableByUuid]用户{g.username}访问资产表({table.name})")
 
     return jsonify({"code": 0, "message": {"total": count, "data": data}}), 200
 
@@ -893,8 +893,7 @@ def addOrEditTableData():
         finally:
             db_session.close()
 
-        if data:
-            # 更新信息
+        if data:  # 更新信息
             new_data = {}
             for i in all_header:
                 if hasattr(data, i.value):
@@ -908,10 +907,10 @@ def addOrEditTableData():
                         try:
                             if i.value_type == 4:    # 日期
                                 _curr = datetime.strptime(reqData[i.value], "%Y-%m-%d")
-                            if i.value_type == 5:  # 时间
+                            if i.value_type == 5:    # 时间
                                 _curr = datetime.strptime(reqData[i.value], "%Y-%m-%d %H:%M:%S")
                         except:
-                            return jsonify({"code": -1, "message": f"字段{i.name}日期格式错误"}), 400
+                            return jsonify({"code": -1, "message": f"字段{i.name}日期或时间格式错误"}), 400
                         new_data[i.value] = _curr
                     else:
                         if i.value_type in [4, 5]:
@@ -1166,6 +1165,7 @@ def addOrAlterTableColumn():
                         crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为固定长度: 此列存在不满足长度的值")
                         return jsonify({"code": -1, "message": "存在不满足长度的值,不允许修改"}), 400
 
+                # 如果设置列值为时间或者日期类型,查询此列数据是否可以被转换为时间或日期
                 if curr_header.value_type != col_type and col_type in [4, 5]:
 
                     try:  # 首先查询此列中所有不为空的数据
@@ -1232,7 +1232,7 @@ def addOrAlterTableColumn():
 
                 # 校验通过后更新值或者修改列属性
                 new_col_type = "VARCHAR(255)"
-                if curr_header.value_type != col_type:
+                if curr_header.value_type != col_type:  # 数据类型发生改变
                     if col_type == 3:
                         new_col_type = "TEXT"
                     elif col_type == 4:
@@ -1240,8 +1240,8 @@ def addOrAlterTableColumn():
                     elif col_type == 5:
                         new_col_type = "DATETIME"
 
-                if not alterColumn(table.table_name, col_alias, new_col_type):  # 如果修改列失败则报错
-                    return jsonify({"code": -1, "message": "修改列失败"}), 400
+                    if not alterColumn(table.table_name, col_alias, new_col_type):  # 如果修改列失败则报错
+                        return jsonify({"code": -1, "message": "修改列失败"}), 400
 
                 try:  # 最后更新Header表中列的信息
                     db_session.query(Header).filter(Header.table_name == table.table_name, Header.value == col_alias).update({
@@ -1276,7 +1276,8 @@ def addOrAlterTableColumn():
 
             refreshMeta()
 
-            redisClient.delData(f"crm:header:{table.table_name}")  # 从redis中删除缓存
+            redisClient.delData(f"crm:{table_uuid}:template")      # 删除模板缓存
+            redisClient.delData(f"crm:header:{table.table_name}")  # 删除header缓存
 
             crmLogger.info(f"[addOrAlterTableColumn]用户{g.username}{_method}资产表{table.name}列{col_alias}成功")
 

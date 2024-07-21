@@ -559,7 +559,8 @@
                                                 return false;
                                             },
                                             error: (err) => {
-                                                console.log(err);
+                                                let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                                                layer.msg(errMsg.message, { icon: 2 });
                                                 return false;
                                             }
                                         });

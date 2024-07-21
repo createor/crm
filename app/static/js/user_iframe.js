@@ -788,7 +788,7 @@ var addOrAlterCol = () => {
                     resize: false,
                     move: false,
                     maxmin: false,
-                    content: `<div class="layui-form" style="padding: 10px 0 0 0;" lay-filter="option">
+                    content: `<div class="layui-form" style="padding: 10px 0px 0px 0px;" lay-filter="option">
                                 <div class="layui-form-item">
                                     <label class="layui-form-label" style="width: 70px;">选项名</label>
                                     <div class="layui-input-inline">
@@ -802,7 +802,7 @@ var addOrAlterCol = () => {
                                     </div>
                                 </div>
                                 <div class="layui-form-item">
-                                    <button class="layui-btn" lay-submit lay-filter="add" style="margin-left: 120px;">添加</button>
+                                    <button type="button" class="layui-btn" lay-submit lay-filter="add" style="margin-left: 120px;">添加</button>
                                 </div>
                               </div>`,
                     success: (_, oindex) => {
@@ -882,7 +882,6 @@ var addOrAlterCol = () => {
                     $("#colMethod").text("修改");
                     if ($("[name='hasColumn']").val() !== "") {
                         let c_o = $("[name='hasColumn']").val();
-                        console.log(c_o);
                         header.forEach((item) => {
                             if (item.field === c_o) {
                                 // 表单赋值
@@ -1000,7 +999,7 @@ var addOrAlterCol = () => {
 
 /**
  * 查看任务详情
- * @param {String} id 表uuid 
+ * @param {String} id 表id 
  * @param {String} task_id 任务id
  */
 function showTaskDeail (id, task_id) {
@@ -1044,11 +1043,11 @@ function showTaskDeail (id, task_id) {
                 limit: 5,
                 limits: [5],
                 cols: [[
-                    {field: "ip", title: "IP地址", width: 140},
-                    {field: "status", title: "状态", width: 110, templet: (d) => {
-                        return d.status === 0 ? `<span class="layui-badge layui-bg-green">在线</span>`: `<span class="layui-badge">离线</span>`;
-                    }},
-                    {field: "reason", title: "原因", width: 255}
+                    { field: "ip", title: "IP地址", width: 140 },
+                    { field: "status", title: "状态", width: 110, templet: (d) => {
+                        return d.status === 1 ? `<span class="layui-badge layui-bg-green">在线</span>`: `<span class="layui-badge">离线</span>`;
+                    } },
+                    { field: "reason", title: "原因", width: 255 }
                 ]],
                 done: (res) => {
                     if (res.code === 0) {
@@ -1102,7 +1101,7 @@ var mulitDetect = () => {
     let header = JSON.parse(localStorage.getItem("header"))[table_id];
     let option_template = "";
     header.forEach((item) => {
-        if (item.type !== 2 && item.col_type !== 4 && item.col_type !== 5) {
+        if (item.col_type !== 2 && item.value_type !== 4 && item.value_type !== 5) {
             option_template += `<option value="${item.field}">${item.title}</option>`;
         }
     });
@@ -1246,8 +1245,8 @@ var mulitDetect = () => {
 
 /**
  * @description 启动或停止通知
- * @param {String} mode 
- * @param {String} task_id 
+ * @param {String} mode 启动或者停止
+ * @param {String} task_id 任务id
  */
 function startOrStopNotify (mode, task_id) {
     let loadIndex = "";
@@ -1333,7 +1332,7 @@ var createNotify = () => {
                                         </div>
                                     </div>
                                     <div class="layui-form-item" style="margin-left: 180px;margin-top: 20px;">
-                                        <button class="layui-btn" lay-submit lay-filter="add" id="addTask">创建任务</button>
+                                        <button type="button" class="layui-btn" lay-submit lay-filter="add" id="addTask">创建任务</button>
                                     </div>
                                 </form>
                             </div>
