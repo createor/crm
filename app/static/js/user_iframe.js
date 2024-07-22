@@ -1584,7 +1584,7 @@ var exportTableData = () => {
                     }
                 }
                 $.ajax({
-                    url: `/crm/api/v1/manage/export?id=${table_id}${field.is_set === "1" ? `&passwd=${field.passwd}` : ""}${localStorage.getItem("condition") ? `&filter='${localStorage.getItem("condition")}'` : ""}`,
+                    url: `/crm/api/v1/manage/export?id=${table_id}${field.is_set === "1" ? `&passwd=${field.passwd}` : ""}${localStorage.getItem("condition") && localStorage.getItem("condition") !== "null" ? `&filter='${localStorage.getItem("condition")}'` : ""}`,
                     type: "GET",
                     beforeSend: () => {
                         loadIndex = layer.load(2);

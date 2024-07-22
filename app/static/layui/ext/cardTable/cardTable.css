@@ -90,3 +90,8 @@
     left: 0;
     right: 0;
 }
+
+#cardpage {
+	position: fixed;
+	bottom: 35px;
+}

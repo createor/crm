@@ -15,7 +15,6 @@ layui.define(['table', 'laypage','jquery', 'element','laytpl'], function(exports
 		elem: "#currentTableId", // 构建的模型
 		url: "", // 数据 url 连接
 		loading: true, //是否加载
-		height: "", // 高度
 		limit: 0, //每页数量默认是每行数量的双倍
 		linenum: 4, //每行数量 2,3,4,6
 		currentPage: 1, //当前页
@@ -42,9 +41,6 @@ layui.define(['table', 'laypage','jquery', 'element','laytpl'], function(exports
 		},
 		// 完 成 函 数
 		done: function (res, curr, count) {
-
-		},
-		complate: function (xhr) {
 
 		},
 		toolbar:null
@@ -139,20 +135,6 @@ layui.define(['table', 'laypage','jquery', 'element','laytpl'], function(exports
 			});
 		}
 		typeof option.done === 'function' && option.done(option, option.curr, option.count);
-		/** 重置高度 */
-		function resizeHeight() {
-			let height = document.documentElement.clientHeight;
-			if (option.height) {
-				let h = option.height.split("-");
-				if (h[0] == "full") {
-					$(".cloud-card-component").css("height", (height - (parseInt(h[1]) * 5)) + "px");
-				}
-			}
-		}
-		resizeHeight();
-		window.addEventListener("resize", function() {
-			resizeHeight();
-		});
 	}
 	card.prototype.reload = function (opt) {
 		this.initOptions(this.option ? $.extend(true, this.option, opt) : opt);

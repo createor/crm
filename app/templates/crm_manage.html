@@ -155,7 +155,6 @@
         var currentTable = cardTable.render({
             elem: "#manageTable",
             url: "/crm/api/v1/manage/query",
-            height: "full-35",
             loading: true,
             limit: 3,
             linenum: 4,
@@ -537,7 +536,7 @@
         // 2024/07/10功能需求: 右键跳转到指定资产表数据
         // 表格右键事件
         table.on("rowContextmenu(manage)", (obj) => {
-            if (localStorage.getItem("ip_col")) {
+            if (localStorage.getItem("ip_col") && localStorage.getItem("ip_col") !== "null") {
                 let data = obj.data;
                 document.addEventListener("contextmenu", (e) => {
                     e.preventDefault();  // 阻止浏览器默认的右键菜单事件
@@ -552,7 +551,7 @@
                             dropdown.render({
                                 trigger: "contextmenu",
                                 show: true,
-                                style: "width: 200px;height:232.55px;overflow:auto;",
+                                style: "width:200px;height:auto;max-height:232.55px;overflow:auto;",
                                 data: res.message,
                                 click: (obj) => {
                                     if (obj.id) {
