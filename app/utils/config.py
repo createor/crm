@@ -73,6 +73,10 @@ if not os.path.exists(LOG_PATH):
 # 是否扫描上传的文件
 SCAN_UPLOAD_FILE = cfg.getboolean("security", "clamav")
 
+# clamav的地址信息
+CLAMAV_HOST = cfg.get("security", "host")
+CLAMAV_PORT = cfg.getint("security", "port")
+
 # 日志级别
 LOG_LEVEL = cfg.get("server", "level")
 

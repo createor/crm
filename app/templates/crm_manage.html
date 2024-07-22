@@ -294,24 +294,25 @@
                     { title: "导入导出详情", layEvent: "LAYTABLE_DETAIL", icon: "layui-icon-time" }
                 ],
                 done: () => {
-                    // select选择事件
-                    form.on("select(utype)", (data) => {
-                        let value = data.value;  // 获取选中的值
-                        if (select_header[value].type === 2) {  // 如果是下拉列表
+                    // bugfix:2024/07/21 搜索按钮无响应,on事件绑定问题
+                    // 初始化搜索事件
+                    function initSearch (_key) {
+                        if (select_header[_key].type === 2) {  // 如果是下拉列表
                             $("#select_group").html(`
                                 <div class="layui-input-inline" style="width: 120px;height: 34px;">
-                                    <select name="${value}" id="${value}">
-                                        ${Object.keys(select_header[value].options).map((item) => { return `<option value="${item}">${select_header[value].options[item]}</option>`; }).join("")}
+                                    <select name="${_key}" id="${_key}">
+                                        ${Object.keys(select_header[_key].options).map((item) => { return `<option value="${item}">${select_header[_key].options[item]}</option>`; }).join("")}
                                     </select>
                                 </div>
                             `);
-                            form.render($(`#${value}`));      // 渲染下拉列表
+                            form.render($(`#${_key}`));      // 渲染下拉列表
                             // 搜索数据
+                            $("#searchData").off("click");
                             $("#searchData").on("click", () => {
                                 let u = $("#utype").val();
-                                let k = $(`#${value}`).val();
+                                let k = $(`#${_key}`).val();
                                 if (k.length > 0) {
-                                    k = select_header[value].options[k];
+                                    k = select_header[_key].options[k];
                                     localStorage.setItem("condition", JSON.stringify({ "type": 2, "key": u, "value": k }));
                                     table.reloadData("manage", {
                                         where: {
@@ -322,7 +323,7 @@
                                     });
                                 }
                             });
-                        } else if (select_header[value].value_type === 4) {  // 如果是日期
+                        } else if (select_header[_key].value_type === 4) {  // 如果是日期
                             $("#select_group").html(`
                                 <div class="layui-input-inline" style="width: 225px;">
                                     <div style="width: 100px;height: 34px;" class="layui-input-inline">
@@ -342,6 +343,7 @@
                             laydate.render({  // 渲染日期选择器
                                 elem: "#select_group_date"
                             });
+                            $("#searchData").off("click");
                             $("#searchData").on("click", () => {
                                 let u = $("#utype").val();
                                 let k = $("#select_group_date").val();
@@ -357,7 +359,7 @@
                                     });
                                 }
                             });
-                        } else if (select_header[value].value_type === 5) {  // 如果是时间
+                        } else if (select_header[_key].value_type === 5) {  // 如果是时间
                             $("#select_group").html(`
                                 <div class="layui-input-inline" style="width: 305px;">
                                     <div style="width: 100px;height: 34px;" class="layui-input-inline">
@@ -378,6 +380,7 @@
                                 elem: "#select_group_time",
                                 type: "datetime"
                             });
+                            $("#searchData").off("click");
                             $("#searchData").on("click", () => {
                                 let u = $("#utype").val();
                                 let k = $("#select_group_time").val();
@@ -397,6 +400,7 @@
                             $("#select_group").html(`<input type="text" placeholder="搜索相关内容" name="keywords" class="layui-input" style="height: 32px;">`);
                             form.render($("#select_group"));
                             // 搜索
+                            $("#searchData").off("click");
                             $("#searchData").on("click", () => {
                                 let u = $("#utype").val();
                                 let k = $("input[name='keywords']").val();
@@ -411,13 +415,19 @@
                                 }
                             });
                         }
+                    }
+                    initSearch($("#utype").val());
+                    // select选择事件
+                    form.on("select(utype)", (data) => {
+                        let value = data.value;  // 获取选中的值
+                        initSearch(value);
                     });
                     // 刷新数据
                     $("#refreshData").on("click", () => {
                         table.reloadData("manage", {
                             where: {}
                         });
-                        localStorage.setItem("condition", "");
+                        localStorage.setItem("condition", null);
                     });
                     // 下拉按钮选项
                     dropdown.render({

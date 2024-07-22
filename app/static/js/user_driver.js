@@ -131,6 +131,12 @@ function user_driver($, fn) {
                             $(".layui-layout-right .layui-nav-item .layui-nav-child").addClass("layui-show");
                         },
                     }
+                }, {
+                    element: "",
+                    popover: {
+                        title: "资产管理",
+                        description: "新建资产表"
+                    }
                 }
             ]
     });

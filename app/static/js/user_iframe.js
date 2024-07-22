@@ -591,10 +591,16 @@ var addOrEditData = (colData) => {
                                     </div>`;
                 time_array.push(item.field);
             } else {
+                let input_templ = "";
+                if (item.value_type === 2) {
+                    input_templ = item.must_input ? `<input type="text" name="${item.field}" lay-verify="required|chkLen" data-set-length="${item.length}" maxlength="${item.length}" autocomplete="off" class="layui-input"></input>` : `<input type="text" name="${item.field}" lay-verify="chkLen" data-set-length="${item.length}" maxlength="${item.length}" autocomplete="off" class="layui-input"></input>`;
+                } else {
+                    input_templ = `<input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} autocomplete="off" class="layui-input"></input>`;
+                }
                 form_item_templ += `<div class="layui-form-item">
                                         <label class="layui-form-label">${item.title}${item.must_input ? `<span style="color: red;">*</span>` : ""}</label>
                                         <div class="layui-input-block" style="width: 250px;">
-                                            <input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} autocomplete="off" class="layui-input"></input>
+                                            ${input_templ}
                                         </div>
                                     </div>`;
             }
@@ -619,6 +625,16 @@ var addOrEditData = (colData) => {
                     </form>
                   </div>`,
         success: (_, index) => {
+            // 定义校验数据长度的规则
+            form.verify({
+                chkLen: (value, elem) => {
+                    if (!value) return;
+                    let len = parseInt($(elem).data("setLength"));
+                    if (value.length !== len) {
+                        return `值为固定长度${len}个字符`;
+                    }
+                }
+            })
             form.render(null, "tableData");   // 渲染表格
             date_array.forEach((item) => {
                 laydate.render({ // 渲染日期

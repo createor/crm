@@ -9,6 +9,7 @@
 import pyclamd
 import traceback
 import ping3
+from app.utils.config import CLAMAV_HOST, CLAMAV_PORT
 from app.utils.logger import crmLogger
 
 def scan_file(filename: str) -> bool:
@@ -18,7 +19,7 @@ def scan_file(filename: str) -> bool:
     :return bool:
     '''
     try:
-        conn = pyclamd.ClamdUnixSocket()
+        conn = pyclamd.ClamdNetworkSocket(CLAMAV_HOST, CLAMAV_PORT)
         if not conn.ping():  # clamav服务不可用
             return True
         result = conn.scan_file(filename)
@@ -32,6 +33,8 @@ def scan_file(filename: str) -> bool:
     except pyclamd.ConnectionError:
         crmLogger.error(f"[scan_file]连接到clamav时发生错误: {traceback.format_exc()}")
         return True
+    finally:
+        conn.disconnect()
 
 def scan_ip(ip: str) -> bool:
     '''

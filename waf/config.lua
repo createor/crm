@@ -1,18 +1,14 @@
--- 配置
+-- 配置文件
 -- waf规则存放路径
 RulePath = "/usr/local/openresty/nginx/conf/waf/wafconf/"
--- 是否拦截url访问
+-- 是否拦截黑名单url访问
 UrlDeny = "on"
 -- 是否返回警告信息
 Redirect = "on"
 -- 是否匹配请求的cookie
 CookieMatch = "on"
--- 是否匹配post的body
-PostMatch = "on"
 -- 是否开启白名单url模块
 WhiteModule = "on"
--- 上传文件后缀黑名单
-BlackFileExt = { "php", "jsp", "asp", "js" }
 -- 警告信息
 AlarmHtml = [[
 <html xmlns="http://www.w3.org/1999/xhtml"><head>
