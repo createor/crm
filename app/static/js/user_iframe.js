@@ -42,8 +42,8 @@ var renderStepProgress = () => {
  * @description 文本输入长度
  * @param {this} that 
  */
-var checkLength = (that) => {
-    $("#char-count").text(that.value.length);
+var checkLength = (dom, that) => {
+    $(`#${dom}-count`).text(that.value.length);
 }
 
 /**
@@ -82,7 +82,7 @@ var addNewTable = () => {
                         <div class="layui-form-item">
                             <label class="layui-form-label" style="width: 100px;">备注信息(选填)</label>
                             <div class="layui-input-inline" style="width: 250px;">
-                                <textarea name="remark" id="remark" placeholder="请输入备注信息" maxlength="50" rows="3" class="layui-textarea" style="resize: none;min-height: 80px;" oninput="checkLength(this)"></textarea>
+                                <textarea name="remark" id="remark" placeholder="请输入备注信息" maxlength="50" rows="3" class="layui-textarea" style="resize: none;min-height: 80px;" oninput="checkLength('char',this)"></textarea>
                                 <div><span id="char-count">0</span>/50</div>
                             </div>
                         </div>
@@ -556,6 +556,7 @@ var addOrEditData = (colData) => {
     let date_array = [];       // 日期数组
     let time_array = [];       // 时间数组
     let mark_array = [];       // 脱敏的数组
+    let len_array = [];        // 长度的数据
     let form_item_templ = "";  // 表单模板
     header.forEach((item) => {
         if (item.is_mark) {
@@ -593,7 +594,8 @@ var addOrEditData = (colData) => {
             } else {
                 let input_templ = "";
                 if (item.value_type === 2) {
-                    input_templ = item.must_input ? `<input type="text" name="${item.field}" lay-verify="required|chkLen" data-set-length="${item.length}" maxlength="${item.length}" autocomplete="off" class="layui-input"></input>` : `<input type="text" name="${item.field}" lay-verify="chkLen" data-set-length="${item.length}" maxlength="${item.length}" autocomplete="off" class="layui-input"></input>`;
+                    input_templ = item.must_input ? `<input type="text" name="${item.field}" lay-verify="required|chkLen" data-set-length="${item.length}" maxlength="${item.length}" autocomplete="off" class="layui-input" oninput="checkLength('${item.field}',this)"></input><div style="position:absolute;top:12px;right:-40px;"><span id="${item.field}-count">0</span>/${item.length}</div>` : `<input type="text" name="${item.field}" lay-verify="chkLen" data-set-length="${item.length}" maxlength="${item.length}" autocomplete="off" class="layui-input" oninput="checkLength('${item.field}',this)"></input><div style="position:absolute;top:12px;right:-40px;"><span id="${item.field}-count">0</span>/${item.length}</div>`;
+                    len_array.push(item.field);
                 } else {
                     input_templ = `<input type="text" name="${item.field}" ${item.must_input ? "lay-verify='required'" : ""} autocomplete="off" class="layui-input"></input>`;
                 }
@@ -668,10 +670,16 @@ var addOrEditData = (colData) => {
                         complete: () => {
                             formData = Object.assign({}, formData, undeseData);  // 合并对象
                             form.val("tableData", formData);
+                            len_array.forEach((item) => {
+                                $(`#${item}-count`).text(formData[item].length);
+                            });
                         }
                     });
                 } else {
                     form.val("tableData", formData);
+                    len_array.forEach((item) => {
+                        $(`#${item}-count`).text(formData[item].length);
+                    });
                 }
             }
             form.on("submit(add)", (data) => {
