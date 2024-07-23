@@ -758,7 +758,7 @@ var addOrAlterCol = () => {
                                 <input type="text" name="col_name" lay-verify="required" placeholder="请输入中文" autocomplete="off" class="layui-input" style="width: 200px;">
                             </div>
                         </div>
-                        <div class="layui-form-item">
+                        <div class="layui-form-item" id="isAddOrAlter">
                             <label class="layui-form-label" style="width: 85px;">列别名</label>
                             <div class="layui-input-block">
                                 <input type="text" name="col_name_en" lay-verify="required" placeholder="请输入英文" autocomplete="off" class="layui-input" style="width: 200px;">
@@ -796,8 +796,8 @@ var addOrAlterCol = () => {
                                 <input type="radio" name="is_mask" value="0" title="否" checked>
                             </div>
                         </div>
-                        <div class="layui-form-item">
-                            <button type="button" class="layui-btn" lay-submit lay-filter="addNewCol" style="margin: 0 210px;" id="colMethod">新增</button>
+                        <div class="layui-form-item" style="position: fixed;bottom: 40px;margin-left: 210px;">
+                            <button type="button" class="layui-btn" lay-submit lay-filter="addNewCol" id="colMethod">新增</button>
                         </div>
                     </form>
                   </div>`,
@@ -888,6 +888,7 @@ var addOrAlterCol = () => {
                 })
             });
             form.on("radio(mode)", (data) =>{
+                $("#isAddOrAlter").show();
                 $("#colMethod").text("新增");
                 let elem = data.elem
                 let value = elem.value;
@@ -906,6 +907,8 @@ var addOrAlterCol = () => {
                     has_options = {};
                     form.render("select", "column");
                 } else if (value === "alter") {
+                    // bugfix:修改列,列别名应为只读或隐藏
+                    $("#isAddOrAlter").hide();
                     $("#colMethod").text("修改");
                     if ($("[name='hasColumn']").val() !== "") {
                         let c_o = $("[name='hasColumn']").val();
