@@ -796,7 +796,7 @@ var addOrAlterCol = () => {
                                 <input type="radio" name="is_mask" value="0" title="否" checked>
                             </div>
                         </div>
-                        <div class="layui-form-item" style="position: fixed;bottom: 40px;margin-left: 210px;">
+                        <div class="layui-form-item" style="margin-left: 210px;">
                             <button type="button" class="layui-btn" lay-submit lay-filter="addNewCol" id="colMethod">新增</button>
                         </div>
                     </form>

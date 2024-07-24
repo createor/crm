@@ -18,6 +18,7 @@ from app.src.models import engine, db_session, Task, DetectResult, Notice, Histo
 from sqlalchemy import and_, insert, update
 from concurrent.futures import ThreadPoolExecutor
 from openpyxl.utils import get_column_letter
+import pandas as pd
 
 importExecutor = ThreadPoolExecutor(max_workers=5)  # 导入线程池
 exportExecutor = ThreadPoolExecutor(max_workers=5)  # 导出线程池
@@ -276,31 +277,34 @@ def importTableTask(table_name: str) -> None:
                             new_data = i.pop(f"{c.name}*")
                         else:
                             new_data = i.pop(c.name)
-                        if new_data:
-                            if date_header or datetime_header:
-                                if c.name in date_header:       # 如果是时间,判断是否是date类型,否则进行转换
-                                    if isinstance(new_data, datetime):
-                                        new_data = date.fromordinal(new_data.toordinal())
-                                    elif not isinstance(new_data, date):
-                                        try:
-                                            new_data = datetime.strptime(new_data, "%Y-%m-%d")
-                                        except (ValueError, TypeError):
-                                            err_msg.append(f"第{idx}行,{c.name}字段值{new_data}不符合日期格式,请检查")
-                                            continue
-                                elif c.name in datetime_header:  # 如果是时间,判断是否是datetime类型,否则进行转换
-                                    if isinstance(new_data, date):
-                                        new_data = datetime.fromordinal(new_data.toordinal())
-                                    elif not isinstance(new_data, datetime):
-                                        try:
-                                            new_data = datetime.strptime(new_data, "%Y-%m-%d %H:%M:%S")
-                                        except (ValueError, TypeError):
-                                            err_msg.append(f"第{idx}行,{c.name}字段值{new_data}不符合时间格式,请检查")
-                                            continue
+                        if new_data and not pd.isna(new_data):  # bugfix:pandas读取非法时间NaT
+                            if c.name in date_header:       # 如果是时间,判断是否是date类型,否则进行转换
+                                if isinstance(new_data, datetime):
+                                    new_data = date.fromordinal(new_data.toordinal())
+                                elif not isinstance(new_data, date):
+                                    try:
+                                        new_data = datetime.strptime(new_data, "%Y-%m-%d")
+                                    except (ValueError, TypeError):
+                                        crmLogger.error(f"[importTableTask]第{idx}行,{c.name}字段值{new_data}不符合日期格式")
+                                        err_msg.append(f"第{idx}行,{c.name}字段值{new_data}不符合日期格式,请检查")
+                                        continue
+                            elif c.name in datetime_header:  # 如果是时间,判断是否是datetime类型,否则进行转换
+                                if isinstance(new_data, date):
+                                    new_data = datetime.fromordinal(new_data.toordinal())
+                                elif not isinstance(new_data, datetime):
+                                    try:
+                                        new_data = datetime.strptime(new_data, "%Y-%m-%d %H:%M:%S")
+                                    except (ValueError, TypeError):
+                                        crmLogger.error(f"[importTableTask]第{idx}行,{c.name}字段值{new_data}不符合时间格式")
+                                        err_msg.append(f"第{idx}行,{c.name}字段值{new_data}不符合时间格式,请检查")
+                                        continue
+                            else:
+                                if isinstance(new_data, datetime):
+                                    new_data = new_data.strftime("%Y-%m-%d %H:%M:%S")
+                                elif isinstance(new_data, date):
+                                    new_data = new_data.strftime("%Y-%m-%d")
                                 else:
-                                    if isinstance(new_data, datetime):
-                                        new_data = new_data.strftime("%Y-%m-%d %H:%M:%S")
-                                    elif isinstance(new_data, date):
-                                        new_data = new_data.strftime("%Y-%m-%d")
+                                    new_data = str(new_data)
                             i.update({c.value: new_data})
                         else:
                             i.update({c.value: ""})

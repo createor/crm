@@ -1163,73 +1163,65 @@ def addOrAlterTableColumn():
                              db_session.close()
 
                         # 校验列数据是否可以被转换为时间
-                        if col_type == 4:
-                        
-                            date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+                        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+                        datetime_pattern = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
 
-                            for row in query_not_null_data:
-                                if not bool(date_pattern.match(row[0])):
-                                    crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为日期: 此列存在日期格式错误")
-                                    crmLogger.debug(f"[addOrAlterTableColumn]错误数据: {row}")
-                                    return jsonify({"code": -1, "message": "存在日期格式错误,不允许修改"}), 400
+                        for row in query_not_null_data:  # 要修改为时间或日期,值不能存在空值
+                            if not bool(date_pattern.match(row[0])) and not bool(datetime_pattern.match(row[0])):
+                                crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为日期/时间: 此列存在日期/时间格式错误")
+                                crmLogger.debug(f"[addOrAlterTableColumn]错误数据: {row}")
+                                return jsonify({"code": -1, "message": "存在日期/时间格式错误,不允许修改"}), 400
 
-                        elif col_type == 5:
-                        
-                            datetime_pattern = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')
+                    if curr_header.value_type in [1,2] and _old_col_type in [1,2]:
+                        pass
+                    else:
+                        # 校验通过后更新值或者修改列属性
+                        new_col_type = "VARCHAR(255)"
+                        if curr_header.value_type != col_type:  # 数据类型发生改变
+                            if col_type == 3:
+                                new_col_type = "TEXT"
+                            elif col_type == 4:
+                                new_col_type = "DATE"
+                            elif col_type == 5:
+                                new_col_type = "DATETIME"
+    
+                            if not alterColumn(table.table_name, col_alias, new_col_type):  # 如果修改列失败则报错
+                                return jsonify({"code": -1, "message": "修改列失败"}), 400
 
-                            for row in query_not_null_data:
-                                if not bool(datetime_pattern.match(row[0])):
-                                    crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为时间: 此列存在时间格式错误")
-                                    crmLogger.debug(f"[addOrAlterTableColumn]错误数据: {row}")
-                                    return jsonify({"code": -1, "message": "存在时间格式错误,不允许修改"}), 400
-
-                    # 如果修改列是从下拉列表取值
-                    elif col_type == 6:
+                # 如果修改列是从下拉列表取值
+                if col_type == 6:
                     
-                        new_option_name = [o["name"] for o in options]
+                    new_option_name = [o["name"] for o in options]
 
-                        try: # 存在则判断数据是否取值与下拉列表中
-                            is_all_in_options = db_session.query(getattr(manageTable.c, col_alias)).filter(getattr(manageTable.c, col_alias).notin_(new_option_name)).first()
-                        finally:
-                            db_session.close()
+                    try: # 存在则判断数据是否取值与下拉列表中
+                        is_all_in_options = db_session.query(getattr(manageTable.c, col_alias)).filter(getattr(manageTable.c, col_alias).notin_(new_option_name)).first()
+                    finally:
+                        db_session.close()
 
-                        if is_all_in_options:
-                            crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为下拉列表: 此列存在数据不在下拉列表中")
-                            return jsonify({"code": -1, "message": "存在部分数据不在下拉列表中,不允许修改"}), 400
+                    if is_all_in_options:
+                        crmLogger.error(f"[addOrAlterTableColumn]用户{g.username}将列{col_alias}设置为下拉列表: 此列存在数据不在下拉列表中")
+                        return jsonify({"code": -1, "message": "存在部分数据不在下拉列表中,不允许修改"}), 400
+                    
+                    try:  # 如果type是下拉列表则更新option表             
+                        db_session.query(Options).filter(Options.header_value == col_alias, Options.table_name == table.table_name).delete()
+                        db_session.commit()
+                    except:            
+                        db_session.rollback()
+                        crmLogger.error(f"[addOrAlterTableColumn]删除options表发生异常: {traceback.format_exc()}")
+                        return jsonify({"code": -1, "message": "数据库异常"}), 500
+                    finally:  
+                        db_session.close()
 
-                        try:  # 如果type是下拉列表则更新option表             
-                            db_session.query(Options).filter(Options.header_value == col_alias, Options.table_name == table.table_name).delete()
-                            db_session.commit()
-                        except:            
-                            db_session.rollback()
-                            crmLogger.error(f"[addOrAlterTableColumn]删除options表发生异常: {traceback.format_exc()}")
-                            return jsonify({"code": -1, "message": "数据库异常"}), 500
-                        finally:  
-                            db_session.close()
-
-                        try:  # 重新添加选项值
-                            new_options = [Options(option_name=o["name"], option_value=o["value"], header_value=col_alias, table_name=table.table_name) for o in options]
-                            db_session.add_all(new_options)
-                            db_session.commit()
-                        except:
-                            db_session.rollback()
-                            crmLogger.error(f"[addOrAlterTableColumn]写入options表发生异常: {traceback.format_exc()}")
-                            return jsonify({"code": -1, "message": "数据库异常"}), 500
-                        finally:
-                            db_session.close()
-
-                    # 校验通过后更新值或者修改列属性
-                    new_col_type = "VARCHAR(255)"
-                    if curr_header.value_type != col_type:  # 数据类型发生改变
-                        if col_type == 3:
-                            new_col_type = "TEXT"
-                        elif col_type == 4:
-                            new_col_type = "DATE"
-                        elif col_type == 5:
-                            new_col_type = "DATETIME"
-
-                        if not alterColumn(table.table_name, col_alias, new_col_type):  # 如果修改列失败则报错
-                            return jsonify({"code": -1, "message": "修改列失败"}), 400
+                    try:  # 重新添加选项值
+                        new_options = [Options(option_name=o["name"], option_value=o["value"], header_value=col_alias, table_name=table.table_name) for o in options]
+                        db_session.add_all(new_options)
+                        db_session.commit()
+                    except:
+                        db_session.rollback()
+                        crmLogger.error(f"[addOrAlterTableColumn]写入options表发生异常: {traceback.format_exc()}")
+                        return jsonify({"code": -1, "message": "数据库异常"}), 500
+                    finally:
+                        db_session.close()
 
                 try:  # 最后更新Header表中列的信息
                     db_session.query(Header).filter(Header.table_name == table.table_name, Header.value == col_alias).update({
