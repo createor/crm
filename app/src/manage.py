@@ -155,7 +155,7 @@ def bindTableIpCol():
     try:
         exist_col = db_session.query(Header.value).filter(Header.table_name == table.table_name, Header.is_ip == 1).first()
         if exist_col and exist_col.value != ip_column:
-            db_session.query(Header.value).filter(Header.table_name == table.table_name, Header.is_ip == 1).update({"is_ip": 0})
+            db_session.query(Header).filter(Header.table_name == table.table_name, Header.is_ip == 1).update({"is_ip": 0})
             db_session.commit()
     except:
         db_session.rollback()
@@ -685,13 +685,14 @@ def importTableFromExcel():
     '''导入资产表'''
     reqData = request.get_json()  # 获取请求数据
 
-    if not all(key in reqData for key in ["file_uuid", "table_id"]):  # 校验body参数
+    if not all(key in reqData for key in ["file_uuid", "table_id", "update"]):  # 校验body参数
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
 
     file_uuid = reqData["file_uuid"]    # 获取上传的文件uuid
     table_id = reqData["table_id"]      # 获取导入的资产表id
+    update = reqData["update"]          # 是否导入更新
 
-    if not all([file_uuid, table_id]):   # 必填参数值为空情况
+    if not all([file_uuid, table_id]) or update not in [True, False]:   # 必填参数值为空情况
         return jsonify({"code": -1, "message": "请求参数不完整"}), 400
     
     if not redisClient.getSet("crm:manage:table_uuid", table_id):     # 如果资产表不存在
@@ -716,7 +717,8 @@ def importTableFromExcel():
     task_id = getUuid()
 
     try:                    # 写入记录表
-        import_history = History(id=task_id, file_uuid=file_uuid, mode=1, status=0, table_name=table.table_name, create_user=g.username)
+        _m = 3 if update else 1
+        import_history = History(id=task_id, file_uuid=file_uuid, mode=_m, status=0, table_name=table.table_name, create_user=g.username)
         db_session.add(import_history)
         db_session.commit()
     except:
@@ -741,6 +743,7 @@ def importTableFromExcel():
         "file": f"{file_uuid}.{file.affix}",  # 导入的文件名
         "name": table.name,                   # 导入的表名
         "table": table.table_name,            # 导入的表别名
+        "update": update,                     # 是否是更新
         "user": g.username                    # 导入的用户
     }))
 
@@ -1635,6 +1638,7 @@ def exportTableData():
     table_uuid = args.get("id", None)   # 资产表id
     password = args.get("passwd", None) # 表格密码
     filter = args.get("filter", None)   # 筛选条件
+    update = args.get("update", None)   # 是否更新
 
     if not table_uuid:  # 如果请求参数没有资产表id
         return jsonify({"code": -1, "message": "缺少id参数"}), 400
@@ -1680,7 +1684,8 @@ def exportTableData():
         "name": table.name,
         "filter": filter,
         "user": g.username,
-        "password": password
+        "password": password,
+        "update": bool(update) if update else False
     }))
 
     startExportTableTask(table.table_name)
@@ -1733,7 +1738,10 @@ def queryHistory():
         return jsonify({"code": -1, "message": "资产表不存在"}), 400
         
     try:
-        count = db_session.query(History).filter(History.table_name == table.table_name, History.mode == mode).count()
+        if mode == 1:
+            count = db_session.query(History).filter(History.table_name == table.table_name, History.mode.in_([1,3])).count()
+        else:
+            count = db_session.query(History).filter(History.table_name == table.table_name, History.mode == mode).count()
     finally:
         db_session.close()
 
@@ -1741,13 +1749,16 @@ def queryHistory():
         return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
     
     try:
-        result = db_session.query(History).filter(History.table_name == table.table_name, History.mode == mode).order_by(History.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+        if mode == 1:
+            result = db_session.query(History).filter(History.table_name == table.table_name, History.mode.in_([1,3])).order_by(History.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
+        else:
+            result = db_session.query(History).filter(History.table_name == table.table_name, History.mode == mode).order_by(History.create_time.desc()).offset((page - 1) * limit).limit(limit).all()
     finally:
         db_session.close()
 
     crmLogger.info(f"[queryHistory]用户{g.username}查询了资产表{table.name}的{'导入' if mode == 1 else '导出'}历史记录")
 
-    return jsonify({"code": 0, "message": {"total": count, "data": [{"id": u.id, "file": u.file_uuid, "status": u.status, "create_user": u.create_user, "create_time": formatDate(u.create_time, 2), "error": u.err_file} for u in result]}}), 200
+    return jsonify({"code": 0, "message": {"total": count, "data": [{"id": u.id, "mode": u.mode, "file": u.file_uuid, "status": u.status, "create_user": u.create_user, "create_time": formatDate(u.create_time, 2), "error": u.err_file} for u in result]}}), 200
 
 @manage.route("/rule", methods=methods.ALL)
 @verify(allow_methods=["GET", "POST"], module_name="获取或创建图表规则", check_ip=True)
@@ -1909,6 +1920,7 @@ def getEchart():
         manageTable = initManageTable(table.table_name)  # 实例化已存在资产表
 
         for rule in rules:
+
             if rule.type == 1:  # 饼图
 
                 try:
@@ -1964,12 +1976,19 @@ def getEchart():
                 if bar_result:
                     data_1 = []
                     data_2 = []
-                    for i in pie_result:
-                        data_1.append(i[0])
-                        data_2.append(i[1])
+                    for i in bar_result:
+                        if i[0]:
+                            data_1.append(i[0])
+                            data_2.append(i[1])
                     result.append({
                         "title": {
                             "text": rule.name
+                        },
+                        "tooltip": {
+                            "trigger": "axis",
+                            "axisPointer": {
+                                "type": "shadow"
+                            }
                         },
                         "xAxis": {
                             "type": "category",
@@ -1985,6 +2004,7 @@ def getEchart():
                         },
                         "series": [
                             {
+                                "name": "数量",
                                 "data": data_2,
                                 "type": "bar"
                             }

@@ -23,7 +23,7 @@ def readExcel(filePath: str) -> Union[pd.DataFrame, None]:
     :return:
     '''
     try:
-        return pd.read_excel(filePath).fillna(value=None)  # bugfix:替换表中的空值nan
+        return pd.read_excel(filePath).fillna(value="")  # bugfix:替换表中的空值nan
     except:
         crmLogger.error(f"[readExcel]读取表格时发生错误: {traceback.format_exc()}")
         return None

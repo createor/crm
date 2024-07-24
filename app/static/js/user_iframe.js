@@ -505,7 +505,7 @@ var delColData = (data) => {
                     id_array.push(item._id);
                 });
                 $.ajax({
-                    url: "/crm/api/v1/manage/",
+                    url: "/crm/api/v1/manage/delete",
                     type: "POST",
                     contentType: "application/json;charset=utf-8",
                     data: JSON.stringify({
@@ -1492,6 +1492,27 @@ var showHistory = () => {
                     </div>
                   </div>`,
         success: () => {
+            let column = [
+                { field: "id", title: "ID", hide: true },
+                { field: "mode", title: "模式", width: 120, templet: (d) => {
+                    if (d.mode === 1) return "导入新增";
+                    if (d.mode === 3) return "导入更新";
+                } },
+                { field: "create_user", title: "创建者", width: 120 },
+                { field: "create_time", title: "创建时间", width: 170 },
+                { field: "status", title: "状态", width: 80, templet: (d) => {
+                    if (d.status === 1) return `<span class="layui-badge layui-bg-blue">执行中</span>`;
+                    if (d.status === 0) return `<span class="layui-badge-rim">排队中</span>`;
+                    if (d.status === 2) return `<span class="layui-badge layui-bg-green">成功</span>`;
+                    if (d.status === 3) return `<span class="layui-badge">失败</span>`;
+                } },
+                { field: "error", title: "错误", width: 120, templet: (d) => {
+                    if (!d.error) {
+                        return "";
+                    }
+                    return `<a href="/crm/api/v1/file/${d.error}" style="color: blue;">下载错误文件</a>`;
+                } }
+            ];
             table.render({
                 elem: "#historyTable",
                 id: "historyTable",
@@ -1511,37 +1532,25 @@ var showHistory = () => {
                         "data": res.message.data
                     }
                 },
-                cols: [[
-                    { field: "id", title: "ID", hide: true },
-                    { field: "file", title: "文件", width: 120, templet: (d) => {
+                cols: [column]
+            });
+            element.on("tab(history)", (data) => {
+                if (data.index === 0) {
+                    column[1] = {field:"mode",title:"模式",width:120,templet:(d) => {
+                        if (d.mode === 1) return "导入新增";
+                        if (d.mode === 3) return "导入更新";
+                    }}
+                    table.reload("historyTable", {
+                        url: `/crm/api/v1/manage/history?type=1&id=${table_id}`
+                    }); 
+                } else {
+                    column[1] = {field:"file",title:"文件",width:120,templet:(d) => {
                         if (!d.file) {
                             return "";
                         }
                         return `<a href="/crm/api/v1/file/${d.file}" style="color: blue;">点此下载文件</a>`;
-                    } },
-                    { field: "create_user", title: "创建者", width: 120 },
-                    { field: "create_time", title: "创建时间", width: 170 },
-                    { field: "status", title: "状态", width: 80, templet: (d) => {
-                        if (d.status === 1) return `<span class="layui-badge layui-bg-blue">执行中</span>`;
-                        if (d.status === 0) return `<span class="layui-badge-rim">排队中</span>`;
-                        if (d.status === 2) return `<span class="layui-badge layui-bg-green">成功</span>`;
-                        if (d.status === 3) return `<span class="layui-badge">失败</span>`;
-                    } },
-                    { field: "error", title: "错误", width: 120, templet: (d) => {
-                        if (!d.error) {
-                            return "";
-                        }
-                        return `<a href="/crm/api/v1/file/${d.error}" style="color: blue;">下载错误文件</a>`;
-                    } }
-                ]]
-            });
-            element.on("tab(history)", (data) => {
-                if (data.index === 0) {
-                    table.reloadData("historyTable", {
-                        url: `/crm/api/v1/manage/history?type=1&id=${table_id}`
-                    }); 
-                } else {
-                    table.reloadData("historyTable", {
+                    }}
+                    table.reload("historyTable", {
                         url: `/crm/api/v1/manage/history?type=2&id=${table_id}`
                     }); 
                 }
@@ -1558,7 +1567,7 @@ var exportTableData = () => {
     layer.open({
         type: 1,
         title: "是否加密表格",
-        area: ["500px", "250px"],
+        area: ["500px", "270px"],
         shade: 0.6,
         shadeClose: false,
         move: false,
@@ -1578,7 +1587,12 @@ var exportTableData = () => {
                             </div>
                         </div>
                     </div>
-                    <div class="layui-form-item" style="margin-top: 20px;">
+                    <div class="layui-form-item" style="margin-left: 3px;margin-top: -5px;">
+                        <div class="layui-input-inline">
+                            <input type="checkbox" name="is_update" lay-text="导出为更新">
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
                         <button type="button" class="layui-btn" lay-submit lay-filter="export" style="margin-left: 90px;">导出</button>
                         <button type="button" class="layui-btn layui-btn-primary layui-border" lay-submit lay-filter="cancel" style="margin-left: 100px;">取消</button>
                     </div>
@@ -1594,8 +1608,9 @@ var exportTableData = () => {
                         return false;
                     }
                 }
+                console.log(data);
                 $.ajax({
-                    url: `/crm/api/v1/manage/export?id=${table_id}${field.is_set === "1" ? `&passwd=${field.passwd}` : ""}${localStorage.getItem("condition") && localStorage.getItem("condition") !== "null" ? `&filter='${localStorage.getItem("condition")}'` : ""}`,
+                    url: `/crm/api/v1/manage/export?id=${table_id}${field.is_update === "on" ? `&update=true` : ""}${field.is_set === "1" ? `&passwd=${field.passwd}` : ""}${localStorage.getItem("condition") && localStorage.getItem("condition") !== "null" ? `&filter='${localStorage.getItem("condition")}'` : ""}`,
                     type: "GET",
                     beforeSend: () => {
                         loadIndex = layer.load(2);

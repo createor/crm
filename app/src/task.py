@@ -15,7 +15,7 @@ import threading
 from datetime import datetime, date
 from app.utils import TEMP_DIR, UPLOAD_EXCEL_DIR, redisClient, crmLogger, createExcel, readExcel, scan_ip, getUuid
 from app.src.models import engine, db_session, Task, DetectResult, Notice, History, Header, Options, File, initManageTable, MyHeader
-from sqlalchemy import and_, insert
+from sqlalchemy import and_, insert, update
 from concurrent.futures import ThreadPoolExecutor
 from openpyxl.utils import get_column_letter
 
@@ -145,18 +145,33 @@ def importTableTask(table_name: str) -> None:
                     finally:
                         db_session.close()
 
-                # 读取文件的header和数据库中比对是否一致,不一致说明不是使用模板导入
-                if [h.name for h in templ_header].sort() != list(map(lambda x: x.rsplit("*", 1)[0] if x.endswith("*") else x, table_headers)).sort():  # 去除*号后排序后比较
-                    crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: 未使用模板导入")
-                    writeError(task_data["task_id"], "未使用模板导入")
-                    continue
+                if task_data["update"]:
+                    _t_h = [h.name for h in templ_header]
+                    _t_h.append("_id")
+                    if _t_h.sort() != list(map(lambda x: x.rsplit("*", 1)[0] if x.endswith("*") else x, table_headers)).sort():  # 去除*号后排序后比较
+                        crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: 缺失字段")
+                        writeError(task_data["task_id"], "缺失字段")
+                        continue
+                else:
+                    # 读取文件的header和数据库中比对是否一致,不一致说明不是使用模板导入
+                    if [h.name for h in templ_header].sort() != list(map(lambda x: x.rsplit("*", 1)[0] if x.endswith("*") else x, table_headers)).sort():  # 去除*号后排序后比较
+                        crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: 未使用模板导入")
+                        writeError(task_data["task_id"], "未使用模板导入")
+                        continue
 
                 manageTable = initManageTable(task_data["table"])  # 实例化已存在的资产表
 
                 # 判断必填值列是否有空值
                 must_header = [h.name for h in templ_header if h.must_input == 1]
+                # bugfix:值为全数字或者类型为数字导入报错
+                def checkIsNull(x):
+                    if x == "":
+                        return True
+                    else:
+                        return False
                 for h in must_header:
-                    if temp_table[f"{h}*"].isnull().any():         # 判断是否有空值,带*表示必填   
+                    # if temp_table[f"{h}*"].isnull().any():         # 判断是否有空值,带*表示必填
+                    if temp_table[f"{h}*"].apply(checkIsNull).any():  # bugfix:pandas使用fillna填充后空值变为"""
                         crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: {h}字段为必填项,存在空值")
                         writeError(task_data["task_id"], f"{h}字段为必填项,存在空值")
                         is_continue = True
@@ -193,10 +208,16 @@ def importTableTask(table_name: str) -> None:
                         is_continue = True
                         break
                     
-                    try:  # 比对导入的表格数据与数据库中是否有重复
-                        col_data = db_session.query(getattr(manageTable.c, h["value"])).all()
-                    finally:
-                        db_session.close()
+                    if task_data["update"]:
+                        try:
+                            col_data = db_session.query(getattr(manageTable.c, h["value"])).filter(manageTable.c._id.notin_(temp_table["_id"].tolist())).all()
+                        finally:
+                            db_session.close()
+                    else:
+                        try:  # 比对导入的表格数据与数据库中是否有重复
+                            col_data = db_session.query(getattr(manageTable.c, h["value"])).all()
+                        finally:
+                            db_session.close()
 
                     col_data = [getattr(c, h["value"]) for c in col_data if getattr(c, h["value"])]
 
@@ -239,13 +260,17 @@ def importTableTask(table_name: str) -> None:
 
                 redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 50}), 300)  # 设置进度为50%
                                 
-                insert_data = temp_table.to_dict(orient="records")
+                insertOrUpdate_data = temp_table.to_dict(orient="records")
 
                 date_header = [h.name for h in templ_header if h.value_type == 4]
                 datetime_header = [h.name for h in templ_header if h.value_type == 5]
 
                 err_msg = []
-                for idx, i in enumerate(insert_data, start=1):
+                for idx, i in enumerate(insertOrUpdate_data, start=1):
+                    if task_data["update"]:
+                        i["_update_user"] = task_data["user"]
+                    else:
+                        i["_create_user"] = task_data["user"]
                     for c in templ_header:
                         if c.must_input == 1:
                             new_data = i.pop(f"{c.name}*")
@@ -277,23 +302,28 @@ def importTableTask(table_name: str) -> None:
                                     elif isinstance(new_data, date):
                                         new_data = new_data.strftime("%Y-%m-%d")
                             i.update({c.value: new_data})
+                        else:
+                            i.update({c.value: ""})
 
                 redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 80}), 300) # 设置进度为80%
 
                 try:
-                    with engine.begin() as conn:  # 开启事务,批量插入数据        
-                        stmt = insert(manageTable)
-                        conn.execute(stmt, insert_data)
+                    with engine.begin() as conn:  # 开启事务,批量插入或更新数据
+                        if task_data["update"]:   # 更新数据
+                            for record in insertOrUpdate_data:
+                                _update_id = record.pop("_id")
+                                stmt = update(manageTable).where(manageTable.c._id == _update_id).values(record)
+                                conn.execute(stmt)
+                        else:  # 插入数据
+                            stmt = insert(manageTable)
+                            conn.execute(stmt, insertOrUpdate_data)
                 except:
-                    crmLogger.error(f"[importTableTask]资产表{table_name}插入数据失败: {traceback.format_exc()}")
+                    crmLogger.error(f"[importTableTask]资产表{table_name}{'更新' if task_data['update'] else '插入'}数据发生异常: {traceback.format_exc()}")
                     continue
 
                 if len(err_msg) > 0:
-
                     writeError(task_data["task_id"], "\n".join(err_msg), 2)
-
                 else:
-
                     try:
                         db_session.query(History).filter(History.id == task_data["task_id"]).update({"status": 2})
                         db_session.commit()
@@ -401,10 +431,17 @@ def exportTableTask(table_name: str):
                 table_header = {}
                 table_styles = {}
 
+                if task_data["update"]:
+                    table_header["_id"] = {
+                        "name": "_id",
+                        "index": "A",
+                        "must_input": False
+                    }
+
                 for h in header:    
                     table_header[h.name] = {
                         "name": h.value,
-                        "index": get_column_letter(h.order + 1),
+                        "index": get_column_letter(h.order + 2) if task_data["update"] else get_column_letter(h.order + 1),
                         "must_input": h.must_input == 1
                     }
 
@@ -415,11 +452,11 @@ def exportTableTask(table_name: str):
                             db_session.close()
 
                         table_styles[f"{h.name}"] = {
-                            "index": get_column_letter(h.order + 1),
+                            "index": get_column_letter(h.order + 2) if task_data["update"] else get_column_letter(h.order + 1),
                             "options": ",".join([o.option_name for o in opt])
                         }
 
-                write_data = {}
+                write_data = {}  # 要写入表格的数据
                 for h, v in table_header.items():
                     write_data[h] = [getattr(i, v["name"]) if getattr(i, v["name"]) else "" for i in export_data]
 

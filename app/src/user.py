@@ -227,10 +227,12 @@ def addUser():
             password=hashlib.md5((DEFAULT_PASSWORD.upper() + SALE).encode()).hexdigest().lower(),  # 设置密码为默认密码
             create_user=g.username,
             type=int(user_type),
-            expire_time=expire_time,
             pwd_expire_time=(date.today() + timedelta(days=90)),  # 默认90天密码有效期
             company=company
         )
+        # Bugfix:expire_time为空时,写入数据库报错
+        if expire_time:
+            newUser.expire_time = expire_time
         db_session.add(newUser)
         db_session.commit()
     except:

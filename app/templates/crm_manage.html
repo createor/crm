@@ -432,8 +432,9 @@
                     dropdown.render({
                         elem: "#dropdownBtn",
                         content: `<div style="width: 117.7px;">
-                                    <button type="button" class="layui-btn layui-btn-primary layui-border layui-btn-sm" id="downTempl">下载资产录入模板</button>
-                                    <button type="button" class="layui-btn layui-btn-sm" style="margin-left: 0px;" id="importDataByExcel">导入资产录入模板</button>
+                                    <button type="button" class="layui-btn layui-btn-primary layui-border layui-btn-sm" id="downTempl" style="margin-bottom: 1px;">下载资产录入模板</button>
+                                    <button type="button" class="layui-btn layui-btn-sm" style="margin-left: 0px;margin-bottom: 1px;" id="importDataByExcel">导入资产录入模板</button>
+                                    <button type="button" class="layui-btn layui-btn-sm" style="margin-left: 0px;" id="importUpdateExcel">导入资产更新表格</button>
                                   </div>`,
                         ready: () => {
                             // 下载模板导入文件
@@ -483,11 +484,55 @@
                                             contentType: "application/json;charset=utf-8",
                                             data: JSON.stringify({
                                                 "file_uuid": res.message,
-                                                "table_id": tableUid
+                                                "table_id": tableUid,
+                                                "update": false
                                             }),
                                             success: (r) => {
                                                 if (r.code === 0) {
                                                     // 显示导入进度
+                                                    window.parent.showProgress(r.message);
+                                                } else if (r.code === 302) {
+                                                    window.parent.redirectPage(res.message);
+                                                }
+                                                return false;
+                                            },
+                                            error: (e) => {
+                                                layer.msg("表格导入数据失败", { icon: 2 });
+                                                return false;
+                                            }
+                                        });
+                                    } else if (res.code === 302) {
+                                        window.parent.redirectPage(res.message);
+                                    } else {
+                                        layer.msg(`失败: ${res.message}`, { icon: 2 });
+                                    }
+                                    return false;
+                                },
+                                error: (err) => {
+                                    layer.msg("表格导入数据失败", { icon: 2 });
+                                    return false;
+                                }
+                            });
+                            // 导入更新表格
+                            upload.render({
+                                elem: "#importUpdateExcel",
+                                url: "/crm/api/v1/upload",
+                                accept: "file",
+                                acceptMime: "application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                exts: "xls|xlsx",
+                                done: (res) => {
+                                    if (res.code == 0) {
+                                        $.ajax({
+                                            url: "/crm/api/v1/manage/import",
+                                            type: "POST",
+                                            contentType: "application/json;charset=utf-8",
+                                            data: JSON.stringify({
+                                                "file_uuid": res.message,
+                                                "table_id": tableUid,
+                                                "update": true
+                                            }),
+                                            success: (r) => {
+                                                if (r.code === 0) {
                                                     window.parent.showProgress(r.message);
                                                 } else if (r.code === 302) {
                                                     window.parent.redirectPage(res.message);
