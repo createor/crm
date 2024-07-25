@@ -117,7 +117,7 @@ def userLogin():
     finally:
         db_session.close()
 
-    crmLogger.info(f"用户{username}登录成功")
+    crmLogger.info(f"[userLogin]用户{username}登录成功")
 
     redisClient.delData(captcha_id)  # redis删除已使用的验证码
 

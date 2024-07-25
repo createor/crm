@@ -307,7 +307,10 @@ def importTableTask(table_name: str) -> None:
                                     new_data = str(new_data)
                             i.update({c.value: new_data})
                         else:
-                            i.update({c.value: ""})
+                            if c.name in date_header or c.name in datetime_header:
+                                i.update({c.value: None})
+                            else:
+                                i.update({c.value: ""})
 
                 redisClient.setData(f"crm:task:{task_data['task_id']}", json.dumps({"error": "", "speed": 80}), 300) # 设置进度为80%
 
