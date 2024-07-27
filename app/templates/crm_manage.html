@@ -185,10 +185,19 @@
          * @description 渲染资产表
          * @param {String} tableUid 资产表id
          * @param {Object} jumpCondition 跳转条件
+         * @param {Boolean} flag 是否显示资产表列表
         */
-        function loadManageTable (tableUid, jumpCondition) {
+        function loadManageTable (tableUid, jumpCondition, flag) {
+            if (flag) {
+                $("#showAllManage").hide(); // 隐藏资产表列表
+                $("#showManage").show();    // 显示具体资产表表格
+            }
             localStorage.setItem("tableUid", tableUid);  // 将id存储到本地
-            localStorage.setItem("condition", null);     // 清空筛选条件
+            if (jumpCondition) {
+                localStorage.setItem("condition", JSON.stringify(jumpCondition));
+            } else {
+                localStorage.setItem("condition", null);     // 清空筛选条件
+            }
             localStorage.setItem("ip_col", null);        // 清空IP列信息
             localStorage.setItem("header", null);        // 清空header信息
             let header = [];                           // 初始化header
@@ -217,7 +226,7 @@
                 }
             });
 
-            let option_templ = "";          // 选项模板
+            let option_templ = "";            // 选项模板
             let select_header = new Object(); // 下拉列表信息
             header.forEach((item) => {
                 option_templ += `<option value="${item.field}">${item.title}</option>`;

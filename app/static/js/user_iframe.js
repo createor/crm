@@ -448,6 +448,12 @@ var addNewRule = () => {
                             verify = false;
                             return false;
                         }
+                        // bugfix:2024/07/26,图表x,y轴不能是同一个字段
+                        if (field[`rule_${item}_type`] === "3" && field[`rule_${item}_date`] === field[`rule_${item}_value`]) {
+                            layer.msg(`规则${item + 1}的时间字段不能与数据来源字段相同`, { icon: 2 });
+                            verify = false;
+                            return false;
+                        }
                     }
                 });
                 if (!verify) return false;
@@ -1032,7 +1038,7 @@ var addOrAlterCol = () => {
  * @param {String} id 表id 
  * @param {String} task_id 任务id
  */
-function showTaskDeail (id, task_id) {
+function showTaskDetail (id, task_id) {
     let win = window.frames["crm_manage"];
     let echarts = win.contentWindow.getEchartMethod();
     layer.open({
@@ -1121,7 +1127,7 @@ function showTaskDeail (id, task_id) {
 
 }
 
-window.showTaskDeail = window.showTaskDeail || showTaskDeail;
+window.showTaskDetail = window.showTaskDetail || showTaskDetail;
 
 /**
  * @description 批量检测
@@ -1223,7 +1229,7 @@ var mulitDetect = () => {
                             } },
                             { field: "result", title: "结果", width: 100, templet: (d) => {
                                 if (d.status === 1) return `<button class="layui-btn layui-btn-xs" onclick="showProgress('${d.id}')">查看进度</button>`;
-                                if (d.status === 2) return `<button class="layui-btn layui-btn-xs" onclick="showTaskDeail('${table_id}','${d.id}')">查看详情</button>`;
+                                if (d.status === 2) return `<button class="layui-btn layui-btn-xs" onclick="showTaskDetail('${table_id}','${d.id}')">查看详情</button>`;
                             } }
                         ]]
                     });
@@ -1360,6 +1366,12 @@ var createNotify = () => {
                                                 ${option_template}
                                             </select>
                                         </div>
+                                        <!-- add:新增可以提前通知功能,0-即默认当天通知 -->
+                                        <label class="layui-form-label" style="width: 28px;padding-right: 8px;">提前</label>
+                                        <div class="layui-input-inline" style="width: 60px;">
+                                            <input type="number" lay-affix="number" value="0" name="advance" min="0" max="5" setp="1" class="layui-input">
+                                        </div>
+                                        <label class="layui-form-label" style="width: 42px;padding-left: 0px;padding-right: 0px;">天通知</label>
                                     </div>
                                     <div class="layui-form-item" style="margin-left: 180px;margin-top: 20px;">
                                         <button type="button" class="layui-btn" lay-submit lay-filter="add" id="addTask">创建任务</button>
@@ -1432,7 +1444,8 @@ var createNotify = () => {
                         "operate": "add",
                         "id": table_id,
                         "name": field.taskName,
-                        "keyword": field.date_col
+                        "keyword": field.date_col,
+                        "before": field.advance  // add:2024/07/27
                     }),
                     beforeSend: () => {
                         loadIndex = layer.load(2);

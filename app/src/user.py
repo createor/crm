@@ -679,8 +679,8 @@ def getMail():
     finally:
         db_session.close()
 
-    todayMsg = [{"id": e.id, "title": "{}到期提醒".format(e.create_time.strftime("%Y%m%d")), "detail": e.message} for e in email if e.create_time.date() == date.today()]
-    historyMsg = [{"id": e.id, "title": "{}到期提醒".format(e.create_time.strftime("%Y%m%d")), "detail": e.message} for e in email if e.create_time.date() < date.today()]
+    todayMsg = [{"id": e.id, "title": "{}到期提醒".format(e.create_time.strftime("%Y-%m-%d")), "href": e.href, "detail": e.message} for e in email if e.create_time.date() == date.today()]
+    historyMsg = [{"id": e.id, "title": "{}到期提醒".format(e.create_time.strftime("%Y-%m-%d")), "href": e.href, "detail": e.message} for e in email if e.create_time.date() < date.today()]
 
     return jsonify({"code": 0,"message": {"total": count, "data": {"today": todayMsg, "history": historyMsg}}}), 200
 

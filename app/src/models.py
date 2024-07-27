@@ -247,6 +247,7 @@ class Notice(Base):
     message = Column(String(40), nullable=False)                                 # 消息内容
     notify_id = Column(String(40), nullable=False)                               # 字段来源:crm_notify的id
     is_read = Column(Integer, default=0)                                         # 0-未读,1-已读
+    href = Column(String(255))                                                   # 链接
     create_time = Column(DateTime, default=datetime.now)                         # 创建时间
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)  # 更新时间
 

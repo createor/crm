@@ -26,25 +26,34 @@ pingExecutor = ThreadPoolExecutor(max_workers=5)    # ping线程池
 ip_queue = queue.Queue()     # ip队列
 result_queue = queue.Queue() # 结果队列
 
-def notifyTask(task_id: str, name: str, table_name: str, keyword: str) -> None:
+def notifyTask(task_id: str, name: str, table_id: str, table_name: str, keyword: str, before: int=0) -> None:
     '''
     通知任务
     :param task_id: 任务id
     :param name: 表名
+    :param table_id: 表id
     :param table_name: 表别名
     :param keyword: 日期字段
+    :param before: 提前天数
     '''
     manageTable = initManageTable(table_name)        # 实例化已存在资产表
 
     try:      # 查询过期数据数量
-        today = datetime.now().strftime("%Y-%m-%d")  # 获取今天日期
+        if before == 0:
+            today = datetime.now().strftime("%Y-%m-%d")  # 获取今天日期
+        else:
+            today = (date.today() + datetime.timedelta(days=before)).strftime("%Y-%m-%d")
         expire_data = db_session.query(manageTable).filter(and_(f"{today} 00:00:00" <= getattr(manageTable.c, keyword), getattr(manageTable.c, keyword) <= f"{today} 23:59:59")).count()
     finally:
         db_session.close()
         
     if expire_data > 0:
         try:  # 写入数据库
-            notice_data = Notice(message="{}资产表有{}条数据已过期".format(name, expire_data), notify_id=task_id)
+            if before == 0:
+                _msg = f"你的资产表{name}有{expire_data}条数据今天就要过期了"
+            else:
+                _msg = f"你的资产表{name}有{expire_data}条数据还有{before}天就要过期了"
+            notice_data = Notice(message=_msg, notify_id=task_id, href=f"id={table_id}&key={keyword}&value={today}")
             db_session.add(notice_data)
             db_session.commit() 
         except:
@@ -415,6 +424,8 @@ def exportTableTask(table_name: str):
                                 export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]) <= filter["value"]).all()
                             elif filter["c"] == "ne":
                                 export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]) != filter["value"]).all()
+                            elif filter["c"] == "bt":
+                                export_data = db_session.query(manageTable).filter(getattr(manageTable.c, filter["key"]).between(f"{filter['value']} 00:00:00", f"{filter['value']} 23:59:59")).all()
                     finally:
                         db_session.close()
                 else:  # 全量导出

@@ -346,6 +346,8 @@ def queryTableByUuid(id):
                     count = db_session.query(manageTable).filter(getattr(manageTable.c, key) <= value).count()
                 elif compare == "ne":
                     count = db_session.query(manageTable).filter(getattr(manageTable.c, key) != value).count()
+                elif compare == "bt":
+                    count = db_session.query(manageTable).filter(getattr(manageTable.c, key).between(f"{value} 00:00:00", f"{value} 23:59:59")).count()
         finally:
             db_session.close()
 
@@ -374,6 +376,8 @@ def queryTableByUuid(id):
                     result = db_session.query(manageTable).filter(getattr(manageTable.c, key) <= value).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
                 elif compare == "ne":
                     result = db_session.query(manageTable).filter(getattr(manageTable.c, key) != value).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
+                elif compare == "bt":
+                    result = db_session.query(manageTable).filter(getattr(manageTable.c, key).between(f"{value} 00:00:00", f"{value} 23:59:59")).order_by(manageTable.c._id.asc()).offset((page - 1) * limit).limit(limit).all()
         finally:
             db_session.close()
     else:  # 不存在关键字搜索
@@ -1506,9 +1510,10 @@ def notifyExpireData():
         
         if operate == "add":     # 创建任务
 
-            table_uuid = reqData["id"]        # 资产表id
-            name = reqData["name"]            # 任务名
-            date_keyword = reqData["keyword"] # 日期字段 
+            table_uuid = reqData["id"]          # 资产表id
+            name = reqData["name"]              # 任务名
+            date_keyword = reqData["keyword"]   # 日期字段 
+            before_day = int(reqData["before"]) # 提前天数
 
             if not all([table_uuid, name, date_keyword]):
                 return jsonify({"code": -1, "message": "请求参数不完整"}), 400
@@ -1536,7 +1541,7 @@ def notifyExpireData():
             task_id = getUuid()
             
             try:
-                job.setJob(id=task_id, job_time="00:05:00", func="app.src.task:notifyTask", args=[task_id, table.name, table.table_name, date_keyword]) 
+                job.setJob(id=task_id, job_time="00:05:00", func="app.src.task:notifyTask", args=[task_id, table.name, table_uuid, table.table_name, date_keyword, before_day]) 
             except:
                 crmLogger.error(f"[notifyExpireData]创建定时任务{task_id}发生异常: {traceback.format_exc()}")
                 return jsonify({"code": -1, "message": "定时任务创建失败"}), 500

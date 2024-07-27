@@ -415,8 +415,9 @@
                 success: (res) => {
                     layer.close(loadIndex);
                     if (res.code === 0) {
+                        layer.closeAll();
                         layer.msg("已标为已读", { icon: 1 });
-                        $(that).hide();
+                        loadUserMail(false);
                     } else if (res.code === 302) {
                         window.location.href = res.message;
                     } else {
@@ -436,11 +437,46 @@
         window.markRead = window.markRead || markRead;
 
         /**
+         * @description 查看通知详情
+         * @param {String} hrefCondition 跳转条件
+        */
+        function viewNotifyDetail (id, hrefCondition, that) {
+            layer.closeAll();                        // 关闭右侧通知详情
+            // 格式化链接
+            let condArray = hrefCondition.split("&");
+            let condObj = new Object();
+            condArray.forEach((item) => {
+                let arr = item.split("=");
+                condObj[arr[0]] = arr[1];
+            });
+            // 判断当前ifarme页面是否是crm_manage
+            if (document.getElementsByTagName("iframe")[0].id !== "crm_manage") {
+                // 不是则插入iframe
+                $(".layui-body-item").html(`<iframe src="/crm/api/v1/crm_manage" id="crm_manage" frameborder="0" border="0" class="layui-iframe"></iframe>`);
+            }
+            let win = window.frames["crm_manage"];
+            win.contentWindow.loadManageTable(condObj["id"], { "type": 3, "key": condObj["key"], "c": "bt", "value": condObj["value"] }, true);
+            $.ajax({
+                url: `/crm/api/v1/user/mail/read?id=${id}`,
+                type: "GET",
+                error: (err) => {
+                    console.log(err);
+                    return false;
+                },
+                complete: () => {
+                    loadUserMail(false);
+                }
+            });
+        }
+
+        window.viewNotifyDetail = window.viewNotifyDetail || viewNotifyDetail;
+
+        /**
          * @description 获取通知按钮
          * @param {String} id 通知id
         */
-        function getBtns (id) {
-            return `<div><a style="color: #829bb4;cursor: pointer;" onclick="markRead(${id}, this)">标为已读</a></div>`;
+        function getBtns (d) {
+            return `<div><a style="color: #829bb4;cursor: pointer;" onclick="markRead('${d.id}', this)">标为已读</a><a style="color: #829bb4;cursor: pointer;margin-left: 10px;" onclick="viewNotifyDetail('${d.id}', '${d.href}', this)">查看详情</a></div>`;
         }
 
         // 加载用户状态信息
@@ -481,116 +517,125 @@
         });
 
         // 加载用户通知
-        $.ajax({
-            url: "/crm/api/v1/user/mail",
-            type: "GET",
-            success: (res) => {
-                let notify_templ = "";  // 通知信息模板
-                if (res.code === 0) {
-                    if (res.message.total > 0) {
-                        $("#notice").addClass("layui-badge-dot");  // 显示红点
-                        if (res.message.data.today.length > 0) {  // 存在今天的通知
-                            // 右侧弹窗提示
-                            layer.open({
-                                type: 1,
-                                title: false,
-                                area: ["300px", "55px"],
-                                shade: false,
-                                move: false,
-                                anim: "slideLeft",
-                                // offset: "rt",
-                                offset: ["70px", "calc(100% - 300px)"],
-                                closeBtn: 0,
-                                resize: false,
-                                maxmin: false,
-                                time: 2000,
-                                content: `<blockquote class="layui-elem-quote" style="margin-bottom: 0px;">你有${res.message.data.today.length}条新的未读消息</blockquote>`
-                            });
-                            res.message.data.today.forEach((item) => {
-                                notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item.id)}</div></div>`;
-                            });
-                        }
-                        res.message.data.history.forEach((item) => {
-                            notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item.id)}</div></div>`;
-                        });
-                        notify_templ = `<div class="layui-bg-gray" style="padding: 16px;" id="showNotify"><div class="layui-row">${notify_templ}</div></div>`;
-                        if (res.message.total > 5) {  // 显示分页
-                            notify_templ += `<div id="notify_page" style="position: fixed; bottom: 5px; padding-left: 15px;"></div>`;
-                        }
-                    } else {
-                        notify_templ = `<div style="padding: 15px;">暂无未读信息</div>`;  // 无通知信息
-                    }
-                } else if (res.code === 302) {
-                    window.location.href = res.message;
-                } else {
-                    notify_templ = `<div style="padding: 15px;">${res.message}</div>`;   // 显示错误信息
-                }
-                // 点击右侧面板显示通知信息
-                util.event("lay-header-event", {
-                    notify: () => {
-                        layer.open({
-                            type: 1,
-                            title: "通知",
-                            area: ["360px", "100%"],
-                            offset: "rt",
-                            anim: "slideLeft",
-                            move: false,
-                            resize: false,
-                            maxmin: false,
-                            shadeClose: true,
-                            scorllbar: false,
-                            content: `${notify_templ}`,
-                            success: () => {
-                                if (res.message.total > 5) {
-                                    // 渲染分页
-                                    laypage.render({
-                                        elem: "notify_page",
-                                        count: res.message.total,
-                                        limit: 5,
-                                        groups: 3,
-                                        jump: (obj, first) => {
-                                            if (!first) {
-                                                if (0 < obj.curr && obj.curr <= obj.pages) {
-                                                    $.ajax({
-                                                        url: `/crm/api/v1/user/mail?page=${obj.curr}&limit=${obj.limit}`,
-                                                        type: "GET",
-                                                        success: (res) => {
-                                                            if (res.code === 0) {
-                                                                let notify_templ = "";  //通知信息模板
-                                                                res.message.data.today.forEach((item) => {
-                                                                    notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item.id)}</div></div>`;
-                                                                });
-                                                                res.message.data.history.forEach((item) => {
-                                                                    notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item.id)}</div></div>`;
-                                                                });
-                                                                $("#showNotify").html(`<div class="layui-row">${notify_templ}</div>`);
-                                                            } else if (res.code === 302) {
-                                                                window.location.href = res.message;
-                                                            }
-                                                            return false;
-                                                        },
-                                                        error: (err) => {
-                                                            console.log(err);
-                                                            return false;
-                                                        }
-                                                    });
-                                                }
-                                            }
-                                        }
+        function loadUserMail (isShow) {
+            $.ajax({
+                url: "/crm/api/v1/user/mail",
+                type: "GET",
+                success: (res) => {
+                    let notify_templ = "";  // 通知信息模板
+                    if (res.code === 0) {
+                        if (res.message.total > 0) {
+                            $("#notice").addClass("layui-badge-dot");  // 显示红点
+                            if (res.message.data.today.length > 0) {  // 存在今天的通知
+                                if (isShow) {
+                                    // 右侧弹窗提示
+                                    layer.open({
+                                        type: 1,
+                                        title: false,
+                                        area: ["300px", "55px"],
+                                        shade: false,
+                                        move: false,
+                                        anim: "slideLeft",
+                                        // offset: "rt",
+                                        offset: ["70px", "calc(100% - 300px)"],
+                                        closeBtn: 0,
+                                        resize: false,
+                                        maxmin: false,
+                                        time: 2000,
+                                        content: `<blockquote class="layui-elem-quote" style="margin-bottom: 0px;">你有${res.message.data.today.length}条新的未读消息</blockquote>`
                                     });
                                 }
+                                res.message.data.today.forEach((item) => {
+                                    notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item)}</div></div>`;
+                                });
                             }
-                        });
+                            res.message.data.history.forEach((item) => {
+                                notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item)}</div></div>`;
+                            });
+                            notify_templ = `<div class="layui-bg-gray" style="padding: 16px;" id="showNotify"><div class="layui-row">${notify_templ}</div></div>`;
+                            if (res.message.total > 5) {  // 显示分页
+                                notify_templ += `<div id="notify_page" style="position: fixed; bottom: 5px; padding-left: 15px;"></div>`;
+                            }
+                        } else {
+                            if ($("#notice").hasClass("layui-badge-dot")) {
+                                $("#notice").removeClass("layui-badge-dot");
+                            }
+                            notify_templ = `<div style="padding: 15px;">暂无未读信息</div>`;  // 无通知信息
+                        }
+                    } else if (res.code === 302) {
+                        window.location.href = res.message;
+                    } else {
+                        notify_templ = `<div style="padding: 15px;">${res.message}</div>`;   // 显示错误信息
                     }
-                });
-                return false;
-            },
-            error: (err) => {
-                let errMsg = err.responseJSON || JSON.parse(err.responseText);
-                layer.msg(errMsg.message, { icon: 2 });
-                return false;
-            }
-        });
+                    // 点击右侧面板显示通知信息
+                    util.event("lay-header-event", {
+                        notify: () => {
+                            layer.open({
+                                type: 1,
+                                title: "通知",
+                                area: ["360px", "100%"],
+                                offset: "rt",
+                                anim: "slideLeft",
+                                move: false,
+                                resize: false,
+                                maxmin: false,
+                                shadeClose: true,
+                                scorllbar: false,
+                                content: `${notify_templ}`,
+                                success: () => {
+                                    if (res.message.total > 5) {
+                                        // 渲染分页
+                                        laypage.render({
+                                            elem: "notify_page",
+                                            count: res.message.total,
+                                            limit: 5,
+                                            groups: 3,
+                                            jump: (obj, first) => {
+                                                if (!first) {
+                                                    if (0 < obj.curr && obj.curr <= obj.pages) {
+                                                        $.ajax({
+                                                            url: `/crm/api/v1/user/mail?page=${obj.curr}&limit=${obj.limit}`,
+                                                            type: "GET",
+                                                            success: (res) => {
+                                                                if (res.code === 0) {
+                                                                    let notify_templ = "";  //通知信息模板
+                                                                    res.message.data.today.forEach((item) => {
+                                                                        notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item)}</div></div>`;
+                                                                    });
+                                                                    res.message.data.history.forEach((item) => {
+                                                                        notify_templ += `<div class="layui-card"><div class="layui-card-header">${item.title}</div><div class="layui-card-body">${item.detail}${getBtns(item)}</div></div>`;
+                                                                    });
+                                                                    $("#showNotify").html(`<div class="layui-row">${notify_templ}</div>`);
+                                                                } else if (res.code === 302) {
+                                                                    window.location.href = res.message;
+                                                                }
+                                                                return false;
+                                                            },
+                                                            error: (err) => {
+                                                                console.log(err);
+                                                                return false;
+                                                            }
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    return false;
+                },
+                error: (err) => {
+                    let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                    layer.msg(errMsg.message, { icon: 2 });
+                    return false;
+                }
+            });
+        }
+
+        loadUserMail(true);
 
         // 修改用户资料
         $("#information").on("click", () => {
