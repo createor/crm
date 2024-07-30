@@ -1298,6 +1298,7 @@ def multDetectHost():
 
         table_uuid = args.get("id", None)     # 资产表id
         task_uuid = args.get("task_id", None) # 任务的uuid
+        ip = args.get("ip", None)             # 搜索的IP
         page = int(args.get("page", 1))       # 页码
         limit = int(args.get("limit", 5))     # 每页数量
 
@@ -1308,54 +1309,122 @@ def multDetectHost():
             return jsonify({"code": -1, "message": "资产表不存在"}), 400
         
         if task_uuid:  # 查询任务详情
+
             try:
-                is_exist_task = db_session.query(Task).filter(Task.id == task_uuid).first()
+                curr_task = db_session.query(Task).filter(Task.id == task_uuid).first()
             finally:
                 db_session.close()
 
-            if not is_exist_task:
+            if not curr_task:
                 return jsonify({"code": -1, "message": "任务不存在"}), 400
-            
-            if is_exist_task.status in [0, 1]:
-                return jsonify({"code": -1, "message": "任务未完成"}), 400
-            
-            pie_echart = redisClient.getData(f"crm:ping:echart:{task_uuid}")  # 查询缓存的图表
 
-            if pie_echart:
-                pie_echart = json.loads(pie_echart)
+            is_export = args.get("export", False)  # 是否导出
+
+            if is_export:  # add:2024/07/28 导出任务结果为表格
+                export_id = redisClient.getData(f"crm:ping:export:{task_uuid}")
+
+                if export_id:
+                    return jsonify({"code": 0, "message": export_id}), 200
+                else:
+                    file_uuid = getUuid()
+
+                    try:
+                        export_data = db_session.query(DetectResult).filter(DetectResult.task_id == task_uuid).all()
+                    finally:
+                        db_session.close()
+
+                    write_data = {
+                        "IP地址": [],
+                        "状态": [],
+                        "原因": []
+                    }
+                    for r in export_data:
+                        write_data["IP地址"].append(r.ip)
+                        _stat = "在线" if r.status == 1 else "离线"
+                        write_data["状态"].append(_stat)
+                        if r.reason:
+                            write_data["原因"].append(r.reason)
+                        else:
+                            write_data["原因"].append("")
+                    
+                    if not createExcel(filepath=TEMP_DIR, filename=file_uuid, sheet_name=curr_task.name, header={"IP地址": {"index": "A", "must_input": False}, "状态": {"index": "B", "must_input": False}, "原因": {"index": "C", "must_input": False}}, data=write_data, styles={}):
+                        return jsonify({"code": -1, "message": "导出结果文件失败"}), 400
+
+                    try:
+                        ip_export_file = File(uuid=file_uuid, filename=f"{curr_task.name}任务结果导出文件.xlsx", filepath=0, affix="xlsx")
+                        db_session.add(ip_export_file)
+                        db_session.commit()
+                    except:
+                        db_session.rollback()
+                        crmLogger.error(f"[multDetectHost]写入file表发生异常: {traceback.format_exc()}")
+                        return jsonify({"code": -1, "message": "数据库异常"}), 500
+                    finally:
+                        db_session.close()
+
+                    redisClient.setData((f"crm:ping:export:{task_uuid}"), file_uuid)  # 写入缓存
+
+                    return jsonify({"code": 0, "message": file_uuid}), 200
             else:
                 try:
-                    task_echart = db_session.query(DetectResult.status, func.count(1)).filter(DetectResult.task_id == task_uuid).group_by(DetectResult.status).all()
+                    is_exist_task = db_session.query(Task).filter(Task.id == task_uuid).first()
                 finally:
                     db_session.close()
 
-                pie_echart = [{"name": f"{'在线' if i[0] == 1 else '离线'}", "value": i[1]} for i in task_echart]
+                if not is_exist_task:
+                    return jsonify({"code": -1, "message": "任务不存在"}), 400
 
-                redisClient.setData(f"crm:ping:echart:{task_uuid}", json.dumps(pie_echart))  # 写入缓存
+                if is_exist_task.status in [0, 1]:
+                    return jsonify({"code": -1, "message": "任务未完成"}), 400
 
-            try:
-                count = db_session.query(DetectResult).filter(DetectResult.task_id == task_uuid).count()
-            finally:
-                db_session.close()
+                pie_echart = redisClient.getData(f"crm:ping:echart:{task_uuid}")  # 查询缓存的图表
 
-            if count == 0:
-                return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
-            
-            try:
-                task_result = db_session.query(DetectResult).filter(DetectResult.task_id == task_uuid).order_by(DetectResult.id.asc()).offset((page - 1) * limit).limit(limit).all()
-            finally:
-                db_session.close()
+                if pie_echart:
+                    pie_echart = json.loads(pie_echart)
+                else:
+                    try:
+                        task_echart = db_session.query(DetectResult.status, func.count(1)).filter(DetectResult.task_id == task_uuid).group_by(DetectResult.status).all()
+                    finally:
+                        db_session.close()
 
-            crmLogger.info(f"[multDetectHost]用户{g.username}查看ping探测任务{task_uuid}结果详情")
+                    pie_echart = [{"name": f"{'在线' if i[0] == 1 else '离线'}", "value": i[1]} for i in task_echart]
 
-            return jsonify({
-                "code": 0, 
-                "message": {
-                    "total": count,
-                    "data": [{"id": t.id, "ip": t.ip, "status": t.status, "reason": t.reason} for t in task_result],
-                    "echart": pie_echart  # 饼图显示情况
-                }
-            }), 200
+                    redisClient.setData(f"crm:ping:echart:{task_uuid}", json.dumps(pie_echart))  # 写入缓存
+
+                if ip:
+                    try:
+                        count = db_session.query(DetectResult).filter(DetectResult.task_id == task_uuid, DetectResult.ip.like(f"%{ip}%")).count()
+                    finally:
+                        db_session.close()
+                else:
+                    try:
+                        count = db_session.query(DetectResult).filter(DetectResult.task_id == task_uuid).count()
+                    finally:
+                        db_session.close()
+
+                if count == 0:
+                    return jsonify({"code": 0, "message": {"total": 0, "data": []}}), 200
+                
+                if ip:
+                    try:
+                        task_result = db_session.query(DetectResult).filter(DetectResult.task_id == task_uuid, DetectResult.ip.like(f"%{ip}%")).order_by(DetectResult.id.asc()).offset((page - 1) * limit).limit(limit).all()
+                    finally:
+                        db_session.close()
+                else:
+                    try:
+                        task_result = db_session.query(DetectResult).filter(DetectResult.task_id == task_uuid).order_by(DetectResult.id.asc()).offset((page - 1) * limit).limit(limit).all()
+                    finally:
+                        db_session.close()
+
+                crmLogger.info(f"[multDetectHost]用户{g.username}查看ping探测任务{task_uuid}结果详情")
+
+                return jsonify({
+                    "code": 0, 
+                    "message": {
+                        "total": count,
+                        "data": [{"id": t.id, "ip": t.ip, "status": t.status, "reason": t.reason} for t in task_result],
+                        "echart": pie_echart  # 饼图显示情况
+                    }
+                }), 200
         else:
             try:
                 table = db_session.query(Manage.name, Manage.table_name).filter(Manage.uuid == table_uuid).first()
@@ -1573,7 +1642,7 @@ def notifyExpireData():
 
             return jsonify({"code": 0, "message": task_id}), 200
             
-        elif operate in ["start", "stop"]:  # 停止任务
+        elif operate in ["start", "stop", "del"]:  # 启动、停止、删除任务
 
             task_id = reqData["task_id"]    # 任务id
 
@@ -1607,7 +1676,7 @@ def notifyExpireData():
                     finally:
                         db_session.close()
 
-            if operate == "stop":
+            elif operate == "stop":
                 if curr_task == 0:
                     return jsonify({"code": -1, "message": "任务已停止"}), 400
                 else:
@@ -1626,8 +1695,30 @@ def notifyExpireData():
                     finally:
                         db_session.close()
 
+            elif operate == "del":  # add:新增删除通知任务功能
+                try:
+                    job.delJob(id=curr_task.id)
+                except:
+                    return jsonify({"code": -1, "message": "删除任务失败"}), 500
+                
+                try:
+                    db_session.query(Notify).filter(Notify.id == task_id).delete()
+                    db_session.commit()
+                except:
+                    db_session.rollback()
+                    crmLogger.error(f"[notifyExpireData]删除notify表发生异常: {traceback.format_exc()}")
+                    return jsonify({"code": -1, "message": "数据库异常"}), 500
+                finally:
+                        db_session.close()
+
+            _operate = "开启"
+            if operate == "stop":
+                _operate = "停止"
+            elif operate == "del": 
+                _operate = "删除"
+
             try:
-                startOrStop_log = Log(ip=g.ip_addr, operate_type="过期通知", operate_content=f"{'开启' if operate == 'start' else '停止'}定时任务{task_id}", operate_user=g.username)
+                startOrStop_log = Log(ip=g.ip_addr, operate_type="过期通知", operate_content=f"{_operate}定时任务{task_id}", operate_user=g.username)
                 db_session.add(startOrStop_log)
                 db_session.commit()
             except:
@@ -1636,9 +1727,9 @@ def notifyExpireData():
             finally:
                 db_session.close()
             
-            crmLogger.info(f"[notifyExpireData]用户{g.username}{'开启' if operate == 'start' else '停止'}定时任务{task_id}成功")
+            crmLogger.info(f"[notifyExpireData]用户{g.username}{_operate}定时任务{task_id}成功")
 
-            return jsonify({"code": 0, "message": f"{'开启' if operate == 'start' else '停止'}任务成功"}), 200
+            return jsonify({"code": 0, "message": f"{_operate}任务成功"}), 200
 
 @manage.route("/export", methods=methods.ALL)
 @verify(allow_methods=["GET"], module_name="导出资产表", check_ip=True)

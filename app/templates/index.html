@@ -136,6 +136,10 @@
         background-color: transparent;
         border: none;
     }
+
+    input[name="ip_search"]+.layui-input-affix {
+        line-height: 30px;
+    }
 </style>
 
 <body>
@@ -403,6 +407,7 @@
         /**
         * @description 标为已读
         * @param {String} id 通知id
+        * @param {Object} that 当前元素
         */
         function markRead (id, that) {
             let loadIndex = "";
@@ -438,10 +443,12 @@
 
         /**
          * @description 查看通知详情
+         * @param {String} id 通知id
          * @param {String} hrefCondition 跳转条件
+         * @param {Object} that 当前元素
         */
         function viewNotifyDetail (id, hrefCondition, that) {
-            layer.closeAll();                        // 关闭右侧通知详情
+            layer.closeAll();  // 关闭右侧通知详情
             // 格式化链接
             let condArray = hrefCondition.split("&");
             let condObj = new Object();
@@ -459,6 +466,12 @@
             $.ajax({
                 url: `/crm/api/v1/user/mail/read?id=${id}`,
                 type: "GET",
+                success: (res) => {
+                    if (res.code === 302) {
+                        window.location.href = res.message;
+                    }
+                    return false;
+                },
                 error: (err) => {
                     console.log(err);
                     return false;
@@ -473,7 +486,7 @@
 
         /**
          * @description 获取通知按钮
-         * @param {String} id 通知id
+         * @param {Object} d 通知信息对象
         */
         function getBtns (d) {
             return `<div><a style="color: #829bb4;cursor: pointer;" onclick="markRead('${d.id}', this)">标为已读</a><a style="color: #829bb4;cursor: pointer;margin-left: 10px;" onclick="viewNotifyDetail('${d.id}', '${d.href}', this)">查看详情</a></div>`;
@@ -516,7 +529,10 @@
             }
         });
 
-        // 加载用户通知
+        /**
+         * @description 加载用户通知
+         * @param {Boolean} isShow 是否显示
+        */
         function loadUserMail (isShow) {
             $.ajax({
                 url: "/crm/api/v1/user/mail",
@@ -525,7 +541,9 @@
                     let notify_templ = "";  // 通知信息模板
                     if (res.code === 0) {
                         if (res.message.total > 0) {
-                            $("#notice").addClass("layui-badge-dot");  // 显示红点
+                            if (!$("#notice").hasClass("layui-badge-dot")) {
+                                $("#notice").addClass("layui-badge-dot");  // 不存在则添加红点
+                            }
                             if (res.message.data.today.length > 0) {  // 存在今天的通知
                                 if (isShow) {
                                     // 右侧弹窗提示

@@ -1044,7 +1044,7 @@ function showTaskDetail (id, task_id) {
     layer.open({
         type: 1,
         title: "任务详情",
-        area: ["540px", "550px"],
+        area: ["540px", "600px"],
         shade: 0.8,
         shadeClose: false,
         resize: false,
@@ -1057,8 +1057,10 @@ function showTaskDetail (id, task_id) {
                     <table class="layui-hide" id="detail" lay-filter="detail"></table>  
                   </div>`,
         success: () => {
+            let loadIndex = "";
             table.render({
                 elem: "#detail",
+                id: "ip_detail",
                 url: `/crm/api/v1/manage/ping?id=${id}&task_id=${task_id}`,
                 parseData: (res) => {
                     if (res.code === 302) {
@@ -1078,6 +1080,47 @@ function showTaskDetail (id, task_id) {
                 },
                 limit: 5,
                 limits: [5],
+                toolbar: `<div class="layui-form">
+                            <div class="layui-input-wrap" style="width: 200px;height: 30px;">
+                                <input style="height: 30px;" type="text" lay-affix="search" lay-filter="ip_search" lay-options="{split: true}" name="ip_search" placeholder="请输入IP地址" autocomplete="off" class="layui-input">
+                            </div>
+                          </div>`,
+                defaultToolbar: [{
+                    title: "导出结果",
+                    layEvent: "LAYTABLE_EXPORT",
+                    icon: "layui-icon-export",
+                    onClick: () => {
+                        $.ajax({
+                            url: `/crm/api/v1/manage/ping?export=true&task_id=${task_id}&id=${id}`,
+                            type: "GET",
+                            beforeSend: () => {
+                                loadIndex = layer.load(2);
+                            },
+                            success: (res) => {
+                                layer.close(loadIndex);
+                                if (res.code === 0) {
+                                    let target = document.createElement("a");
+                                    target.href = `/crm/api/v1/file/${res.message}`;
+                                    target.download = "IP扫描结果导出文件.xlsx";
+                                    document.body.appendChild(target);
+                                    target.click();
+                                    document.body.removeChild(target);
+                                } else if (res.code === 302) {
+                                    window.location.href = res.message;
+                                } else {
+                                    layer.msg(`导出失败: ${res.message}`, {icon: 2});
+                                }
+                                return false;
+                            },
+                            error: (err) => {
+                                layer.close(loadIndex);
+                                let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                                layer.msg(`导出失败: ${errMsg.message}`, { icon: 2 });
+                                return false;
+                            }
+                        });
+                    }
+                }],
                 cols: [[
                     { field: "ip", title: "IP地址", width: 140 },
                     { field: "status", title: "状态", width: 110, templet: (d) => {
@@ -1087,6 +1130,16 @@ function showTaskDetail (id, task_id) {
                 ]],
                 done: (res) => {
                     if (res.code === 0) {
+                        form.on("input-affix(ip_search)", (data) => {
+                            let elem = data.elem;
+                            let value = elem.value;
+                            if (!value) return;
+                            table.reloadData("ip_detail", {
+                                where: {
+                                    ip: value
+                                }
+                            })
+                        });
                         // 渲染饼图图表
                         echarts.init(document.getElementById("detail_pie")).setOption({
                             title: {
@@ -1337,7 +1390,7 @@ var createNotify = () => {
     layer.open({
         type: 1,
         title: "到期提醒任务",
-        area: ["500px", "300px"],
+        area: ["560px", "300px"],
         shade: 0.6,
         shadeClose: false,
         resize: false,
@@ -1373,7 +1426,7 @@ var createNotify = () => {
                                         </div>
                                         <label class="layui-form-label" style="width: 42px;padding-left: 0px;padding-right: 0px;">天通知</label>
                                     </div>
-                                    <div class="layui-form-item" style="margin-left: 180px;margin-top: 20px;">
+                                    <div class="layui-form-item" style="margin-left: 220px;margin-top: 20px;">
                                         <button type="button" class="layui-btn" lay-submit lay-filter="add" id="addTask">创建任务</button>
                                     </div>
                                 </form>
@@ -1420,8 +1473,9 @@ var createNotify = () => {
                                 return key2Word[d.keyword];
                             } },
                             { field: "create_time", title: "创建时间", width: 160 },
-                            { field: "status", title: "操作", width: 80, templet: (d) => {
-                                return d.status === 0 ? `<button type="button" class="layui-btn layui-btn-sm" onclick="startOrStopNotify('start', '${d.id}')">启动</button>` : `<button type="button" class="layui-btn layui-btn-sm layui-bg-red" onclick="startOrStopNotify('stop', '${d.id}')">停止</button>`;
+                            { field: "status", title: "操作", width: 140, templet: (d) => {
+                                let delBtn = `<button type="button" class="layui-btn layui-btn-sm layui-bg-orange" onclick="startOrStopNotify('del', '${d.id}')">删除</button>`;
+                                return d.status === 0 ? `<button type="button" class="layui-btn layui-btn-sm" onclick="startOrStopNotify('start', '${d.id}')">启动</button>${delBtn}` : `<button type="button" class="layui-btn layui-btn-sm layui-bg-red" onclick="startOrStopNotify('stop', '${d.id}')">停止</button>${delBtn}`;
                             } }
                         ]]
                     });

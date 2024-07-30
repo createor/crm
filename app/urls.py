@@ -200,7 +200,7 @@ def download_help():
     filename = "管理员使用手册.pdf" if g.username == "admin" else "用户使用手册.pdf"  # pdf文件
 
     try:
-        help_log = Log(ip=g.ip, operate_type="下载手册", operate_content=f"用户下载{filename}", operate_user=g.username)
+        help_log = Log(ip=g.ip_addr, operate_type="下载手册", operate_content=f"用户下载{filename}", operate_user=g.username)
         db_session.add(help_log)
         db_session.commit()
     except:

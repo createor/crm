@@ -62,10 +62,11 @@ def createExcel(filepath: str, filename: str, sheet_name: str, header: dict, dat
                 for idx, val in enumerate(row, start=2):  # 从第二行开始写入数据
                     ws[f"{col_index}{idx}"] = val
         # 设置下拉样式
-        for _, val in styles.items():
-            dv = DataValidation(type="list", formula1=f'"{val["options"]}"', showDropDown=False, allow_blank=True)  # showDropDown-是否显示下拉箭头,allow_blank-是否允许空值
-            ws.add_data_validation(dv)
-            dv.add(f"{val['index']}2:{val['index']}{1000 if ws.max_row < 1000 else ws.max_row}")
+        if styles:
+            for _, val in styles.items():
+                dv = DataValidation(type="list", formula1=f'"{val["options"]}"', showDropDown=False, allow_blank=True)  # showDropDown-是否显示下拉箭头,allow_blank-是否允许空值
+                ws.add_data_validation(dv)
+                dv.add(f"{val['index']}2:{val['index']}{1000 if ws.max_row < 1000 else ws.max_row}")
         # 保护工作表保护不被修改
         # ws.protection.sheet = True
         # ws.protection.enable()

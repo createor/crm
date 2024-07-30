@@ -14,7 +14,7 @@ import queue
 import threading
 from datetime import datetime, date
 from app.utils import TEMP_DIR, UPLOAD_EXCEL_DIR, redisClient, crmLogger, createExcel, readExcel, scan_ip, getUuid
-from app.src.models import engine, db_session, Task, DetectResult, Notice, History, Header, Options, File, initManageTable, MyHeader
+from app.src.models import engine, db_session, Task, DetectResult, Notice, History, Header, Options, File, MyHeader, initManageTable
 from sqlalchemy import and_, insert, update
 from concurrent.futures import ThreadPoolExecutor
 from openpyxl.utils import get_column_letter
