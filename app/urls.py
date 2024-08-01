@@ -9,17 +9,17 @@
 import os
 import traceback
 from app.config import app
-from app.src import user, system, syslog, manage
+from app.src import user, system, syslog, manage, notify
 from app.src.models import db_session, File, Log
 from flask import request, session, g, render_template, redirect, url_for, jsonify, send_from_directory, send_file
-from app.utils import UPLOAD_IMAGE_DIR, UPLOAD_EXCEL_DIR, TEMP_DIR, ALLOWED_EXTENSIONS, SCAN_UPLOAD_FILE, methods, crmLogger, redisClient, getUuid, getCaptcha, verify, scan_file
+from app.utils import UPLOAD_IMAGE_DIR, UPLOAD_EXCEL_DIR, TEMP_DIR, ALLOWED_EXTENSIONS, SCAN_UPLOAD_FILE, CONNECT_INTERNET, ASSET_APPROVAL, methods, crmLogger, redisClient, getUuid, getCaptcha, verify, scan_file
 from werkzeug.utils import secure_filename
 
 @app.route("/index", methods=methods.ALL)
 @verify(allow_methods=["GET"])
 def index():
     '''首页'''
-    return render_template("index.html", is_admin=(g.username == "admin"))  # is_admin--判断是否是管理员账号
+    return render_template("index.html", is_admin=(g.username == "admin"), is_internet=CONNECT_INTERNET, process=ASSET_APPROVAL)  # is_admin--判断是否是管理员账号.is_internet--是否联网
     
 @app.route("/login", methods=methods.ALL)
 def login():
@@ -65,6 +65,24 @@ def crm_system():
 def crm_log():
     '''操作日志页面'''
     return render_template("crm_log.html")
+
+@app.route("/crm/api/v1/crm_notify", methods=methods.ALL)
+@verify(allow_methods=["GET"], is_admin=True)
+def crm_notify():
+    '''通知管理页面'''
+    return render_template("crm_notify.html")
+
+@app.route("/crm/api/v1/crm_process_manage", methods=methods.ALL)
+@verify(allow_methods=["GET"], is_admin=True)
+def crm_process_manage():
+    '''流程管理页面'''
+    return render_template("crm_process_manage.html")
+
+@app.route("/crm/api/v1/crm_process_audit", methods=methods.ALL)
+@verify(allow_methods=["GET"], is_admin=True)
+def crm_process_audit():
+    '''审批流程页面'''
+    return render_template("crm_process_audit.html")
 
 @app.route("/", methods=methods.ALL)
 @verify(allow_methods=["GET"])
@@ -223,3 +241,5 @@ app.register_blueprint(user, url_prefix="/crm/api/v1/user")
 app.register_blueprint(system, url_prefix="/crm/api/v1/system")
 app.register_blueprint(syslog, url_prefix="/crm/api/v1/log")
 app.register_blueprint(manage, url_prefix="/crm/api/v1/manage")
+if CONNECT_INTERNET:
+    app.register_blueprint(notify, url_prefix="/crm/api/v1/notify")

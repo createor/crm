@@ -206,6 +206,24 @@
                             </a>
                         </li>
                         {% if is_admin %}
+                        {% if is_internet %}
+                        <li class="layui-nav-item">
+                            <a href="javascript:;" data-url="crm_notify">
+                                <i class="layui-icon layui-icon-at"></i>到期通知
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% if process %}
+                        <li class="layui-nav-item">
+                            <a href="javascript:;"><i class="layui-icon layui-icon-release"></i>资产流程</a>
+                            <dl class="layui-nav-child">
+                                <dd><a href="javascript:;" data-url="crm_process_manage">&ensp;&ensp;<i
+                                            class="layui-icon layui-icon-theme"></i>流程管理</a></dd>
+                                <dd><a href="javascript:;" data-url="crm_process_audit">&ensp;&ensp;<i
+                                            class="layui-icon layui-icon-survey"></i>流程审批</a></dd>
+                            </dl>
+                        </li>
+                        {% endif %}
                         <li class="layui-nav-item">
                             <a href="javascript:;" data-url="crm_user">
                                 <i class="layui-icon layui-icon-user"></i>用户管理
@@ -276,8 +294,10 @@
         // 左侧菜单点击事件
         element.on("nav(menu)", (elem) => {
             let url = elem.find("a").context.dataset.url;
-            // 使用iframe插入页面
-            $(".layui-body-item").html(`<iframe src="/crm/api/v1/${url}" id="${url}" frameborder="0" border="0" class="layui-iframe"></iframe>`);
+            if (url) {
+                // 使用iframe插入页面
+                $(".layui-body-item").html(`<iframe src="/crm/api/v1/${url}" id="${url}" frameborder="0" border="0" class="layui-iframe"></iframe>`);
+            }
         });
 
         /**

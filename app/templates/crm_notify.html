@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>到期通知</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='layui/css/layui.css') }}">
+    <script tyle="text/javascript" src="{{ url_for('static', filename='layui/layui.js') }}"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div>
+            <button type="button" class="layui-btn" id="addNewNotify" style="margin: 5px 0 10px 10px;">新建到期通知任务</button>
+        </div>
+        <div class="layui-collapse" lay-accordion id="notifyMain" lay-filter="notifyMain"></div>
+    </div>
+</body>
+
+<script type="text/javascript">
+    layui.use(["layer", "jquery", "element", "form"], () => {
+        const layer = layui.layer;
+        const $ = layui.jquery;
+        const element = layui.element;
+        const form = layui.form;
+
+        $("#addNewNotify").on("click", () => { });
+
+        /**
+         * @description 编辑任务名称
+         * @param {string} uuid 任务id
+        */
+        function editName (uuid) {
+            let loadIndex = "";
+            layer.prompt({
+                title: "编辑任务名称",
+            }, (text, index) => {
+                $.ajax({
+                    url: `/crm/api/v1/notify/`,
+                    type: "POST",
+                    contentType: "application/json;",
+                    data: JSON.stringify({
+                        uuid: uuid,
+                        name: text
+                    }),
+                    beforeSend: () => {
+                        loadIndex = layer.load(2);
+                    },
+                    success: (res) => {
+                        layer.close(loadIndex);
+                        if (res.code === 0) {
+                            layer.close(index);
+                            layer.msg("修改成功", { icon: 1 });
+                        } else if (res.code === 302) {
+
+                        } else {
+                            layer.msg(`修改失败: ${errMsg.message}`, { icon: 2 });
+                        }
+                        return false;
+                    },
+                    error: (err) => {
+                        layer.close(loadIndex);
+                        let errMsg = err.responseJSON || JSON.parse(err.responseText);
+                        layer.msg(`修改失败: ${errMsg.message}`, { icon: 2 });
+                        return false;
+                    }
+                });
+            });
+        }
+
+        window.editName = window.editName || editName;
+
+        /**
+         * @description 添加模板
+        */
+        function addTemplate (parentNodeTitle, nodeList) {
+            let nodeTempl = "";  // 节点模板
+            nodeList.forEach((item) => {
+                nodeTempl += `<div class="layui-col-md3">
+                                <div class="layui-card">
+                                    <div class="layui-card-header">${item.name}<button type="button" class="layui-btn layui-btn-sm layui-btn-primary" style="border: none;" onclick="editName('${item.id}')"><i class="layui-icon layui-icon-edit"></i></button></div>
+                                    <div class="layui-card-body layui-form">
+                                        <div class="layui-form-item">
+                                            <select name="">
+                                                <option value="">请选择资产表</option>
+                                            </select>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <select name="method">
+                                                <option value="">请选择通知方式</option>
+                                            </select>
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <label>机器人Webhook地址</label>
+                                            <input type="text" name="" placeholder="请输入机器人Webhook地址" autocomplete="off" class="layui-input">
+                                        </div>
+                                        <div class="layui-form-item">
+                                            <label>通知人</label>
+                                        <div>
+                                    </div>
+                                </div>
+                              </div>`;
+            });
+            return `<div class="layui-colla-item">
+                        <div class="layui-colla-title">${parentNodeTitle}</div>
+                        <div class="layui-colla-content">
+                            <div class="layui-bg-gray" style="padding: 16px;">
+                                <div class="layui-row layui-col-space15">${nodeTempl}</div>
+                            </div>
+                        </div>
+                    </div>`;
+        }
+
+        /**
+         * @description 获取通知节点
+        */
+        function getNotifyList () {
+            $.ajax({
+                url: "",
+                type: "GET",
+                success: (res) => {
+                    let templ = "/crm/api/v1/notify/";
+                    res.message.forEach((item) => {
+                        templ += addTemplate();
+                    });
+                    $("#notifyMain").html(templ);
+                    element.render("collapse", "notifyMain");
+                    return false;
+                },
+                error: (err) => {
+                    console.log(err);
+                    return false;
+                }
+            });
+        }
+
+        getNotifyList();
+
+    });
+</script>
+
+</html>

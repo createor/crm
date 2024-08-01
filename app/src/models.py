@@ -240,6 +240,24 @@ class Notify(Base):
     update_user = Column(String(100))                                            # 更新者
     update_time = Column(DateTime, default=datetime.now, onupdate=datetime.now)  # 更新时间
 
+class NotifyTask(Base):
+    '''到期提醒任务表'''
+    __tablename__ = "crm_notify_task"
+    id = Column(Integer, primary_key=True, autoincrement=True)    # 任务id
+    name = Column(String(255), nullable=False)                    # 任务名
+    notify_type = Column(Integer, nullable=False)                 # 通知类型: 1-飞书
+    app_id = Column(String(255), nullable=False)                  # APPID
+    contact = Column(String(255), nullable=False)                 # 通知对象
+
+class Contact(Base):
+    '''通知对象表'''
+    __tablename__ = "crm_contact"
+    id = Column(Integer, primary_key=True, autoincrement=True)                   # 自增id
+    name = Column(String(255), nullable=False)                                   # 通知对象名称
+    contact = Column(String(255), nullable=False)                                # 通知对象
+    create_user = Column(String(100))                                            # 创建者
+    create_time = Column()
+
 class Notice(Base):
     '''用户通知表'''
     __tablename__ = "crm_notice"
@@ -262,6 +280,15 @@ class History(Base):
     table_name = Column(String(20), nullable=False)                         # 导入导出的资产表别名
     create_user = Column(String(100))                                       # 创建者
     create_time = Column(DateTime, default=datetime.now)                    # 创建时间
+
+class Audit(Base):
+    '''资产审核表'''
+    __tablename__ = "crm_audit"
+    id = Column(String(40), primary_key=True, unique=True, nullable=False)
+
+class AuditRole(Base):
+    '''资产审核角色表'''
+    __tablename__ = "crm_audit_role"
 
 class MyHeader:
     '''
@@ -289,11 +316,13 @@ def generateManageTable(table_name: str="", cols=[]) -> Union[Table, None]:
     :param cols: 表字段列表
     :return:
     '''
-    cols.append(Column('_id', Integer, primary_key=True, autoincrement=True))
-    cols.append(Column('_create_user', String(100)))
-    cols.append(Column('_create_time', DateTime, default=datetime.now))
-    cols.append(Column('_update_user', String(100)))
-    cols.append(Column('_update_time', DateTime, default=datetime.now, onupdate=datetime.now))
+    cols.append(Column("_id", Integer, primary_key=True, autoincrement=True))
+    # cols.append(Column("_status", Integer, default=0))
+    # cols.append(Column("_audit", String(40)))
+    cols.append(Column("_create_user", String(100)))
+    cols.append(Column("_create_time", DateTime, default=datetime.now))
+    cols.append(Column("_update_user", String(100)))
+    cols.append(Column("_update_time", DateTime, default=datetime.now, onupdate=datetime.now))
 
     dynamic_table = Table(table_name, Base.metadata, *cols, extend_existing=True)
 
@@ -314,10 +343,13 @@ def initManageTable(table_name: str="") -> Table:
     '''
     return Table(table_name, 
                  Base.metadata, 
-                 Column("_id", Integer, primary_key=True, autoincrement=True), 
-                 Column('_create_user', String(100)), 
-                 Column('_create_time', DateTime, default=datetime.now), 
-                 Column('_update_time', DateTime, default=datetime.now, onupdate=datetime.now),
+                 Column("_id", Integer, primary_key=True, autoincrement=True),
+                #  Column("_status", Integer, default=0),  # 新增状态字段:0-无需审核,1-待审核
+                #  Column("_audit", String(40)),           # 新增审核id字段:审核任务唯一标识
+                 Column("_create_user", String(100)), 
+                 Column("_create_time", DateTime, default=datetime.now), 
+                 Column("_update_user", String(100)),
+                 Column("_update_time", DateTime, default=datetime.now, onupdate=datetime.now),
                  extend_existing=True, 
                  autoload=True, 
                  autoload_with=engine)
