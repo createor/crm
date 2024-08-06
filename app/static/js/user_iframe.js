@@ -552,6 +552,15 @@ var delColData = (data) => {
 }
 
 /**
+ * @description 通过value来获取key
+ * @param {Object} obj 对象
+ * @param {value} value
+*/
+function getKeysByValue(obj, value) {
+  return Object.keys(obj).filter(key => obj[key] === value);
+}
+
+/**
  * @description 录入或者编辑数据
  * @param {Object} colData 列数据
  */
@@ -570,7 +579,7 @@ var addOrEditData = (colData) => {
         }
         if (item.col_type === 2) {      // 设置下列列表
 	    let k_2_v = formData[item.field];
-	    formData[item.field] = item.option[k_2_v];
+	    formData[item.field] = getKeysByValue(item.option, k_2_v);
             form_item_templ += `<div class="layui-form-item">
                                     <label class="layui-form-label">${item.title}</label>
                                     <div class="layui-input-block" style="width: 250px;">
