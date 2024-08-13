@@ -12,7 +12,7 @@ import traceback
 import re
 import queue
 import threading
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from app.utils import TEMP_DIR, UPLOAD_EXCEL_DIR, redisClient, crmLogger, createExcel, readExcel, scan_ip, getUuid
 from app.src.models import engine, db_session, Task, DetectResult, Notice, History, Header, Options, File, MyHeader, initManageTable
 from sqlalchemy import and_, insert, update
@@ -42,7 +42,7 @@ def notifyTask(task_id: str, name: str, table_id: str, table_name: str, keyword:
         if before == 0:
             today = datetime.now().strftime("%Y-%m-%d")  # 获取今天日期
         else:
-            today = (date.today() + datetime.timedelta(days=before)).strftime("%Y-%m-%d")
+            today = (date.today() + timedelta(days=before)).strftime("%Y-%m-%d")
         expire_data = db_session.query(manageTable).filter(and_(f"{today} 00:00:00" <= getattr(manageTable.c, keyword), getattr(manageTable.c, keyword) <= f"{today} 23:59:59")).count()
     finally:
         db_session.close()
