@@ -1089,6 +1089,9 @@ def addOrAlterTableColumn():
                 finally:
                     db_session.close()
 
+                if curr_order is None:  # bugfix: 直接新建资产表时,order从0开始
+                    curr_order = 0
+
                 try:  # 写入header表
                     _col_type = 1
                     _value_type = col_type
