@@ -578,8 +578,10 @@ var addOrEditData = (colData) => {
             mark_array.push(item.field);
         }
         if (item.col_type === 2) {      // 设置下列列表
-	    let k_2_v = formData[item.field];
-	    formData[item.field] = getKeysByValue(item.option, k_2_v);
+	    if (formData) {  // bugfix: 录入数据colData为null情况
+	    	let k_2_v = formData[item.field];
+	    	formData[item.field] = getKeysByValue(item.option, k_2_v);
+	    }
             form_item_templ += `<div class="layui-form-item">
                                     <label class="layui-form-label">${item.title}</label>
                                     <div class="layui-input-block" style="width: 250px;">
