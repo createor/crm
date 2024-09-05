@@ -259,7 +259,7 @@ def importTableTask(table_name: str) -> None:
                 for h in length_header:
                     # is_all_length = temp_table[h.name].str.len == h.length
                     # if not is_all_length.all():
-                    if len(temp_table[temp_table[f"{h['name']}"].str.len() != h["length"]]) > 0:
+                    if len(temp_table[temp_table[f"{h['name']}"].astype(str).str.len() != h["length"]]) > 0:  # bugfix:转换为文本类型再获取长度
                         crmLogger.error(f"[importTableTask]用户{task_data['user']}导入资产表{task_data['table']}失败: {h['name'].rsplit('*', 1)[0]}字段存在不满足长度的值")
                         writeError(task_data["task_id"], f"{h['name'].rsplit('*', 1)[0]}字段存在不满足长度的值")
                         is_continue = True
